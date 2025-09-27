@@ -11,6 +11,7 @@ import { useRepositories } from '@/hooks/dashboard/useRepositories';
 import { useInstallations } from '@/hooks/dashboard/useInstallations';
 import { useFilters } from '@/hooks/dashboard/useFilters';
 import { useSummary } from '@/hooks/dashboard/useSummary';
+import { useLocalStoragePreferences } from '@/hooks/useLocalStoragePreferences';
 
 // Components
 import Header from '@/components/dashboard/Header';
@@ -25,10 +26,12 @@ import FixedActionBar from '@/components/dashboard/FixedActionBar';
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  
+  const { loadPreferences, savePreferences } = useLocalStoragePreferences();
+
   // State for initial loading and date range
   const [initialLoad, setInitialLoad] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
+  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
   
   // Custom hooks for repositories, installations, filters, and summary
   const { 
@@ -240,6 +243,41 @@ export default function Dashboard() {
       setInitialLoad(false);
     }
   }, [repoLoading, repositories, initialLoad]);
+
+  // Load preferences from localStorage on mount
+  useEffect(() => {
+    const preferences = loadPreferences();
+    if (preferences) {
+      // Apply saved date range
+      if (preferences.dateRange) {
+        setDateRange(preferences.dateRange);
+      }
+
+      // Apply saved activity mode
+      if (preferences.activityMode) {
+        setActivityMode(preferences.activityMode);
+      }
+
+      // Apply saved repository selections
+      if (preferences.selectedRepositoryIds && preferences.selectedRepositoryIds.length > 0) {
+        setSelectedRepoIds([...preferences.selectedRepositoryIds]);
+        setFilterRepositories([...preferences.selectedRepositoryIds]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount - dependencies intentionally excluded
+
+  // Save preferences to localStorage when they change
+  useEffect(() => {
+    // Don't save on initial load
+    if (!initialLoad) {
+      savePreferences({
+        activityMode,
+        dateRange,
+        selectedRepositoryIds: filters.repositories
+      });
+    }
+  }, [activityMode, dateRange, filters.repositories, initialLoad, savePreferences]);
   
   // Show loading state during initial session loading or first data fetch
   if (status === 'loading' || initialLoad) {
