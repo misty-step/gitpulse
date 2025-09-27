@@ -1,0 +1,68 @@
+name: Enforce pnpm Package Manager
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [main, master, develop]
+
+jobs:
+  check-package-manager:
+    name: Verify pnpm Usage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for npm lockfile
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "❌ Error: package-lock.json found!"
+            echo "This project uses pnpm. Please remove package-lock.json and use pnpm instead."
+            echo ""
+            echo "To fix this:"
+            echo "1. Delete package-lock.json"
+            echo "2. Run 'pnpm install' to generate pnpm-lock.yaml"
+            echo "3. Commit pnpm-lock.yaml instead"
+            exit 1
+          fi
+
+      - name: Check for yarn lockfile
+        run: |
+          if [ -f "yarn.lock" ]; then
+            echo "❌ Error: yarn.lock found!"
+            echo "This project uses pnpm. Please remove yarn.lock and use pnpm instead."
+            echo ""
+            echo "To fix this:"
+            echo "1. Delete yarn.lock"
+            echo "2. Run 'pnpm install' to generate pnpm-lock.yaml"
+            echo "3. Commit pnpm-lock.yaml instead"
+            exit 1
+          fi
+
+      - name: Verify pnpm lockfile exists
+        run: |
+          if [ ! -f "pnpm-lock.yaml" ]; then
+            echo "⚠️ Warning: pnpm-lock.yaml not found!"
+            echo "Please run 'pnpm install' to generate the lockfile."
+            exit 1
+          fi
+          echo "✅ pnpm-lock.yaml found - package manager check passed!"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Validate pnpm installation works
+        run: |
+          echo "Testing pnpm installation..."
+          pnpm install --frozen-lockfile
+          echo "✅ pnpm installation successful!"

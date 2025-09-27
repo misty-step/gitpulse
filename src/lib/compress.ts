@@ -123,7 +123,8 @@ export async function compressedJsonResponse(
     const compressedBody = await compressBody(jsonString, compressionMethod);
     
     // Create response with compressed body and appropriate headers
-    return new NextResponse(compressedBody, {
+    // NextResponse accepts Buffer directly as BodyInit
+    return new NextResponse(compressedBody as any, {
       status,
       headers: {
         'Content-Type': 'application/json',

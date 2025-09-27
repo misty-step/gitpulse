@@ -84,9 +84,15 @@ GitPulse implements a comprehensive error handling strategy:
 
 ### Prerequisites
 
-- Node.js 18.17 or later
+- Node.js 20.0 or later
 - A GitHub account
 - GitHub OAuth application credentials
+- [pnpm](https://pnpm.io/) package manager (v9.0 or later)
+
+Install pnpm globally if you haven't already:
+```bash
+npm install -g pnpm
+```
 
 ### Setup GitHub OAuth
 
@@ -108,8 +114,10 @@ cd gitpulse
 
 2. Install dependencies:
 ```bash
-npm install
+pnpm install
 ```
+
+> **Note**: This project enforces the use of pnpm. Attempts to use npm or yarn will fail with a clear error message.
 
 3. Create a `.env.local` file in the project root (use `.env.local.example` as a template):
 ```
@@ -128,10 +136,10 @@ GEMINI_API_KEY=your_gemini_api_key
 4. Run the development server:
 ```bash
 # Standard development server
-npm run dev
+pnpm run dev
 
 # Development with debug logging to file
-npm run dev:log
+pnpm run dev:log
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser
@@ -142,10 +150,10 @@ GitPulse uses Storybook for UI component development and documentation:
 
 ```bash
 # Run Storybook development server
-npm run storybook
+pnpm run storybook
 
 # Build static Storybook site
-npm run build-storybook
+pnpm run build-storybook
 ```
 
 Storybook provides an isolated environment for developing and testing UI components without needing to run the full application. It helps with:
@@ -155,7 +163,7 @@ Storybook provides an isolated environment for developing and testing UI compone
 - Documentation of component usage
 - Showcasing the component library
 
-After running `npm run storybook`, open the displayed URL in your browser (typically http://localhost:6006) to view the component library.
+After running `pnpm run storybook`, open the displayed URL in your browser (typically http://localhost:6006) to view the component library.
 
 ## Usage
 
@@ -198,7 +206,7 @@ When adding new features or making changes, follow these guidelines:
 ### Coding Standards
 
 - Use TypeScript with strict mode enabled
-- Follow ESLint and TypeScript guidelines (run `npm run lint` and `npm run typecheck`)
+- Follow ESLint and TypeScript guidelines (run `pnpm run lint` and `pnpm run typecheck`)
 - Keep files under 500 lines (warning threshold)
 - Use immutable patterns where possible (readonly modifiers, const, etc.)
 - Document the "why" not just the "how" in comments
@@ -220,7 +228,7 @@ Contributions are welcome! To contribute:
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes following the development guidelines
-4. Run tests and linting (`npm run lint && npm run typecheck`)
+4. Run tests and linting (`pnpm run lint && pnpm run typecheck`)
 5. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/) format
 6. Push to your branch
 7. Submit a Pull Request
