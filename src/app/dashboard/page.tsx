@@ -12,6 +12,7 @@ import { useInstallations } from '@/hooks/dashboard/useInstallations';
 import { useFilters } from '@/hooks/dashboard/useFilters';
 import { useSummary } from '@/hooks/dashboard/useSummary';
 import { useLocalStoragePreferences } from '@/hooks/useLocalStoragePreferences';
+import { useLastGenerationParams } from '@/hooks/useLastGenerationParams';
 
 // Components
 import Header from '@/components/dashboard/Header';
@@ -22,16 +23,19 @@ import DateRangePicker from '@/components/DateRangePicker';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
 import FixedActionBar from '@/components/dashboard/FixedActionBar';
+import QuickActionBar from '@/components/dashboard/QuickActionBar';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { loadPreferences, savePreferences } = useLocalStoragePreferences();
+  const { loadLastGeneration, saveLastGeneration } = useLastGenerationParams();
 
   // State for initial loading and date range
   const [initialLoad, setInitialLoad] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
+  const [lastGeneration, setLastGeneration] = useState(() => loadLastGeneration());
   
   // Custom hooks for repositories, installations, filters, and summary
   const { 
@@ -279,6 +283,57 @@ export default function Dashboard() {
     }
   }, [activityMode, dateRange, filters.repositories, initialLoad, savePreferences]);
   
+  // Wrap generateSummary to save last generation parameters
+  const handleGenerateSummary = useCallback(() => {
+    // Save the current parameters as last generation
+    const params = {
+      activityMode,
+      dateRange,
+      selectedRepositoryIds: filters.repositories,
+      organizations: filters.organizations,
+      contributors: filters.contributors
+    };
+
+    saveLastGeneration(params);
+    setLastGeneration({ ...params, timestamp: Date.now() });
+
+    // Call the original generateSummary
+    generateSummary();
+  }, [
+    activityMode,
+    dateRange,
+    filters.repositories,
+    filters.organizations,
+    filters.contributors,
+    generateSummary,
+    saveLastGeneration
+  ]);
+
+  // Regenerate with last parameters
+  const handleRegenerateLast = useCallback(() => {
+    if (!lastGeneration) return;
+
+    // Apply the last generation parameters
+    setDateRange(lastGeneration.dateRange);
+    setActivityMode(lastGeneration.activityMode);
+    setFilterRepositories([...lastGeneration.selectedRepositoryIds]);
+    setOrganizations([...lastGeneration.organizations]);
+    setContributors([...lastGeneration.contributors]);
+
+    // Small delay to ensure state updates are applied
+    setTimeout(() => {
+      generateSummary();
+    }, 100);
+  }, [
+    lastGeneration,
+    setDateRange,
+    setActivityMode,
+    setFilterRepositories,
+    setOrganizations,
+    setContributors,
+    generateSummary
+  ]);
+
   // Show loading state during initial session loading or first data fetch
   if (status === 'loading' || initialLoad) {
     return <DashboardLoadingState />;
@@ -286,6 +341,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Quick Action Bar */}
+      <QuickActionBar
+        lastGeneration={lastGeneration}
+        loading={loading}
+        onRegenerateLast={handleRegenerateLast}
+      />
+
       {/* Fixed Action Bar */}
       <FixedActionBar
         repositories={repositories}
@@ -293,7 +355,7 @@ export default function Dashboard() {
         activityMode={activityMode}
         userName={session?.user?.name}
         contributors={filters.contributors}
-        onGenerateSummary={generateSummary}
+        onGenerateSummary={handleGenerateSummary}
       />
 
       {/* Header Component */}
