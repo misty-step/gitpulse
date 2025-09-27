@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getDefaultDateRange } from '@/lib/dashboard-utils';
@@ -23,6 +23,7 @@ import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
 import QuickActionBar from '@/components/dashboard/QuickActionBar';
 import CompactToolbar from '@/components/dashboard/CompactToolbar';
+import AdvancedOptions from '@/components/dashboard/AdvancedOptions';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -35,6 +36,11 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
   const [lastGeneration, setLastGeneration] = useState(() => loadLastGeneration());
+
+  // Advanced options state
+  const [excludeForks, setExcludeForks] = useState(false);
+  const [filterByLanguage, setFilterByLanguage] = useState('');
+  const [showPrivateOnly, setShowPrivateOnly] = useState(false);
   
   // Custom hooks for repositories, installations, filters, and summary
   const { 
@@ -88,6 +94,26 @@ export default function Dashboard() {
     installationIds: installationIds as readonly number[]
   });
   
+  // Apply advanced filters to repositories
+  const filteredRepositories = useMemo(() => {
+    let filtered = [...repositories];
+
+    // Apply language filter
+    if (filterByLanguage) {
+      filtered = filtered.filter(repo => repo.language === filterByLanguage);
+    }
+
+    // Apply private only filter
+    if (showPrivateOnly) {
+      filtered = filtered.filter(repo => repo.private);
+    }
+
+    // Note: Fork filtering would require additional API data
+    // For now, we'll keep this as a placeholder
+
+    return filtered;
+  }, [repositories, filterByLanguage, showPrivateOnly]);
+
   // Determine the active error message to display (prioritize repository errors)
   const activeError = repoError || summaryError;
   const needsInstallation = repoNeedsInstallation || installNeedsInstallation;
@@ -352,12 +378,28 @@ export default function Dashboard() {
         onDateRangeChange={handleDateRangeChange}
         loading={loading}
         progressMessage={progressMessage}
-        repositories={repositories}
+        repositories={filteredRepositories}
         selectedRepositoryIds={selectedRepositoryIds}
         contributors={filters.contributors}
         userName={session?.user?.name}
         onGenerate={handleGenerateSummary}
       />
+
+      {/* Advanced Options Section */}
+      <div className="max-w-7xl mx-auto px-2 sm:px-3 mt-3">
+        <AdvancedOptions
+          repositories={repositories}
+          selectedRepositoryIds={selectedRepositoryIds}
+          onRepositorySelectionChange={setFilterRepositories}
+          excludeForks={excludeForks}
+          onExcludeForksChange={setExcludeForks}
+          filterByLanguage={filterByLanguage}
+          onLanguageFilterChange={setFilterByLanguage}
+          showPrivateOnly={showPrivateOnly}
+          onPrivateOnlyChange={setShowPrivateOnly}
+          disabled={loading}
+        />
+      </div>
 
       {/* Header Component */}
       <Header
@@ -398,7 +440,7 @@ export default function Dashboard() {
 
           {/* Repository Section Component */}
           <RepositorySection
-            repositories={repositories}
+            repositories={filteredRepositories}
             loading={loading}
             activeFilters={{
               contributors: [...filters.contributors],
