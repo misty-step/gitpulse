@@ -385,8 +385,8 @@ export default function Dashboard() {
         onGenerate={handleGenerateSummary}
       />
 
-      {/* Advanced Options Section */}
-      <div className="max-w-7xl mx-auto px-2 sm:px-3 mt-3">
+      {/* Advanced Options Section - Hidden on mobile for simplicity */}
+      <div className="hidden sm:block max-w-7xl mx-auto px-2 sm:px-3 mt-3">
         <AdvancedOptions
           repositories={repositories}
           selectedRepositoryIds={selectedRepositoryIds}
@@ -408,8 +408,8 @@ export default function Dashboard() {
         signOutCallbackUrl="/"
       />
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-2 lg:px-3">
-        <div className="px-1.5 py-6 sm:px-0">
+      <main className="max-w-7xl mx-auto py-3 sm:py-6 px-2 sm:px-3">
+        <div className="py-3 sm:py-6">
           {/* Operations Panel Component */}
           <OperationsPanel
             error={activeError}

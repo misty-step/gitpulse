@@ -61,21 +61,21 @@ export default function QuickActionBar({
   };
 
   return (
-    <div className="fixed top-2 left-2 z-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-2 flex items-center gap-2">
+    <div className="fixed top-2 left-2 right-2 sm:right-auto z-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-1.5 sm:p-2 flex items-center gap-1 sm:gap-2">
       <button
         type="button"
         onClick={onRegenerateLast}
         disabled={loading}
-        className={`px-3 py-1.5 rounded text-sm font-medium flex items-center gap-2 transition-all ${
+        className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium flex items-center gap-1 sm:gap-2 transition-all flex-1 sm:flex-none ${
           loading
             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-            : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-md transform hover:scale-105'
+            : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-md sm:transform sm:hover:scale-105'
         }`}
         title={`Regenerate the same summary from ${formatTimeSince(lastGeneration.timestamp)}`}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4"
+          className="h-3.5 sm:h-4 w-3.5 sm:w-4 flex-shrink-0"
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -86,10 +86,11 @@ export default function QuickActionBar({
           />
         </svg>
         <span className="hidden sm:inline">Regenerate Last:</span>
-        <span className="text-xs opacity-90">{getDescription()}</span>
+        <span className="hidden min-[400px]:inline text-xs opacity-90 truncate">{getDescription()}</span>
+        <span className="min-[400px]:hidden">Regenerate</span>
       </button>
 
-      <span className="text-xs text-gray-500 dark:text-gray-400">
+      <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
         ({formatTimeSince(lastGeneration.timestamp)})
       </span>
     </div>

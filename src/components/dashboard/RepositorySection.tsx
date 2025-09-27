@@ -69,21 +69,31 @@ export default function RepositorySection({
   
   const renderRepositorySection = () => (
     <div className="mt-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-            Target Repositories
-          </label>
-          <button
-            type="button"
-            onClick={() => setShowRepoList(!showRepoList)}
-            className="ml-2 text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            {showRepoList ? 'Hide' : 'Show'} List
-          </button>
+      {/* Hidden on mobile, shown on tablet and up */}
+      <div className="hidden sm:block">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              Target Repositories
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowRepoList(!showRepoList)}
+              className="ml-2 text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
+              {showRepoList ? 'Hide' : 'Show'} List
+            </button>
+          </div>
+          <div className="text-xs text-gray-600 dark:text-gray-400">
+            {repositories.length} repositories
+          </div>
         </div>
-        <div className="text-xs text-gray-600 dark:text-gray-400">
-          {repositories.length} repositories
+      </div>
+
+      {/* Mobile version - simple count display */}
+      <div className="sm:hidden mb-3">
+        <div className="text-center text-sm text-gray-700 dark:text-gray-300">
+          Analyzing all {repositories.length} accessible repositories
         </div>
       </div>
       
@@ -143,9 +153,9 @@ export default function RepositorySection({
               )}
             </div>
 
-            {/* Repository list with organization grouping */}
+            {/* Repository list with organization grouping - Hidden on mobile */}
             {showRepoList && (
-              <div className="max-h-96 overflow-y-auto text-sm">
+              <div className="hidden sm:block max-h-96 overflow-y-auto text-sm">
                 {repositories.length > 0 ? (
                   groupRepositoriesByOrg().map(([org, repos]) => (
                     <div key={org} className="mb-3">
