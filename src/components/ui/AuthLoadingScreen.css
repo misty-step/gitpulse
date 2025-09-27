@@ -1,7 +1,7 @@
 /* Define default variables scoped to the component's container class */
 .auth-loading-screen {
-  --auth-primary-color: var(--neon-green, #00ff87); /* Use global --neon-green if defined, else fallback */
-  --auth-secondary-color: var(--electric-blue, #3b8eea); /* Use global --electric-blue if defined, else fallback */
+  --auth-primary-color: var(--neon-green, #10B981); /* Use global --neon-green if defined, else fallback */
+  --auth-secondary-color: var(--electric-blue, #3b82f6); /* Use global --electric-blue if defined, else fallback */
   --auth-text-color: var(--foreground, #ffffff); /* Use global --foreground if defined, else fallback */
   --auth-card-bg: rgba(27, 43, 52, 0.7); /* Default card background */
   --auth-bg: var(--gradient-bg, linear-gradient(135deg, #121212 0%, #1b2b34 100%)); /* Use global --gradient-bg if defined, else fallback */

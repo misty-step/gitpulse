@@ -154,8 +154,8 @@ export default function OperationsPanel({
       {authMethod && (
         <div className="mb-6 p-3 rounded-md border" style={{
           backgroundColor: authMethod === 'github_app' 
-            ? 'rgba(0, 255, 135, 0.1)' 
-            : 'rgba(59, 142, 234, 0.1)',
+            ? 'rgba(16, 185, 129, 0.1)' 
+            : 'rgba(59, 130, 246, 0.1)',
           borderColor: authMethod === 'github_app' 
             ? 'var(--neon-green)' 
             : 'var(--electric-blue)',
@@ -182,7 +182,7 @@ export default function OperationsPanel({
                   href={getGitHubAppInstallUrl()}
                   className="text-xs px-2 py-1 rounded-md flex items-center"
                   style={{ 
-                    backgroundColor: 'rgba(59, 142, 234, 0.1)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     color: 'var(--electric-blue)',
                     border: '1px solid var(--electric-blue)'
                   }}
@@ -206,7 +206,7 @@ export default function OperationsPanel({
                   rel="noopener noreferrer"
                   className="text-xs px-2 py-1 rounded-md"
                   style={{ 
-                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    backgroundColor: 'rgba(249, 250, 251, 0.8)',
                     color: 'var(--neon-green)',
                     border: '1px solid var(--neon-green)'
                   }}
@@ -220,7 +220,7 @@ export default function OperationsPanel({
                 <>
                   {getGitHubAppInstallUrl() === "#github-app-not-configured" ? (
                     <div className="text-xs px-2 py-1 rounded-md" style={{ 
-                      backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
                       color: 'var(--crimson-red)',
                       border: '1px solid var(--crimson-red)'
                     }}>
@@ -257,7 +257,7 @@ export default function OperationsPanel({
       {/* Consolidated Account Selection Panel */}
       {authMethod === 'github_app' && installations.length > 0 && (
         <div className="mb-6 p-3 rounded-md border" style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           borderColor: 'var(--electric-blue)',
         }}>
           <div className="flex items-center justify-between mb-4">
@@ -273,7 +273,7 @@ export default function OperationsPanel({
                 href={getGitHubAppInstallUrl()}
                 className="text-xs px-2 py-1 rounded-md flex items-center"
                 style={{ 
-                  backgroundColor: 'rgba(59, 142, 234, 0.1)',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
                   color: 'var(--electric-blue)',
                   border: '1px solid var(--electric-blue)'
                 }}
@@ -295,7 +295,7 @@ export default function OperationsPanel({
                   rel="noopener noreferrer"
                   className="text-xs px-2 py-1 rounded-md"
                   style={{ 
-                    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    backgroundColor: 'rgba(249, 250, 251, 0.8)',
                     color: 'var(--neon-green)',
                     border: '1px solid var(--neon-green)'
                   }}
@@ -325,7 +325,7 @@ export default function OperationsPanel({
                             key={installation.id}
                             className="px-2 py-1 rounded-md text-xs flex items-center"
                             style={{ 
-                              backgroundColor: 'rgba(0, 255, 135, 0.1)',
+                              backgroundColor: 'rgba(16, 185, 129, 0.1)',
                               color: 'var(--neon-green)',
                               border: '1px solid var(--neon-green)'
                             }}

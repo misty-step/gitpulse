@@ -162,10 +162,10 @@ export default function FilterPanel({
 
   return (
     <div className="border rounded-lg p-3 mb-6" style={{ 
-      backgroundColor: 'rgba(27, 43, 52, 0.7)',
+      backgroundColor: 'rgba(249, 250, 251, 0.95)',
       backdropFilter: 'blur(5px)',
       borderColor: 'var(--electric-blue)',
-      boxShadow: '0 0 15px rgba(59, 142, 234, 0.15)'
+      boxShadow: '0 0 15px rgba(59, 130, 246, 0.15)'
     }}>
       {/* Header with toggle */}
       <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
@@ -179,7 +179,7 @@ export default function FilterPanel({
           {/* Show indicators for active filters */}
           {(selectedContributors.length > 0 || selectOnlyMe || selectedOrganizations.length > 0 || selectedRepositories.length > 0 || groupBy !== 'chronological') && (
             <div className="px-2 py-1 text-xs rounded mr-2" style={{ 
-              backgroundColor: 'rgba(0, 255, 135, 0.1)',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
               color: 'var(--neon-green)'
             }}>
               FILTERS ACTIVE
@@ -272,7 +272,7 @@ export default function FilterPanel({
                             <span>{contributor.displayName}</span>
                             {contributor.commitCount && (
                               <span className="ml-2 text-xs px-1 rounded" style={{ 
-                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                backgroundColor: 'rgba(249, 250, 251, 0.8)',
                                 color: 'var(--electric-blue)'
                               }}>
                                 {contributor.commitCount}
@@ -398,7 +398,7 @@ export default function FilterPanel({
               disabled={isLoading}
               className="px-3 py-1 text-xs rounded transition-all duration-200"
               style={{ 
-                backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 color: 'var(--crimson-red)',
                 border: '1px solid var(--crimson-red)'
               }}

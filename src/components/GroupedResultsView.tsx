@@ -38,7 +38,7 @@ export default function GroupedResultsView({
     return (
       <div className="text-center p-1.5" style={{ color: 'var(--foreground)' }}>
         <div className="inline-block px-3 py-1 rounded" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           border: '1px solid var(--electric-blue)'
         }}>
           Using chronological view - see overall summary below
@@ -59,10 +59,10 @@ export default function GroupedResultsView({
             key={group.groupKey}
             className="border rounded-md overflow-hidden"
             style={{ 
-              backgroundColor: 'rgba(27, 43, 52, 0.7)',
+              backgroundColor: 'rgba(249, 250, 251, 0.95)',
               backdropFilter: 'blur(5px)',
               borderColor: 'var(--electric-blue)',
-              boxShadow: '0 0 15px rgba(59, 142, 234, 0.1)'
+              boxShadow: '0 0 15px rgba(59, 130, 246, 0.1)'
             }}
           >
             {/* Group Header */}
@@ -85,19 +85,19 @@ export default function GroupedResultsView({
                   </h4>
                   <div className="flex flex-wrap gap-2 mt-1">
                     <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                      backgroundColor: 'rgba(0, 255, 135, 0.1)',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
                       color: 'var(--neon-green)'
                     }}>
                       {group.commitCount} commits
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                      backgroundColor: 'rgba(59, 142, 234, 0.1)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
                       color: 'var(--electric-blue)'
                     }}>
                       {group.repositories.length} repositories
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                      backgroundColor: 'rgba(255, 200, 87, 0.1)',
+                      backgroundColor: 'rgba(245, 158, 11, 0.1)',
                       color: 'var(--luminous-yellow)'
                     }}>
                       {group.dates.length} days active
@@ -110,7 +110,7 @@ export default function GroupedResultsView({
                 onClick={() => onToggleExpand(group.groupKey)}
                 className="p-2 rounded-full"
                 style={{ 
-                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  backgroundColor: 'rgba(249, 250, 251, 0.8)',
                   color: 'var(--electric-blue)'
                 }}
               >
@@ -139,7 +139,7 @@ export default function GroupedResultsView({
                         key={repo}
                         className="text-xs px-2 py-1 rounded"
                         style={{ 
-                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                          backgroundColor: 'rgba(249, 250, 251, 0.8)',
                           color: 'var(--foreground)',
                           border: '1px solid var(--electric-blue)'
                         }}
@@ -169,7 +169,7 @@ export default function GroupedResultsView({
                               key={index}
                               className="text-xs px-2 py-1 rounded"
                               style={{ 
-                                backgroundColor: 'rgba(0, 255, 135, 0.1)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
                                 border: '1px solid var(--neon-green)',
                                 color: 'var(--neon-green)'
                               }}
@@ -193,14 +193,14 @@ export default function GroupedResultsView({
                               key={index}
                               className="text-xs px-2 py-1 rounded flex items-center"
                               style={{ 
-                                backgroundColor: 'rgba(59, 142, 234, 0.1)',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
                                 border: '1px solid var(--electric-blue)',
                                 color: 'var(--electric-blue)'
                               }}
                             >
                               {area.name}
                               <span className="ml-1 px-1 rounded" style={{ 
-                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                backgroundColor: 'rgba(249, 250, 251, 0.8)',
                               }}>
                                 {area.count}
                               </span>

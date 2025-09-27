@@ -52,10 +52,10 @@ const SummaryView: React.FC<SummaryViewProps> = ({
 
   return (
     <div className="mt-8 border rounded-lg p-2" style={{ 
-      backgroundColor: 'rgba(27, 43, 52, 0.7)',
+      backgroundColor: 'rgba(249, 250, 251, 0.95)',
       backdropFilter: 'blur(5px)',
       borderColor: 'var(--electric-blue)',
-      boxShadow: '0 0 20px rgba(59, 142, 234, 0.15)'
+      boxShadow: '0 0 20px rgba(59, 130, 246, 0.15)'
     }}>
       {/* Terminal-like header */}
       <div className="flex items-center justify-between mb-6 border-b pb-3" style={{ borderColor: 'var(--electric-blue)' }}>
@@ -66,7 +66,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           </h2>
         </div>
         <div className="px-2 py-1 text-xs rounded flex items-center" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', 
+          backgroundColor: 'rgba(249, 250, 251, 0.8)', 
           border: '1px solid var(--neon-green)',
           color: 'var(--neon-green)'
         }}>

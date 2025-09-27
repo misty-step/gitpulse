@@ -263,7 +263,7 @@ export default function ActivityFeed({
     
     return (
       <div className="p-1.5 rounded-md border" style={{
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
         borderColor: 'var(--crimson-red)',
         color: 'var(--crimson-red)'
       }}>
@@ -282,7 +282,7 @@ export default function ActivityFeed({
     return (
       <div className="py-8 text-center" style={{ color: 'var(--foreground)' }}>
         <div className="inline-block p-3 rounded-md border mb-3" style={{
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           borderColor: 'var(--electric-blue)'
         }}>
           <svg className="h-6 w-6 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20" style={{ color: 'var(--electric-blue)' }}>

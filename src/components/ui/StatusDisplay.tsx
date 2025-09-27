@@ -26,7 +26,7 @@ export default function StatusDisplay({ statusMessage, subMessage }: StatusDispl
       style={{
         // Use CSS variables for styling
         borderColor: 'var(--auth-secondary-color)',
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        backgroundColor: 'rgba(249, 250, 251, 0.8)',
       }}
     >
       {/* Spinner */}

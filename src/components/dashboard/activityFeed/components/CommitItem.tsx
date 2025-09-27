@@ -58,10 +58,10 @@ const CommitItem = React.memo(({
       
       {/* Commit card with simplified design */}
       <div className={`border rounded-md p-3 mb-3 ${isNew ? 'animate-pulse-highlight animate-border-pulse' : ''}`} style={{ 
-        backgroundColor: 'rgba(27, 43, 52, 0.7)',
+        backgroundColor: 'rgba(249, 250, 251, 0.95)',
         backdropFilter: 'blur(5px)',
         borderColor: 'var(--electric-blue)',
-        boxShadow: '0 0 10px rgba(59, 142, 234, 0.1)'
+        boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
       }}>
         {/* Commit header with author and date */}
         <div className="flex justify-between items-start mb-2 flex-wrap">
@@ -114,7 +114,7 @@ const CommitItem = React.memo(({
               rel="noopener noreferrer"
               className="text-xs px-1.5 py-0.5 rounded inline-flex items-center"
               style={{ 
-                backgroundColor: 'rgba(0, 255, 135, 0.1)',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
                 color: 'var(--neon-green)',
                 border: '1px solid var(--neon-green)',
                 textDecoration: 'none'

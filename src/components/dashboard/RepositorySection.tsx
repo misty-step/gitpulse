@@ -167,7 +167,7 @@ export default function RepositorySection({
                               {repo.private && (
                                 <span className="ml-2 text-xs px-1 rounded" style={{ 
                                   color: 'var(--crimson-red)',
-                                  backgroundColor: 'rgba(255, 59, 48, 0.1)'
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)'
                                 }}>
                                   PRIVATE
                                 </span>
@@ -175,7 +175,7 @@ export default function RepositorySection({
                               {repo.language && (
                                 <span className="ml-2 text-xs px-1 rounded" style={{ 
                                   color: 'var(--luminous-yellow)',
-                                  backgroundColor: 'rgba(255, 200, 87, 0.1)'
+                                  backgroundColor: 'rgba(245, 158, 11, 0.1)'
                                 }}>
                                   {repo.language}
                                 </span>

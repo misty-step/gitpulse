@@ -85,10 +85,10 @@ export default function LoadMoreButton({
           focus:ring-electric-blue
         `}
         style={{
-          backgroundColor: loading ? 'rgba(0, 0, 0, 0.3)' : darkSlate,
+          backgroundColor: loading ? 'rgba(249, 250, 251, 0.8)' : darkSlate,
           color: electricBlue,
           border: `1px solid ${electricBlue}`,
-          boxShadow: loading ? 'none' : '0 0 10px rgba(59, 142, 234, 0.2)',
+          boxShadow: loading ? 'none' : '0 0 10px rgba(59, 130, 246, 0.2)',
           opacity: loading ? 0.7 : 1,
           cursor: loading ? 'not-allowed' : 'pointer',
           // Use type assertion for CSS custom properties

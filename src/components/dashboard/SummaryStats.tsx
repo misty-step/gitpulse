@@ -27,9 +27,9 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-1.5 rounded-md border relative" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           borderColor: 'var(--neon-green)',
-          boxShadow: '0 0 10px rgba(0, 255, 135, 0.1)'
+          boxShadow: '0 0 10px rgba(16, 185, 129, 0.1)'
         }}>
           <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: 'var(--neon-green)' }}></div>
           <p className="text-xs uppercase mb-1" style={{ color: 'var(--neon-green)' }}>COMMIT COUNT</p>
@@ -38,9 +38,9 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
           </p>
         </div>
         <div className="p-1.5 rounded-md border relative" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           borderColor: 'var(--electric-blue)',
-          boxShadow: '0 0 10px rgba(59, 142, 234, 0.1)'
+          boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
         }}>
           <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
           <p className="text-xs uppercase mb-1" style={{ color: 'var(--electric-blue)' }}>REPOSITORIES</p>
@@ -49,9 +49,9 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
           </p>
         </div>
         <div className="p-1.5 rounded-md border relative" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(249, 250, 251, 0.8)',
           borderColor: 'var(--luminous-yellow)',
-          boxShadow: '0 0 10px rgba(255, 200, 87, 0.1)'
+          boxShadow: '0 0 10px rgba(245, 158, 11, 0.1)'
         }}>
           <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: 'var(--luminous-yellow)' }}></div>
           <p className="text-xs uppercase mb-1" style={{ color: 'var(--luminous-yellow)' }}>ACTIVE DAYS</p>

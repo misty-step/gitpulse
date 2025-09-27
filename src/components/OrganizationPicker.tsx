@@ -133,7 +133,7 @@ export default function OrganizationPicker({
     <div 
       className="rounded-lg border" 
       style={{ 
-        backgroundColor: 'rgba(27, 43, 52, 0.7)',
+        backgroundColor: 'rgba(249, 250, 251, 0.95)',
         backdropFilter: 'blur(5px)',
         borderColor: isDebouncing ? 'var(--neon-green)' : 'var(--electric-blue)',
         transition: 'border-color 0.2s'
@@ -245,7 +245,7 @@ export default function OrganizationPicker({
             style={{ backgroundColor: 'var(--dark-slate)', borderColor: 'var(--neon-green)' }}
           >
             {/* Search input */}
-            <div className="p-2 border-b" style={{ borderColor: 'rgba(0, 255, 135, 0.2)' }}>
+            <div className="p-2 border-b" style={{ borderColor: 'rgba(16, 185, 129, 0.2)' }}>
               <input
                 type="text"
                 placeholder="Search organizations..."
@@ -253,7 +253,7 @@ export default function OrganizationPicker({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-2 py-1 text-sm rounded"
                 style={{ 
-                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                  backgroundColor: 'rgba(249, 250, 251, 0.8)',
                   color: 'var(--foreground)',
                   border: '1px solid var(--electric-blue)'
                 }}
@@ -264,14 +264,14 @@ export default function OrganizationPicker({
             {multiSelect && organizations.length > 1 && (
               <div 
                 className="flex justify-between p-2 border-b text-xs" 
-                style={{ borderColor: 'rgba(0, 255, 135, 0.2)' }}
+                style={{ borderColor: 'rgba(16, 185, 129, 0.2)' }}
               >
                 <button
                   onClick={() => selectAll(true)}
                   disabled={isDebouncing}
                   className="px-2 py-1 rounded"
                   style={{ 
-                    backgroundColor: 'rgba(0, 255, 135, 0.1)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     color: 'var(--neon-green)',
                     opacity: isDebouncing ? 0.6 : 1,
                     cursor: isDebouncing ? 'not-allowed' : 'pointer'
@@ -284,7 +284,7 @@ export default function OrganizationPicker({
                   disabled={isDebouncing}
                   className="px-2 py-1 rounded"
                   style={{ 
-                    backgroundColor: 'rgba(59, 142, 234, 0.1)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
                     color: 'var(--electric-blue)',
                     opacity: isDebouncing ? 0.6 : 1,
                     cursor: isDebouncing ? 'not-allowed' : 'pointer'
@@ -306,7 +306,7 @@ export default function OrganizationPicker({
                       className="flex items-center px-3 py-2 hover:opacity-80 cursor-pointer"
                       style={{ 
                         backgroundColor: internalSelection.includes(org.login) 
-                          ? 'rgba(0, 255, 135, 0.1)' 
+                          ? 'rgba(16, 185, 129, 0.1)' 
                           : 'transparent',
                         color: 'var(--foreground)',
                         opacity: isDebouncing ? 0.7 : 1,
@@ -341,7 +341,7 @@ export default function OrganizationPicker({
                             <span 
                               className="ml-2 text-xs px-1 rounded" 
                               style={{ 
-                                backgroundColor: 'rgba(0, 255, 135, 0.2)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.2)',
                                 color: 'var(--neon-green)'
                               }}
                             >

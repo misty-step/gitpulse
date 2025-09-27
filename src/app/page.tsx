@@ -31,7 +31,7 @@ export default function Home() {
         </div>
         <h1 className="text-5xl font-bold mb-3" style={{ 
           color: 'var(--neon-green)', 
-          textShadow: '0 0 10px rgba(0, 255, 135, 0.5)' 
+          textShadow: '0 0 10px rgba(16, 185, 129, 0.5)' 
         }}>
           GITPULSE
         </h1>
@@ -45,15 +45,15 @@ export default function Home() {
 
       {/* Main Card */}
       <div className="card w-full max-w-md p-3 space-y-8 border-2" style={{ 
-        backgroundColor: 'rgba(27, 43, 52, 0.7)',
+        backgroundColor: 'rgba(249, 250, 251, 0.95)',
         backdropFilter: 'blur(10px)',
-        boxShadow: '0 0 20px rgba(0, 255, 135, 0.2)',
+        boxShadow: '0 0 20px rgba(16, 185, 129, 0.2)',
         borderColor: 'var(--neon-green)'
       }}>
         {/* Screen-like display area */}
         <div className="space-y-6 p-1.5 border border-opacity-50 rounded-md" style={{ 
           borderColor: 'var(--electric-blue)',
-          backgroundColor: 'rgba(0, 0, 0, 0.3)'
+          backgroundColor: 'rgba(249, 250, 251, 0.8)'
         }}>
           <div className="space-y-3">
             <div className="flex items-center">
@@ -100,7 +100,7 @@ export default function Home() {
             backgroundColor: 'var(--dark-slate)',
             color: 'var(--neon-green)',
             border: '2px solid var(--neon-green)',
-            boxShadow: '0 0 10px rgba(0, 255, 135, 0.3)'
+            boxShadow: '0 0 10px rgba(16, 185, 129, 0.3)'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.backgroundColor = 'var(--neon-green)';
