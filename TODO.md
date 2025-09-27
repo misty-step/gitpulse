@@ -47,7 +47,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Add optimistic UI updates** - When Generate is clicked, immediately show skeleton loader for results section while API calls happen. Don't make UI feel frozen during 2-3 second generation time.
 
-- [ ] **Prefetch repository data on page load** - In `src/app/dashboard/page.tsx`, start fetching repos in parallel with auth check, not sequentially after. Saves ~500ms on initial load.
+- [x] **Prefetch repository data on page load** - In `src/app/dashboard/page.tsx`, start fetching repos in parallel with auth check, not sequentially after. Saves ~500ms on initial load.
 
 - [ ] **Cache generated summaries for 5 minutes** - Add caching layer with key hash of (user, repos, date_range) to prevent regenerating identical summaries. Many users click Generate multiple times impatiently.
 
