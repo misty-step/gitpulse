@@ -20,6 +20,7 @@ import RepositorySection from '@/components/dashboard/RepositorySection';
 import DateRangePicker from '@/components/DateRangePicker';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
+import FixedActionBar from '@/components/dashboard/FixedActionBar';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -205,6 +206,14 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Fixed Action Bar */}
+      <FixedActionBar
+        repositories={repositories}
+        loading={loading}
+        activityMode={activityMode}
+        onGenerateSummary={generateSummary}
+      />
+
       {/* Header Component */}
       <Header
         userName={session?.user?.name}
@@ -262,20 +271,17 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Wrap the entire content below in a form */}
-          <form onSubmit={(e) => { e.preventDefault(); generateSummary(); }} className="space-y-8">
-            {/* Repository Section Component */}
-            <RepositorySection
-              repositories={repositories}
-              loading={loading}
-              activeFilters={{
-                contributors: [...filters.contributors],
-                organizations: [...filters.organizations],
-                repositories: [...filters.repositories]
-              }}
-              onSubmit={() => generateSummary()}
-            />
-          </form>
+          {/* Repository Section Component */}
+          <RepositorySection
+            repositories={repositories}
+            loading={loading}
+            activeFilters={{
+              contributors: [...filters.contributors],
+              organizations: [...filters.organizations],
+              repositories: [...filters.repositories]
+            }}
+            isWithinForm={false}
+          />
 
           {/* Summary View Component (conditionally shown) */}
           {summary && (
