@@ -49,61 +49,45 @@ export default function AnalysisParameters({
   };
 
   return (
-    <div className="rounded-lg border bg-opacity-70 p-4" style={{ 
-      backgroundColor: 'rgba(27, 43, 52, 0.7)',
-      backdropFilter: 'blur(5px)',
-      borderColor: 'var(--neon-green)',
-    }}>
+    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
       {/* Header */}
-      <div className="flex items-center mb-3">
-        <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--neon-green)' }}></div>
-        <h3 className="text-sm uppercase" style={{ color: 'var(--neon-green)' }}>
-          ANALYSIS PARAMETERS
-        </h3>
-      </div>
+      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+        Analysis Parameters
+      </h3>
       
       {/* Parameters list */}
-      <div className="space-y-3">
+      <div className="space-y-2 text-sm">
         {/* Activity mode */}
         <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--electric-blue)' }}>MODE</span>
-          <span className="text-xs px-2 py-1 rounded" style={{ 
-            backgroundColor: 'rgba(0, 255, 135, 0.1)',
-            color: 'var(--neon-green)'
-          }}>
+          <span className="text-gray-600 dark:text-gray-400">Mode</span>
+          <span className="text-gray-900 dark:text-gray-100 font-medium">
             {getActivityModeDisplay(activityMode)}
           </span>
         </div>
-        
+
         {/* Date range */}
         <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--electric-blue)' }}>DATE RANGE</span>
-          <span className="text-xs px-2 py-1 rounded" style={{ 
-            backgroundColor: 'rgba(59, 142, 234, 0.1)',
-            color: 'var(--electric-blue)'
-          }}>
+          <span className="text-gray-600 dark:text-gray-400">Date Range</span>
+          <span className="text-gray-900 dark:text-gray-100">
             {dateRange.since} to {dateRange.until}
           </span>
         </div>
-        
+
         {/* Organizations (if any) */}
         {organizations.length > 0 && (
           <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--electric-blue)' }}>ORGANIZATIONS</span>
-            <span className="text-xs px-2 py-1 rounded" style={{ 
-              backgroundColor: 'rgba(59, 142, 234, 0.1)',
-              color: 'var(--electric-blue)'
-            }}>
-              {organizations.length} SELECTED
+            <span className="text-gray-600 dark:text-gray-400">Organizations</span>
+            <span className="text-gray-900 dark:text-gray-100">
+              {organizations.length} selected
             </span>
           </div>
         )}
-        
+
         {/* Help text */}
         {showHelpText && (
-          <div className="mt-3 pt-3 border-t" style={{ borderColor: 'rgba(0, 255, 135, 0.2)' }}>
-            <div className="text-xs" style={{ color: 'var(--foreground)' }}>
-              Configure your analysis parameters above, then click the Analyze Commits button below to generate insights.
+          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              Configure parameters above, then click Generate to analyze commits.
             </div>
           </div>
         )}

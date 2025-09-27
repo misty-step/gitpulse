@@ -101,95 +101,49 @@ export default function OperationsPanel({
   onSignOut
 }: OperationsPanelProps) {
   return (
-    <div className="border rounded-lg p-6 mb-8" style={{ 
-      backgroundColor: 'rgba(27, 43, 52, 0.7)',
-      backdropFilter: 'blur(5px)',
-      borderColor: 'var(--neon-green)',
-      boxShadow: '0 0 15px rgba(0, 255, 135, 0.15)'
-    }}>
-      {/* Terminal-like header */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--neon-green)' }}></div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--neon-green)' }}>
-            COMMIT ANALYSIS MODULE
-          </h2>
-        </div>
-        <div className="px-2 py-1 text-xs rounded" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', 
-          border: '1px solid var(--electric-blue)',
-          color: 'var(--electric-blue)'
-        }}>
-          OPERATIONAL STATUS: ACTIVE
-        </div>
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 shadow-sm">
+      {/* Simplified header */}
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Commit Analysis
+        </h2>
+        <span className="text-xs text-green-600 dark:text-green-400">
+          Active
+        </span>
       </div>
 
-      {/* Error display with cyberpunk style */}
+      {/* Clean error display */}
       {error && (
-        <div className="mb-6 p-4 rounded-md border flex flex-col md:flex-row md:items-center" style={{
-          backgroundColor: 'rgba(255, 59, 48, 0.1)',
-          borderColor: 'var(--crimson-red)',
-          color: 'var(--crimson-red)'
-        }}>
-          <div className="flex items-start">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md flex flex-col md:flex-row md:items-center">
+          <div className="flex items-start text-red-700 dark:text-red-400">
             <svg className="h-5 w-5 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
-            <div>SYSTEM ALERT: {error}</div>
+            <div>{error}</div>
           </div>
           <div className="md:ml-auto mt-3 md:mt-0 flex space-x-3">
             {needsInstallation && (
               <>
                 {getGitHubAppInstallUrl() === "#github-app-not-configured" ? (
-                  <div className="px-4 py-1 text-sm rounded-md" style={{ 
-                    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-                    color: 'var(--crimson-red)',
-                    border: '1px solid var(--crimson-red)'
-                  }}>
-                    APP NOT CONFIGURED
+                  <div className="px-3 py-1 text-sm text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded">
+                    App Not Configured
                   </div>
                 ) : (
                   <a
                     href={getGitHubAppInstallUrl()}
-                    className="px-4 py-1 text-sm rounded-md transition-all duration-200"
-                    style={{ 
-                      backgroundColor: 'var(--dark-slate)',
-                      color: 'var(--neon-green)',
-                      border: '1px solid var(--neon-green)'
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--neon-green)';
-                      e.currentTarget.style.color = 'var(--dark-slate)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--dark-slate)';
-                      e.currentTarget.style.color = 'var(--neon-green)';
-                    }}
+                    className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
                   >
-                    INSTALL GITHUB APP
+                    Install GitHub App
                   </a>
                 )}
               </>
             )}
             {error.includes('authentication') && (
               <button
-                className="px-4 py-1 text-sm rounded-md transition-all duration-200"
-                style={{ 
-                  backgroundColor: 'var(--dark-slate)',
-                  color: 'var(--electric-blue)',
-                  border: '1px solid var(--electric-blue)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--electric-blue)';
-                  e.currentTarget.style.color = 'var(--dark-slate)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--dark-slate)';
-                  e.currentTarget.style.color = 'var(--electric-blue)';
-                }}
+                className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                 onClick={() => onSignOut({ callbackUrl: '/' })}
               >
-                REINITIALIZE SESSION
+                Re-authenticate
               </button>
             )}
           </div>

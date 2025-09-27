@@ -1,26 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  /* Cybernetic Command Interface Color Palette */
-  --dark-slate: #1b2b34;
-  --neon-green: #00ff87;
-  --electric-blue: #3b8eea;
-  --luminous-yellow: #ffc857;
-  --crimson-red: #ff3b30;
+  /* Clean modern color palette - Terminal theme deprecated */
+  --dark-slate: #1b2b34; /* Deprecated - use Tailwind classes */
+  --neon-green: #00ff87; /* Deprecated - use Tailwind classes */
+  --electric-blue: #3b8eea; /* Deprecated - use Tailwind classes */
+  --luminous-yellow: #ffc857; /* Deprecated - use Tailwind classes */
+  --crimson-red: #ff3b30; /* Deprecated - use Tailwind classes */
 
   /* Default theme variables */
-  --background: var(--dark-slate);
-  --background-secondary: #121212;
-  --foreground: #ffffff;
-  --accent-primary: var(--neon-green);
-  --accent-secondary: var(--electric-blue);
-  --warning: var(--luminous-yellow);
-  --error: var(--crimson-red);
+  --background: #ffffff;
+  --background-secondary: #f9fafb;
+  --foreground: #111827;
+  --accent-primary: #10b981;
+  --accent-secondary: #3b82f6;
+  --warning: #f59e0b;
+  --error: #ef4444;
 
   /* Shadows and effects */
-  --box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  --glow-effect: 0 0 10px rgba(0, 255, 135, 0.5);
-  --gradient-bg: linear-gradient(180deg, var(--dark-slate) 0%, #121212 100%);
+  --box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --gradient-bg: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
 
   /* Spacing */
   --spacing-sm: 8px;
@@ -43,11 +42,10 @@
 }
 
 body {
-  background: var(--gradient-bg);
+  background: var(--background);
   color: var(--foreground);
-  font-family: "Roboto Mono", "Courier New", monospace;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   line-height: 1.5;
-  letter-spacing: 0.05em;
   min-height: 100vh;
 }
 

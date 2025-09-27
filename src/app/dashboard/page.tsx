@@ -204,7 +204,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--gradient-bg)' }}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header Component */}
       <Header
         userName={session?.user?.name}
@@ -236,40 +236,23 @@ export default function Dashboard() {
             onSignOut={signOut}
           />
           
-          {/* Improved Filters Container with DateRangePicker and Analysis Parameters */}
-          <div className="mb-8 border rounded-lg p-6" style={{ 
-            backgroundColor: 'rgba(27, 43, 52, 0.8)',
-            backdropFilter: 'blur(5px)',
-            borderColor: 'var(--electric-blue)',
-            boxShadow: '0 0 15px rgba(59, 142, 234, 0.15)'
-          }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-                <h3 className="text-sm font-bold uppercase" style={{ color: 'var(--electric-blue)' }}>
-                  ANALYSIS FILTERS
-                </h3>
-              </div>
-              <div className="px-2 py-1 text-xs rounded flex items-center" style={{ 
-                backgroundColor: 'rgba(0, 0, 0, 0.3)', 
-                border: '1px solid var(--electric-blue)',
-                color: 'var(--electric-blue)'
-              }}>
-                <span>CONFIGURE PARAMETERS</span>
-              </div>
-            </div>
+          {/* Simplified Filters Container */}
+          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              Analysis Filters
+            </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left column will be handled by OperationsPanel */}
-              
+
               {/* Right column - Date and Analysis Info */}
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <DateRangePicker
                   dateRange={dateRange}
                   onChange={handleDateRangeChange}
                   disabled={loading}
                 />
-                
+
                 <AnalysisParameters
                   activityMode={activityMode}
                   dateRange={dateRange}

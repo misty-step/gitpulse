@@ -68,82 +68,55 @@ export default function RepositorySection({
   };
   
   const renderRepositorySection = () => (
-    <div className="mt-6">
+    <div className="mt-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center">
-          <label className="text-sm" style={{ color: 'var(--electric-blue)' }}>
-            TARGET REPOSITORIES
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+            Target Repositories
           </label>
           <button
             type="button"
             onClick={() => setShowRepoList(!showRepoList)}
-            className="ml-2 text-xs px-2 py-0.5 rounded transition-all duration-200"
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              color: 'var(--electric-blue)',
-              border: '1px solid var(--electric-blue)'
-            }}
+            className="ml-2 text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
-            {showRepoList ? 'HIDE' : 'SHOW'} LIST
+            {showRepoList ? 'Hide' : 'Show'} List
           </button>
         </div>
-        <div className="text-xs px-2 py-1 rounded flex items-center" style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)', 
-          border: '1px solid var(--neon-green)',
-          color: 'var(--neon-green)'
-        }}>
-          DETECTED: {repositories.length}
+        <div className="text-xs text-gray-600 dark:text-gray-400">
+          {repositories.length} repositories
         </div>
       </div>
       
-      {/* Repository info with cyber styling */}
-      <div className="border rounded-md p-3" 
-        style={{ 
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
-          borderColor: 'var(--electric-blue)',
-          boxShadow: 'inset 0 0 10px rgba(59, 142, 234, 0.1)'
-        }}>
+      {/* Repository info container */}
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         {loading && repositories.length === 0 ? (
-          <div className="flex items-center justify-center p-3" style={{ color: 'var(--foreground)' }}>
-            <span className="inline-block w-4 h-4 border-2 border-t-transparent rounded-full animate-spin mr-2" 
-              style={{ borderColor: 'var(--neon-green)', borderTopColor: 'transparent' }}></span>
-            <span>SCANNING REPOSITORIES...</span>
+          <div className="flex items-center justify-center p-3 text-gray-600 dark:text-gray-400">
+            <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>
+            <span>Scanning repositories...</span>
           </div>
         ) : (
           <div>
-            <div className="p-3 mb-3 border-b" 
-              style={{ color: 'var(--foreground)', borderColor: 'rgba(59, 142, 234, 0.2)' }}>
-              <div className="flex items-center justify-center mb-2">
-                <span className="inline-block w-3 h-3 rounded-full mr-2" 
-                  style={{ backgroundColor: 'var(--neon-green)' }}></span>
-                <span>ANALYZING ALL ACCESSIBLE REPOSITORIES</span>
+            <div className="pb-3 mb-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="text-center text-sm text-gray-700 dark:text-gray-300 mb-2">
+                Analyzing all accessible repositories
               </div>
               
               {/* Display filter information if applied */}
-              {(activeFilters.contributors.length > 0 || 
-                activeFilters.organizations.length > 0 || 
+              {(activeFilters.contributors.length > 0 ||
+                activeFilters.organizations.length > 0 ||
                 activeFilters.repositories.length > 0) && (
-                <div className="mt-2 p-2 border rounded" style={{ 
-                  borderColor: 'rgba(0, 255, 135, 0.2)',
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)'
-                }}>
-                  <div className="text-xs" style={{ color: 'var(--neon-green)' }}>
-                    ACTIVE FILTERS
+                <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                  <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Active Filters
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-1">
+                  <div className="flex flex-wrap gap-2">
                     {activeFilters.contributors.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                        backgroundColor: 'rgba(0, 255, 135, 0.1)',
-                        color: 'var(--foreground)'
-                      }}>
+                      <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
                         Contributors: {activeFilters.contributors.includes('me') ? 'Only Me' : activeFilters.contributors.join(', ')}
                       </span>
                     )}
                     {activeFilters.organizations.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded" style={{ 
-                        backgroundColor: 'rgba(59, 142, 234, 0.1)',
-                        color: 'var(--foreground)'
-                      }}>
+                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
                         Orgs: {activeFilters.organizations.join(', ')}
                       </span>
                     )}
@@ -153,21 +126,18 @@ export default function RepositorySection({
               
               {/* Repository stats summary */}
               {repositories.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                  <div className="border rounded px-2 py-1 flex flex-col items-center justify-center"
-                    style={{ borderColor: 'rgba(59, 142, 234, 0.3)' }}>
-                    <div className="font-bold" style={{ color: 'var(--electric-blue)' }}>REPOS</div>
-                    <div>{repositories.length}</div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Repos</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{repositories.length}</div>
                   </div>
-                  <div className="border rounded px-2 py-1 flex flex-col items-center justify-center"
-                    style={{ borderColor: 'rgba(59, 142, 234, 0.3)' }}>
-                    <div className="font-bold" style={{ color: 'var(--electric-blue)' }}>ORGS</div>
-                    <div>{new Set(repositories.map(repo => repo.full_name.split('/')[0])).size}</div>
+                  <div className="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Orgs</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{new Set(repositories.map(repo => repo.full_name.split('/')[0])).size}</div>
                   </div>
-                  <div className="border rounded px-2 py-1 flex flex-col items-center justify-center"
-                    style={{ borderColor: 'rgba(59, 142, 234, 0.3)' }}>
-                    <div className="font-bold" style={{ color: 'var(--electric-blue)' }}>PRIVATE</div>
-                    <div>{repositories.filter(repo => repo.private).length}</div>
+                  <div className="text-center p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400">Private</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{repositories.filter(repo => repo.private).length}</div>
                   </div>
                 </div>
               )}
@@ -175,29 +145,22 @@ export default function RepositorySection({
 
             {/* Repository list with organization grouping */}
             {showRepoList && (
-              <div className="max-h-60 overflow-y-auto" style={{ color: 'var(--foreground)' }}>
+              <div className="max-h-60 overflow-y-auto text-sm">
                 {repositories.length > 0 ? (
                   groupRepositoriesByOrg().map(([org, repos]) => (
                     <div key={org} className="mb-3">
-                      <div className="flex items-center px-2 py-1 mb-1" style={{ 
-                        backgroundColor: 'rgba(59, 142, 234, 0.1)',
-                        color: 'var(--electric-blue)'
-                      }}>
-                        <span className="font-bold">{org}</span>
-                        <span className="ml-2 text-xs px-1 rounded" style={{ 
-                          backgroundColor: 'rgba(0, 0, 0, 0.3)'
-                        }}>
+                      <div className="flex items-center px-2 py-1 mb-1 bg-gray-100 dark:bg-gray-700 rounded">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">{org}</span>
+                        <span className="ml-2 text-xs px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded">
                           {repos.length}
                         </span>
                       </div>
-                      
-                      <ul className="pl-3">
+
+                      <ul className="pl-3 space-y-1">
                         {repos.map((repo) => (
-                          <li key={repo.id} className="text-xs py-1 flex items-center justify-between">
+                          <li key={repo.id} className="text-xs flex items-center justify-between text-gray-700 dark:text-gray-300">
                             <div className="flex items-center">
-                              <span className="inline-block w-2 h-2 mr-2" style={{ 
-                                backgroundColor: repo.private ? 'var(--crimson-red)' : 'var(--neon-green)'
-                              }}></span>
+                              <span className={`inline-block w-2 h-2 mr-2 rounded-full ${repo.private ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
                               <span>{repo.name}</span>
                             </div>
                             <div className="flex items-center">
@@ -241,45 +204,23 @@ export default function RepositorySection({
             onClick={onSubmit}
             disabled={loading}
             title="Analyze your GitHub commits and generate activity summary with AI insights"
-            className="px-5 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center"
-            style={{ 
-              backgroundColor: loading ? 'rgba(0, 0, 0, 0.3)' : 'var(--dark-slate)',
-              color: 'var(--neon-green)',
-              border: '2px solid var(--neon-green)',
-              boxShadow: loading ? 'none' : '0 0 10px rgba(0, 255, 135, 0.2)',
-              opacity: loading ? 0.7 : 1,
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-            onMouseOver={(e) => {
-              if (!loading) {
-                e.currentTarget.style.backgroundColor = 'var(--neon-green)';
-                e.currentTarget.style.color = 'var(--dark-slate)';
-                e.currentTarget.style.boxShadow = '0 0 15px rgba(0, 255, 135, 0.4)';
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!loading) {
-                e.currentTarget.style.backgroundColor = 'var(--dark-slate)';
-                e.currentTarget.style.color = 'var(--neon-green)';
-                e.currentTarget.style.boxShadow = '0 0 10px rgba(0, 255, 135, 0.2)';
-              }
-            }}
+            className={`px-4 py-2 rounded text-sm font-medium flex items-center transition-colors ${
+              loading
+                ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
             {loading ? (
               <>
-                <span className="mr-2 inline-block w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" 
-                  style={{ borderColor: 'var(--neon-green)', borderTopColor: 'transparent' }}></span>
-                ANALYZING DATA...
+                <span className="mr-2 inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
+                Analyzing...
               </>
             ) : (
               <>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clipRule="evenodd" />
                 </svg>
-                ANALYZE COMMITS
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
+                Generate Summary
               </>
             )}
           </button>
