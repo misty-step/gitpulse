@@ -12,6 +12,20 @@ import { createOAuthOctokit, getInstallationOctokit } from "./auth";
 
 const MODULE_NAME = "github:commits";
 
+export type CommitFetchPhase =
+  | "initial"
+  | "retry-with-owner"
+  | "retry-unfiltered";
+
+export interface CommitFetchRepositoryEvent {
+  repository: string;
+  phase: CommitFetchPhase;
+}
+
+interface FetchCommitsForRepositoriesOptions {
+  onRepositoryComplete?: (event: CommitFetchRepositoryEvent) => void;
+}
+
 /**
  * Fetch repository commits using OAuth token
  * @param accessToken GitHub OAuth access token
@@ -257,6 +271,7 @@ export async function fetchCommitsForRepositories(
   since: string = "",
   until: string = "",
   author?: string,
+  options: FetchCommitsForRepositoriesOptions = {},
 ): Promise<Commit[]> {
   logger.debug(MODULE_NAME, "fetchCommitsForRepositories called", {
     repositoriesCount: repositories.length,
@@ -291,9 +306,9 @@ export async function fetchCommitsForRepositories(
     );
 
     const results = await Promise.all(
-      batch.map((repoFullName) => {
+      batch.map(async (repoFullName) => {
         const [owner, repo] = repoFullName.split("/");
-        return fetchRepositoryCommits(
+        const commits = await fetchRepositoryCommits(
           accessToken,
           installationId,
           owner,
@@ -302,6 +317,11 @@ export async function fetchCommitsForRepositories(
           until,
           githubUsername,
         );
+        options.onRepositoryComplete?.({
+          repository: repoFullName,
+          phase: "initial",
+        });
+        return commits;
       }),
     );
     results.forEach((commits) => allCommits.push(...commits));
@@ -320,9 +340,9 @@ export async function fetchCommitsForRepositories(
       for (let i = 0; i < repositories.length; i += batchSize) {
         const batch = repositories.slice(i, i + batchSize);
         const results = await Promise.all(
-          batch.map((repoFullName) => {
+          batch.map(async (repoFullName) => {
             const [owner, repo] = repoFullName.split("/");
-            return fetchRepositoryCommits(
+            const commits = await fetchRepositoryCommits(
               accessToken,
               installationId,
               owner,
@@ -331,6 +351,11 @@ export async function fetchCommitsForRepositories(
               until,
               githubUsername,
             );
+            options.onRepositoryComplete?.({
+              repository: repoFullName,
+              phase: "retry-with-owner",
+            });
+            return commits;
           }),
         );
         results.forEach((commits) => allCommits.push(...commits));
@@ -346,9 +371,9 @@ export async function fetchCommitsForRepositories(
     for (let i = 0; i < repositories.length; i += batchSize) {
       const batch = repositories.slice(i, i + batchSize);
       const results = await Promise.all(
-        batch.map((repoFullName) => {
+        batch.map(async (repoFullName) => {
           const [owner, repo] = repoFullName.split("/");
-          return fetchRepositoryCommits(
+          const commits = await fetchRepositoryCommits(
             accessToken,
             installationId,
             owner,
@@ -357,6 +382,11 @@ export async function fetchCommitsForRepositories(
             until,
             undefined,
           );
+          options.onRepositoryComplete?.({
+            repository: repoFullName,
+            phase: "retry-unfiltered",
+          });
+          return commits;
         }),
       );
       results.forEach((commits) => allCommits.push(...commits));

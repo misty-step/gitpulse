@@ -79,7 +79,8 @@ export default function Dashboard() {
     summary,
     generateSummary,
     authMethod,
-    currentInstallations: summaryInstallations
+    currentInstallations: summaryInstallations,
+    progress: summaryProgress
   } = useSummary({
     dateRange,
     activityMode,
@@ -93,6 +94,7 @@ export default function Dashboard() {
   const activeError = repoError || summaryError;
   const needsInstallation = repoNeedsInstallation || installNeedsInstallation;
   const loading = repoLoading || summaryLoading;
+  const progressMessage = summaryLoading ? summaryProgress.message : undefined;
   
   // Handle date range changes
   const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
@@ -356,6 +358,7 @@ export default function Dashboard() {
         userName={session?.user?.name}
         contributors={filters.contributors}
         onGenerateSummary={handleGenerateSummary}
+        progressMessage={progressMessage}
       />
 
       {/* Header Component */}

@@ -20,8 +20,24 @@ import {
   type DashboardDataProvider 
 } from './adapters/summary-data-provider';
 import type { SummaryStats } from '@/core/types/index';
+import type { CommitFetchProgress } from '@/services/providers/github';
 
 const MODULE_NAME = 'hooks:useSummary';
+
+export type SummaryProgressStage =
+  | 'idle'
+  | 'preparing'
+  | 'fetching'
+  | 'analyzing'
+  | 'complete'
+  | 'error';
+
+export interface SummaryProgressState {
+  stage: SummaryProgressStage;
+  message: string;
+  totalRepositories: number;
+  completedRepositories: number;
+}
 
 interface UseSummaryProps {
   dateRange: DateRange;
@@ -40,6 +56,7 @@ interface UseSummaryResult {
   installations: readonly Installation[];
   currentInstallations: readonly Installation[];
   authMethod: string | null;
+  progress: SummaryProgressState;
 }
 
 /**
@@ -63,9 +80,27 @@ export function useSummary({
   const [installations, setInstallations] = useState<Installation[] | readonly Installation[]>([]);
   const [currentInstallations, setCurrentInstallations] = useState<Installation[] | readonly Installation[]>([]);
   const [authMethod, setAuthMethod] = useState<string | null>(null);
+  const [progress, setProgress] = useState<SummaryProgressState>({
+    stage: 'idle',
+    message: '',
+    totalRepositories: 0,
+    completedRepositories: 0
+  });
 
   // Ref to track current effect execution for cleanup
   const currentEffectRef = useRef<{ cancelled: boolean } | null>(null);
+
+  const formatRepositoryProgressMessage = useCallback((
+    completed: number,
+    total: number
+  ): string => {
+    if (total <= 0) {
+      return 'Fetching commit data...';
+    }
+
+    const repoLabel = total === 1 ? 'repository' : 'repositories';
+    return `Fetching commits from ${total} ${repoLabel}... (${completed}/${total} complete)`;
+  }, []);
 
   /**
    * Transform SummaryStats to legacy CommitSummary format
@@ -105,6 +140,12 @@ export function useSummary({
     if (!session?.accessToken && !installationIds.length) {
       logger.warn(MODULE_NAME, 'No authentication available for generating summary');
       setError('Authentication required. Please sign in again.');
+      setProgress({
+        stage: 'error',
+        message: 'Authentication required. Please sign in again.',
+        totalRepositories: 0,
+        completedRepositories: 0
+      });
       return;
     }
 
@@ -121,6 +162,12 @@ export function useSummary({
       setLoading(true);
       setError(null);
       setSummary(null);
+      setProgress({
+        stage: 'preparing',
+        message: 'Preparing analysis parameters...',
+        totalRepositories: 0,
+        completedRepositories: 0
+      });
 
       // Create request configuration
       const requestConfig: SummaryRequestConfig = {
@@ -155,7 +202,21 @@ export function useSummary({
       const dataProvider: DashboardDataProvider = createSessionDataProvider(
         session,
         installationIds,
-        repositories
+        repositories,
+        {
+          onCommitFetchProgress: (event: CommitFetchProgress) => {
+            if (effectContext.cancelled) {
+              return;
+            }
+
+            setProgress(prev => ({
+              stage: 'fetching',
+              message: formatRepositoryProgressMessage(event.completed, event.total),
+              totalRepositories: event.total,
+              completedRepositories: event.completed
+            }));
+          }
+        }
       );
 
       // Fetch filtered repositories if needed
@@ -166,6 +227,14 @@ export function useSummary({
         logger.debug(MODULE_NAME, 'Effect cancelled during repository fetching');
         return;
       }
+
+      const totalRepositories = filteredRepositories.length;
+      setProgress({
+        stage: 'fetching',
+        message: formatRepositoryProgressMessage(0, totalRepositories),
+        totalRepositories,
+        completedRepositories: 0
+      });
 
       if (filteredRepositories.length === 0) {
         throw new Error('No repositories found matching your filter criteria. Please adjust your organization or repository filters.');
@@ -187,6 +256,12 @@ export function useSummary({
         return;
       }
 
+      setProgress(prev => ({
+        ...prev,
+        stage: 'analyzing',
+        message: 'Analyzing commit statistics...'
+      }));
+
       logger.info(MODULE_NAME, 'Summary generation completed', {
         totalCommits: summaryStats.totalCommits,
         uniqueAuthors: summaryStats.uniqueAuthors,
@@ -204,6 +279,11 @@ export function useSummary({
       
       // Update auth method
       setAuthMethod(installationIds.length > 0 ? 'github_app' : 'oauth');
+      setProgress(prev => ({
+        ...prev,
+        stage: 'complete',
+        message: 'Summary ready'
+      }));
 
     } catch (error: any) {
       // Check if effect was cancelled during error handling
@@ -221,6 +301,12 @@ export function useSummary({
       // Transform error to user-friendly message
       const transformedError = transformDashboardError(error);
       setError(transformedError.message);
+      setProgress({
+        stage: 'error',
+        message: transformedError.message,
+        totalRepositories: 0,
+        completedRepositories: 0
+      });
     } finally {
       // Only update loading state if effect wasn't cancelled
       if (!effectContext.cancelled) {
@@ -240,7 +326,8 @@ export function useSummary({
     repositories,
     contributors,
     installationIds,
-    transformStatsToSummary
+    transformStatsToSummary,
+    formatRepositoryProgressMessage
   ]);
 
   // Cleanup effect on unmount
@@ -259,6 +346,7 @@ export function useSummary({
     generateSummary,
     installations,
     currentInstallations,
-    authMethod
+    authMethod,
+    progress
   };
 }

@@ -31,7 +31,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Add "Generate Same as Last Time" quick action** - Add prominent button at page top that restores exact previous generation parameters and auto-submits. One click for repeat users. Store last params in localStorage key: `gitpulse_last_generation`.
 
-- [ ] **Implement loading state with progress indication** - Replace generic "Generating..." with specific progress: "Fetching commits from 12 repositories... (3/12 complete)". Add to `src/app/dashboard/page.tsx` lines 280-290. Users need to know the system is working and how long to wait.
+- [x] **Implement loading state with progress indication** - Replace generic "Generating..." with specific progress: "Fetching commits from 12 repositories... (3/12 complete)". Add to `src/app/dashboard/page.tsx` lines 280-290. Users need to know the system is working and how long to wait.
 
 ### Phase 4: Layout Consolidation (Modern Patterns)
 

@@ -31,6 +31,11 @@ export interface FixedActionBarProps {
    * Callback to generate the summary
    */
   onGenerateSummary: () => void;
+
+  /**
+   * Optional progress message to display while loading
+   */
+  progressMessage?: string;
 }
 
 /**
@@ -43,11 +48,14 @@ export default function FixedActionBar({
   activityMode,
   userName,
   contributors = [],
-  onGenerateSummary
+  onGenerateSummary,
+  progressMessage
 }: FixedActionBarProps) {
   // Determine the button text based on activity mode and repository count
   const getButtonText = () => {
-    if (loading) return 'Analyzing...';
+    if (loading) {
+      return progressMessage || 'Analyzing...';
+    }
 
     const repoCount = repositories.length;
 
@@ -87,9 +95,11 @@ export default function FixedActionBar({
         type="button"
         onClick={onGenerateSummary}
         disabled={loading || repositories.length === 0}
-        title={repositories.length === 0
-          ? "No repositories available for analysis"
-          : "Analyze your GitHub commits and generate activity summary with AI insights"}
+        title={loading
+          ? getButtonText()
+          : repositories.length === 0
+            ? "No repositories available for analysis"
+            : "Analyze your GitHub commits and generate activity summary with AI insights"}
         className={`px-3 py-1.5 rounded text-sm font-medium flex items-center transition-all shadow-lg ${
           loading
             ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'

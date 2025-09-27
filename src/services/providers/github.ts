@@ -13,7 +13,11 @@ import {
   type AppInstallation,
   type Repository
 } from '../../lib/github';
-import { fetchCommitsForRepositories } from '../../lib/github/commits';
+import { 
+  fetchCommitsForRepositories, 
+  type CommitFetchPhase,
+  type CommitFetchRepositoryEvent
+} from '../../lib/github/commits';
 import type { Commit } from '../../lib/github/types';
 
 const MODULE_NAME = "services:providers:github";
@@ -25,6 +29,14 @@ export interface GitHubProviderConfig {
   accessToken?: string;
   installationIds?: readonly number[];
   currentUserName?: string;
+  onCommitFetchProgress?: (progress: CommitFetchProgress) => void;
+}
+
+export interface CommitFetchProgress {
+  repository: string;
+  completed: number;
+  total: number;
+  phase: CommitFetchPhase;
 }
 
 /**
@@ -43,7 +55,7 @@ export interface ExtendedGitHubDataProvider extends DataProvider {
  * This provider handles authentication, repository fetching, and commit retrieval
  */
 export const createGitHubDataProvider = (config: GitHubProviderConfig): ExtendedGitHubDataProvider => {
-  const { accessToken, installationIds = [], currentUserName } = config;
+  const { accessToken, installationIds = [], currentUserName, onCommitFetchProgress } = config;
 
   return {
     fetchCommits: (
@@ -66,6 +78,28 @@ export const createGitHubDataProvider = (config: GitHubProviderConfig): Extended
         // Convert dates to ISO strings for GitHub API
         const since = dateRange.start.toISOString();
         const until = dateRange.end.toISOString();
+
+        const totalRepositories = repositories.length;
+        let completedRepositories = 0;
+
+        const emitProgress = (event: CommitFetchRepositoryEvent) => {
+          if (!onCommitFetchProgress || totalRepositories === 0) {
+            return;
+          }
+
+          if (event.phase !== 'initial') {
+            // Only track progress during the initial fetch attempt to avoid double counting
+            return;
+          }
+
+          completedRepositories = Math.min(completedRepositories + 1, totalRepositories);
+          onCommitFetchProgress({
+            repository: event.repository,
+            completed: completedRepositories,
+            total: totalRepositories,
+            phase: event.phase
+          });
+        };
 
         // Get all available installations if we have access token
         let allInstallations: AppInstallation[] = [];
@@ -103,7 +137,10 @@ export const createGitHubDataProvider = (config: GitHubProviderConfig): Extended
                   repos,
                   since,
                   until,
-                  undefined // No author filter at API level
+                  undefined, // No author filter at API level
+                  {
+                    onRepositoryComplete: emitProgress
+                  }
                 )
               );
             }
@@ -117,7 +154,10 @@ export const createGitHubDataProvider = (config: GitHubProviderConfig): Extended
                 repos,
                 since,
                 until,
-                undefined // No author filter at API level
+                undefined, // No author filter at API level
+                {
+                  onRepositoryComplete: emitProgress
+                }
               )
             );
           }

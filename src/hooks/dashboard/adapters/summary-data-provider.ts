@@ -9,7 +9,8 @@ import type { CommitData } from '../../../core/types/index';
 import { 
   createGitHubDataProvider, 
   createRepositoryProvider,
-  type GitHubProviderConfig 
+  type GitHubProviderConfig,
+  type CommitFetchProgress 
 } from '../../../services/providers/github';
 import { logger } from '../../../lib/logger';
 import type { SummaryRequestConfig } from '../utils/summary-params';
@@ -35,6 +36,10 @@ export interface DashboardDataProvider extends DataProvider {
  */
 export interface DashboardDataProviderConfig extends GitHubProviderConfig {
   repositories: readonly string[];
+}
+
+export interface DashboardDataProviderOptions {
+  onCommitFetchProgress?: (progress: CommitFetchProgress) => void;
 }
 
 /**
@@ -117,13 +122,15 @@ export const createDashboardDataProvider = (
 export const createSessionDataProvider = (
   session: any,
   installationIds: readonly number[],
-  availableRepositories: readonly string[]
+  availableRepositories: readonly string[],
+  options: DashboardDataProviderOptions = {}
 ): DashboardDataProvider => {
   const providerConfig: DashboardDataProviderConfig = {
     accessToken: session?.accessToken,
     installationIds,
     currentUserName: session?.user?.name,
-    repositories: availableRepositories
+    repositories: availableRepositories,
+    onCommitFetchProgress: options.onCommitFetchProgress
   };
 
   return createDashboardDataProvider(providerConfig);
