@@ -27,7 +27,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 ### Phase 3: State Management (Reduce Friction)
 
-- [ ] **Persist user selections to localStorage** - In `src/app/dashboard/page.tsx` line 32, add localStorage hooks to save/restore: selected activity mode, date range preference, selected repositories. Key: `gitpulse_preferences`. Users shouldn't re-enter the same preferences daily.
+- [x] **Persist user selections to localStorage** - In `src/app/dashboard/page.tsx` line 32, add localStorage hooks to save/restore: selected activity mode, date range preference, selected repositories. Key: `gitpulse_preferences`. Users shouldn't re-enter the same preferences daily.
 
 - [ ] **Add "Generate Same as Last Time" quick action** - Add prominent button at page top that restores exact previous generation parameters and auto-submits. One click for repeat users. Store last params in localStorage key: `gitpulse_last_generation`.
 
