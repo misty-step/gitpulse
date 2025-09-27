@@ -10,7 +10,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Flatten the activity mode selector into horizontal pills** - In `src/components/dashboard/ActivityModeSelector.tsx`, replace the vertical radio button stack (currently lines 15-45) with inline flex buttons: `<div className="flex gap-2">{modes.map(mode => <button className="px-4 py-2 rounded-lg...`)`. This saves ~100px vertical.
 
-- [ ] **Inline date range inputs on single row** - Modify `src/components/dashboard/DateRangeSelector.tsx` lines 78-95 to place start_date and end_date inputs side-by-side using `grid grid-cols-2 gap-4` instead of stacked. Include the quick-select buttons (Last 7/30 days) as small pills above. Reduces height from ~200px to ~80px.
+- [x] **Inline date range inputs on single row** - Modify `src/components/dashboard/DateRangeSelector.tsx` lines 78-95 to place start_date and end_date inputs side-by-side using `grid grid-cols-2 gap-4` instead of stacked. Include the quick-select buttons (Last 7/30 days) as small pills above. Reduces height from ~200px to ~80px.
 
 - [ ] **Move Generate button to fixed header bar** - Extract the submit button from `src/app/dashboard/page.tsx` line 267 and place it in a new fixed header component at viewport top-right. Button should always be visible and show selected repos count: "Generate (12 repos)". Eliminates scroll-to-submit problem entirely.
 
