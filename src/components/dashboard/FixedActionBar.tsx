@@ -18,6 +18,16 @@ export interface FixedActionBarProps {
   activityMode: ActivityMode;
 
   /**
+   * Current user's name for display
+   */
+  userName?: string | null;
+
+  /**
+   * List of selected contributors for team mode
+   */
+  contributors?: readonly string[];
+
+  /**
    * Callback to generate the summary
    */
   onGenerateSummary: () => void;
@@ -31,6 +41,8 @@ export default function FixedActionBar({
   repositories,
   loading,
   activityMode,
+  userName,
+  contributors = [],
   onGenerateSummary
 }: FixedActionBarProps) {
   // Determine the button text based on activity mode and repository count
@@ -39,16 +51,33 @@ export default function FixedActionBar({
 
     const repoCount = repositories.length;
 
+    // No repositories selected
+    if (repoCount === 0) {
+      return 'Select repositories to generate';
+    }
+
     switch (activityMode) {
-      case 'my-activity':
-        return `Generate (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-      case 'team-activity':
-        return `Generate team summary (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-      case 'my-work-activity':
+      case 'my-activity': {
+        // For individual activity, show the username if available
+        const displayName = userName || 'your activity';
+        return `Generate summary for ${displayName} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
+      }
+      case 'team-activity': {
+        // For team activity, show the number of team members
+        const memberCount = contributors.length;
+        if (memberCount === 0) {
+          return `Generate team summary (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
+        }
+        return `Generate summary for ${memberCount} ${memberCount === 1 ? 'member' : 'members'} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
+      }
+      case 'my-work-activity': {
+        // For work activity across orgs
         const orgCount = new Set(repositories.map(r => r.full_name.split('/')[0])).size;
-        return `Generate for ${orgCount} ${orgCount === 1 ? 'org' : 'orgs'} (${repoCount} repos)`;
+        const displayName = userName || 'your work';
+        return `Generate ${displayName} across ${orgCount} ${orgCount === 1 ? 'org' : 'orgs'} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
+      }
       default:
-        return `Generate (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
+        return `Generate summary (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
     }
   };
 

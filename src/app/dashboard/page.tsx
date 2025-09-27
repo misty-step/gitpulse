@@ -253,6 +253,8 @@ export default function Dashboard() {
         repositories={repositories}
         loading={loading}
         activityMode={activityMode}
+        userName={session?.user?.name}
+        contributors={filters.contributors}
         onGenerateSummary={generateSummary}
       />
 
