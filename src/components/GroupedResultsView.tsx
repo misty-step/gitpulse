@@ -27,7 +27,7 @@ export default function GroupedResultsView({
 }: GroupedResultsViewProps) {
   if (!groupedResults || groupedResults.length === 0) {
     return (
-      <div className="text-center p-6" style={{ color: 'var(--foreground)' }}>
+      <div className="text-center p-2" style={{ color: 'var(--foreground)' }}>
         No results to display.
       </div>
     );
@@ -36,7 +36,7 @@ export default function GroupedResultsView({
   // For chronological view, just show a message since the regular summary is displayed elsewhere
   if (groupBy === 'chronological') {
     return (
-      <div className="text-center p-4" style={{ color: 'var(--foreground)' }}>
+      <div className="text-center p-1.5" style={{ color: 'var(--foreground)' }}>
         <div className="inline-block px-3 py-1 rounded" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           border: '1px solid var(--electric-blue)'
@@ -66,7 +66,7 @@ export default function GroupedResultsView({
             }}
           >
             {/* Group Header */}
-            <div className="p-4 flex items-center justify-between" style={{ 
+            <div className="p-1.5 flex items-center justify-between" style={{ 
               borderBottom: expanded[group.groupKey] ? '1px solid var(--electric-blue)' : 'none'
             }}>
               <div className="flex items-center">
@@ -127,7 +127,7 @@ export default function GroupedResultsView({
             
             {/* Expanded Content */}
             {expanded[group.groupKey] && (
-              <div className="p-4">
+              <div className="p-1.5">
                 {/* Repository List */}
                 <div className="mb-6">
                   <h5 className="text-xs uppercase mb-2" style={{ color: 'var(--electric-blue)' }}>

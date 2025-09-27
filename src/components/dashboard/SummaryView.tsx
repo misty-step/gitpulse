@@ -51,7 +51,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   if (!summary) return null;
 
   return (
-    <div className="mt-8 border rounded-lg p-6" style={{ 
+    <div className="mt-8 border rounded-lg p-2" style={{ 
       backgroundColor: 'rgba(27, 43, 52, 0.7)',
       backdropFilter: 'blur(5px)',
       borderColor: 'var(--electric-blue)',

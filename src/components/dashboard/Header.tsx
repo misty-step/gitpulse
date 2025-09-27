@@ -44,7 +44,7 @@ export default function Header({
       backgroundColor: 'rgba(27, 43, 52, 0.9)',
       boxShadow: '0 4px 6px -1px rgba(0, 255, 135, 0.1), 0 2px 4px -1px rgba(0, 255, 135, 0.06)'
     }}>
-      <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto py-1.5 px-1.5 sm:px-2 lg:px-3 flex justify-between items-center">
         <div className="flex items-center">
           <div className="w-3 h-3 rounded-full mr-3 animate-pulse" style={{ backgroundColor: 'var(--neon-green)' }}></div>
           <h1 className="text-2xl font-bold" style={{ 

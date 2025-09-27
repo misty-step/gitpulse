@@ -33,7 +33,7 @@ export default function AuthLoadingCard({
   return (
     <div
       // Apply backdrop filter and disable it if motion is reduced using Tailwind variants
-      className="w-full max-w-md p-8 space-y-8 border-2 rounded-md motion-safe:backdrop-blur-md"
+      className="w-full max-w-md p-3 space-y-8 border-2 rounded-md motion-safe:backdrop-blur-md"
       style={{
         // Use CSS variables for styling
         backgroundColor: 'var(--auth-card-bg)',

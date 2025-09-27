@@ -104,7 +104,7 @@ export const NoMoreItems: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="border-2 border-dashed border-gray-300 rounded-md p-4 flex justify-center items-center min-h-[100px] w-full">
+      <div className="border-2 border-dashed border-gray-300 rounded-md p-1.5 flex justify-center items-center min-h-[100px] w-full">
         <div className="text-gray-400" aria-label="Empty state message">Button not rendered when hasMore is false</div>
         <Story />
       </div>

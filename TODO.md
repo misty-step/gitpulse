@@ -12,9 +12,9 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Inline date range inputs on single row** - Modify `src/components/dashboard/DateRangeSelector.tsx` lines 78-95 to place start_date and end_date inputs side-by-side using `grid grid-cols-2 gap-4` instead of stacked. Include the quick-select buttons (Last 7/30 days) as small pills above. Reduces height from ~200px to ~80px.
 
-- [ ] **Move Generate button to fixed header bar** - Extract the submit button from `src/app/dashboard/page.tsx` line 267 and place it in a new fixed header component at viewport top-right. Button should always be visible and show selected repos count: "Generate (12 repos)". Eliminates scroll-to-submit problem entirely.
+- [x] **Move Generate button to fixed header bar** - Extract the submit button from `src/app/dashboard/page.tsx` line 267 and place it in a new fixed header component at viewport top-right. Button should always be visible and show selected repos count: "Generate (12 repos)". Eliminates scroll-to-submit problem entirely.
 
-- [ ] **Reduce all padding values by 60%** - Global find/replace in `src/app/globals.css` and all component files: `p-8` → `p-3`, `p-6` → `p-2`, `p-4` → `p-1.5`, `py-4` → `py-1.5`, `px-6` → `px-2`. The current padding is optimized for 4K monitors, not 13" laptops.
+- [x] **Reduce all padding values by 60%** - Global find/replace in `src/app/globals.css` and all component files: `p-8` → `p-3`, `p-6` → `p-2`, `p-4` → `p-1.5`, `py-4` → `py-1.5`, `px-6` → `px-2`. The current padding is optimized for 4K monitors, not 13" laptops.
 
 ### Phase 2: Information Hierarchy (Clear Signal)
 

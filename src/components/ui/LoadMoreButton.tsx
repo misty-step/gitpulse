@@ -72,7 +72,7 @@ export default function LoadMoreButton({
   const electricBlue = 'var(--electric-blue, #3b8eea)';
 
   return (
-    <div className={`flex justify-center py-4 ${className}`}>
+    <div className={`flex justify-center py-1.5 ${className}`}>
       <button
         type="button"
         onClick={onClick}

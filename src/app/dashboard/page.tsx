@@ -221,8 +221,8 @@ export default function Dashboard() {
         signOutCallbackUrl="/"
       />
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+      <main className="max-w-7xl mx-auto py-6 sm:px-2 lg:px-3">
+        <div className="px-1.5 py-6 sm:px-0">
           {/* Operations Panel Component */}
           <OperationsPanel
             error={activeError}
@@ -246,7 +246,7 @@ export default function Dashboard() {
           />
           
           {/* Simplified Filters Container */}
-          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
+          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg p-1.5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
               Analysis Filters
             </h3>

@@ -85,7 +85,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
             KEY ACHIEVEMENTS
           </h3>
         </div>
-        <div className="border rounded-md p-4" style={{ 
+        <div className="border rounded-md p-1.5" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.2)',
           borderColor: 'var(--neon-green)'
         }}>
@@ -169,7 +169,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
             COMPREHENSIVE ANALYSIS
           </h3>
         </div>
-        <div className="p-4 rounded-md border" style={{ 
+        <div className="p-1.5 rounded-md border" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           borderColor: 'var(--neon-green)',
           color: 'var(--foreground)'

@@ -168,7 +168,7 @@ export default function OrganizationPicker({
         </div>
       </div>
       
-      <div className="p-4">
+      <div className="p-1.5">
         <div className="text-xs mb-2" style={{ color: 'var(--electric-blue)' }}>
           {multiSelect ? 'SELECT ORGANIZATIONS' : 'SELECT ORGANIZATION'}
         </div>

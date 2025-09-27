@@ -262,7 +262,7 @@ export default function ActivityFeed({
     const fullErrorMessage = `${errorMessage}${safeErrorMessage ? `: ${safeErrorMessage}` : ''}`;
     
     return (
-      <div className="p-4 rounded-md border" style={{
+      <div className="p-1.5 rounded-md border" style={{
         backgroundColor: 'rgba(255, 59, 48, 0.1)',
         borderColor: 'var(--crimson-red)',
         color: 'var(--crimson-red)'

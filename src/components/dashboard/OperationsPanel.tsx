@@ -101,7 +101,7 @@ export default function OperationsPanel({
   onSignOut
 }: OperationsPanelProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-1.5 mb-4 shadow-sm">
       {/* Simplified header */}
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

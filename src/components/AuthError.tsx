@@ -43,7 +43,7 @@ export function AuthError({
   }, [countdown, signOutRequired]);
   
   return (
-    <div className="bg-red-50 border-l-4 border-red-500 p-4 my-4 rounded shadow-sm">
+    <div className="bg-red-50 border-l-4 border-red-500 p-1.5 my-4 rounded shadow-sm">
       <div className="flex items-start">
         <div className="flex-shrink-0">
           <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">

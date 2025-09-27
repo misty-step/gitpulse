@@ -26,7 +26,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
         METRICS OVERVIEW
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 rounded-md border relative" style={{ 
+        <div className="p-1.5 rounded-md border relative" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           borderColor: 'var(--neon-green)',
           boxShadow: '0 0 10px rgba(0, 255, 135, 0.1)'
@@ -37,7 +37,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
             {summary.stats.totalCommits}
           </p>
         </div>
-        <div className="p-4 rounded-md border relative" style={{ 
+        <div className="p-1.5 rounded-md border relative" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           borderColor: 'var(--electric-blue)',
           boxShadow: '0 0 10px rgba(59, 142, 234, 0.1)'
@@ -48,7 +48,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
             {summary.stats.repositories.length}
           </p>
         </div>
-        <div className="p-4 rounded-md border relative" style={{ 
+        <div className="p-1.5 rounded-md border relative" style={{ 
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           borderColor: 'var(--luminous-yellow)',
           boxShadow: '0 0 10px rgba(255, 200, 87, 0.1)'

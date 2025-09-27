@@ -88,7 +88,7 @@ export default function RepositorySection({
       </div>
       
       {/* Repository info container */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1.5">
         {loading && repositories.length === 0 ? (
           <div className="flex items-center justify-center p-3 text-gray-600 dark:text-gray-400">
             <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></span>

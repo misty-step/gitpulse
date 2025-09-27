@@ -22,7 +22,7 @@ interface StatusDisplayProps {
 export default function StatusDisplay({ statusMessage, subMessage }: StatusDisplayProps) {
   return (
     <div
-      className="flex items-start space-x-4 p-4 border border-opacity-30 rounded-md"
+      className="flex items-start space-x-4 p-1.5 border border-opacity-30 rounded-md"
       style={{
         // Use CSS variables for styling
         borderColor: 'var(--auth-secondary-color)',

@@ -92,7 +92,7 @@ export default function AuthLoadingScreen({
   return (
     <div
       // Apply base class for scoping CSS variables and base styles
-      className={`auth-loading-screen min-h-screen flex flex-col items-center justify-center p-4 ${className}`}
+      className={`auth-loading-screen min-h-screen flex flex-col items-center justify-center p-1.5 ${className}`}
       // Accessibility attributes indicating busy state
       role="alert"
       aria-live="assertive" // Announce changes immediately

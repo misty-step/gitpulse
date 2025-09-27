@@ -22,7 +22,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: 'var(--gradient-bg)' }}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-1.5" style={{ background: 'var(--gradient-bg)' }}>
       {/* Terminal-like Header */}
       <div className="w-full max-w-2xl mb-8 flex flex-col items-center">
         <div className="inline-flex items-center border border-neon-green p-2 rounded-md mb-3" style={{ borderColor: 'var(--neon-green)' }}>
@@ -44,14 +44,14 @@ export default function Home() {
       </div>
 
       {/* Main Card */}
-      <div className="card w-full max-w-md p-8 space-y-8 border-2" style={{ 
+      <div className="card w-full max-w-md p-3 space-y-8 border-2" style={{ 
         backgroundColor: 'rgba(27, 43, 52, 0.7)',
         backdropFilter: 'blur(10px)',
         boxShadow: '0 0 20px rgba(0, 255, 135, 0.2)',
         borderColor: 'var(--neon-green)'
       }}>
         {/* Screen-like display area */}
-        <div className="space-y-6 p-4 border border-opacity-50 rounded-md" style={{ 
+        <div className="space-y-6 p-1.5 border border-opacity-50 rounded-md" style={{ 
           borderColor: 'var(--electric-blue)',
           backgroundColor: 'rgba(0, 0, 0, 0.3)'
         }}>
@@ -95,7 +95,7 @@ export default function Home() {
         <button
           onClick={() => signIn('github', { callbackUrl: '/dashboard' })}
           disabled={status === 'loading'}
-          className="w-full flex items-center justify-center py-3 px-4 rounded-md transition-all duration-200"
+          className="w-full flex items-center justify-center py-3 px-1.5 rounded-md transition-all duration-200"
           style={{ 
             backgroundColor: 'var(--dark-slate)',
             color: 'var(--neon-green)',
