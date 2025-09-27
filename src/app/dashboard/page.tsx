@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getDefaultDateRange } from '@/lib/dashboard-utils';
-import { FilterState, DateRange } from '@/types/dashboard';
+import { DateRange } from '@/types/dashboard';
 
 // Custom hooks
 import { useRepositories } from '@/hooks/dashboard/useRepositories';
@@ -19,11 +19,10 @@ import Header from '@/components/dashboard/Header';
 import DashboardLoadingState from '@/components/DashboardLoadingState';
 import OperationsPanel from '@/components/dashboard/OperationsPanel';
 import RepositorySection from '@/components/dashboard/RepositorySection';
-import DateRangePicker from '@/components/DateRangePicker';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
-import FixedActionBar from '@/components/dashboard/FixedActionBar';
 import QuickActionBar from '@/components/dashboard/QuickActionBar';
+import CompactToolbar from '@/components/dashboard/CompactToolbar';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -63,7 +62,6 @@ export default function Dashboard() {
     setContributors,
     setOrganizations,
     setRepositories: setFilterRepositories,
-    setAllFilters,
     setActivityMode
   } = useFilters({
     initialFilters: {
@@ -95,6 +93,7 @@ export default function Dashboard() {
   const needsInstallation = repoNeedsInstallation || installNeedsInstallation;
   const loading = repoLoading || summaryLoading;
   const progressMessage = summaryLoading ? summaryProgress.message : undefined;
+  const selectedRepositoryIds = filters.repositories;
   
   // Handle date range changes
   const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
@@ -107,10 +106,6 @@ export default function Dashboard() {
   }, [setOrganizations]);
   
   // Handle filter changes (legacy support)
-  const handleFilterChange = useCallback((newFilters: FilterState) => {
-    setAllFilters(newFilters);
-  }, [setAllFilters]);
-  
   // Fetch repositories when session is available and check for installation cookie
   useEffect(() => {
     if (session) {
@@ -350,15 +345,18 @@ export default function Dashboard() {
         onRegenerateLast={handleRegenerateLast}
       />
 
-      {/* Fixed Action Bar */}
-      <FixedActionBar
-        repositories={repositories}
-        loading={loading}
+      <CompactToolbar
         activityMode={activityMode}
-        userName={session?.user?.name}
-        contributors={filters.contributors}
-        onGenerateSummary={handleGenerateSummary}
+        onModeChange={setActivityMode}
+        dateRange={dateRange}
+        onDateRangeChange={handleDateRangeChange}
+        loading={loading}
         progressMessage={progressMessage}
+        repositories={repositories}
+        selectedRepositoryIds={selectedRepositoryIds}
+        contributors={filters.contributors}
+        userName={session?.user?.name}
+        onGenerate={handleGenerateSummary}
       />
 
       {/* Header Component */}
@@ -385,37 +383,17 @@ export default function Dashboard() {
               repositories: [...filters.repositories]
             }}
             userName={session?.user?.name}
-            onModeChange={setActivityMode}
             onOrganizationChange={handleOrganizationChange}
-            onFilterChange={handleFilterChange}
             onSwitchInstallations={switchInstallations}
             onSignOut={signOut}
           />
           
-          {/* Simplified Filters Container */}
-          <div className="mb-4 bg-white dark:bg-gray-800 rounded-lg p-1.5 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-              Analysis Filters
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left column will be handled by OperationsPanel */}
-
-              {/* Right column - Date and Analysis Info */}
-              <div className="space-y-4">
-                <DateRangePicker
-                  dateRange={dateRange}
-                  onChange={handleDateRangeChange}
-                  disabled={loading}
-                />
-
-                <AnalysisParameters
-                  activityMode={activityMode}
-                  dateRange={dateRange}
-                  organizations={filters.organizations}
-                />
-              </div>
-            </div>
+          <div className="mb-4">
+            <AnalysisParameters
+              activityMode={activityMode}
+              dateRange={dateRange}
+              organizations={filters.organizations}
+            />
           </div>
 
           {/* Repository Section Component */}

@@ -35,7 +35,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 ### Phase 4: Layout Consolidation (Modern Patterns)
 
-- [ ] **Merge all filter components into single horizontal toolbar** - Create new `src/components/dashboard/CompactToolbar.tsx` combining ActivityMode + DateRange + Generate button in single 48px height bar. Replace the three separate sections in dashboard page.
+- [x] **Merge all filter components into single horizontal toolbar** - Create new `src/components/dashboard/CompactToolbar.tsx` combining ActivityMode + DateRange + Generate button in single 48px height bar. Replace the three separate sections in dashboard page.
 
 - [ ] **Convert repository list to virtualized scrolling** - Repository list is already using react-window, but increase visible item count from 10 to 20 (line 89 in RepositorySelector.tsx). More visible = faster selection.
 

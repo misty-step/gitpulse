@@ -1,7 +1,6 @@
 import React from 'react';
-import ModeSelector, { ActivityMode } from '@/components/ui/ModeSelector';
 import OrganizationPicker from '@/components/OrganizationPicker';
-import { DateRange, FilterState, Installation } from '@/types/dashboard';
+import { ActivityMode, Installation } from '@/types/dashboard';
 import { getGitHubAppInstallUrl } from '@/lib/dashboard-utils';
 import { getInstallationManagementUrl } from '@/lib/github/auth';
 
@@ -56,19 +55,9 @@ export interface OperationsPanelProps {
   userName?: string | null;
   
   /**
-   * Function to handle activity mode changes
-   */
-  onModeChange: (mode: ActivityMode) => void;
-  
-  /**
    * Function to handle organization selection changes
    */
   onOrganizationChange: (selectedOrgs: string[]) => void;
-  
-  /**
-   * Function to handle filter changes
-   */
-  onFilterChange: (newFilters: FilterState) => void;
   
   /**
    * Function to switch between GitHub installations
@@ -94,9 +83,7 @@ export default function OperationsPanel({
   activityMode,
   activeFilters,
   userName,
-  onModeChange,
   onOrganizationChange,
-  onFilterChange,
   onSwitchInstallations,
   onSignOut
 }: OperationsPanelProps) {
@@ -360,34 +347,24 @@ export default function OperationsPanel({
         </div>
       )}
       
-      {/* Mode selector and filters */}
-      <div className="mb-4 flex flex-col gap-4">
-        <ModeSelector
-          selectedMode={activityMode}
-          onChange={onModeChange}
-          disabled={loading}
-        />
-
-        {/* OrganizationPicker conditionally shown based on mode */}
-        {(activityMode === 'my-work-activity' || activityMode === 'team-activity') && (
-          <div className="w-full">
-            <OrganizationPicker
-              organizations={installations.map(installation => ({
-                id: installation.id,
-                login: installation.account.login,
-                type: installation.account.type,
-                avatarUrl: installation.account.avatarUrl
-              }))}
-              selectedOrganizations={activeFilters.organizations}
-              onSelectionChange={onOrganizationChange}
-              mode={activityMode}
-              disabled={loading}
-              isLoading={loading}
-              currentUsername={userName || undefined}
-            />
-          </div>
-        )}
-      </div>
+      {(activityMode === 'my-work-activity' || activityMode === 'team-activity') && (
+        <div className="mt-4">
+          <OrganizationPicker
+            organizations={installations.map(installation => ({
+              id: installation.id,
+              login: installation.account.login,
+              type: installation.account.type,
+              avatarUrl: installation.account.avatarUrl
+            }))}
+            selectedOrganizations={activeFilters.organizations}
+            onSelectionChange={onOrganizationChange}
+            mode={activityMode}
+            disabled={loading}
+            isLoading={loading}
+            currentUsername={userName || undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }
