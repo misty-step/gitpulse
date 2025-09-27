@@ -39,7 +39,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Convert repository list to virtualized scrolling** - Repository list is already using react-window, but increase visible item count from 10 to 20 (line 89 in RepositorySelector.tsx). More visible = faster selection.
 
-- [ ] **Add collapsible "Advanced Options" section** - Hide rarely-used options (custom date ranges, exclude forks, etc.) behind a disclosure triangle. Default closed. 95% of users need only the basics.
+- [x] **Add collapsible "Advanced Options" section** - Hide rarely-used options (custom date ranges, exclude forks, etc.) behind a disclosure triangle. Default closed. 95% of users need only the basics.
 
 - [ ] **Implement responsive breakpoints** - Add tablet/mobile layouts in dashboard page: Stack toolbar vertically on screens < 768px, hide repo list on mobile (default to "all"), adjust font sizes. Current design assumes desktop-only.
 
