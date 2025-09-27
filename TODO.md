@@ -20,7 +20,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Replace terminal green theme with high-contrast modern colors** - In `tailwind.config.ts`, update the color palette: primary green `#00ff00` → `#10B981` (emerald-500), background `#0a0e0a` → `#ffffff`, text `#00ff00` → `#111827` (gray-900). The Matrix aesthetic is fun but reduces readability by ~40%.
 
-- [ ] **Implement smart repository pre-selection** - In `src/components/dashboard/RepositorySelector.tsx` line 45, add logic to auto-select repos with commits in last 30 days: `const recentRepos = repos.filter(r => r.pushed_at > thirtyDaysAgo)`. Pre-check these on mount. Users shouldn't manually select repos they're obviously working on.
+- [x] **Implement smart repository pre-selection** - In `src/components/dashboard/RepositorySelector.tsx` line 45, add logic to auto-select repos with commits in last 30 days: `const recentRepos = repos.filter(r => r.pushed_at > thirtyDaysAgo)`. Pre-check these on mount. Users shouldn't manually select repos they're obviously working on.
 
 - [ ] **Add keyboard shortcuts for power users** - In `src/app/dashboard/page.tsx`, add useEffect hook listening for: `Cmd+Enter` (submit), `Cmd+A` (select all repos), `Cmd+D` (deselect all), `1/2/3` (activity mode). Power users shouldn't need the mouse.
 

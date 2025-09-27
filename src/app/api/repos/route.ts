@@ -18,6 +18,7 @@ type OptimizedRepository = {
   };
   private: boolean;
   language: string | null;
+  updated_at: string | null;
 };
 
 // Function to extract only the necessary repository fields
@@ -30,7 +31,8 @@ function optimizeRepositoryData(repo: Repository): OptimizedRepository {
       login: repo.owner.login
     },
     private: repo.private,
-    language: repo.language || null
+    language: repo.language || null,
+    updated_at: repo.updated_at || null
   };
 }
 

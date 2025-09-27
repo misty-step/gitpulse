@@ -23,6 +23,7 @@ export interface Repository {
   };
   readonly private: boolean;
   readonly language?: string | null;
+  readonly updated_at?: string | null;
 }
 
 /**

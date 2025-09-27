@@ -112,9 +112,9 @@ export default function Dashboard() {
         if (parts.length === 2) return parts.pop()?.split(';').shift();
         return null;
       };
-      
+
       const installCookie = getCookie('github_installation_id');
-      
+
       if (installCookie) {
         console.log('Found GitHub installation cookie:', installCookie);
         // Parse the installation ID from cookie and use it
@@ -130,7 +130,7 @@ export default function Dashboard() {
           return;
         }
       }
-      
+
       // No installation cookie found, proceed with normal fetch
       fetchRepositories().then(success => {
         if (success) {
@@ -139,7 +139,49 @@ export default function Dashboard() {
       });
     }
   }, [session, fetchRepositories]);
-  
+
+  // Smart repository pre-selection: Auto-select repos with recent activity
+  useEffect(() => {
+    // Only run when repositories are first loaded and no repositories are selected
+    if (repositories.length > 0 && filters.repositories.length === 0) {
+      // Check if we've already done auto-selection for this session
+      const autoSelectKey = `gitpulse_auto_selected_${session?.user?.email || 'user'}`;
+      const hasAutoSelected = sessionStorage.getItem(autoSelectKey);
+
+      if (!hasAutoSelected) {
+        // Calculate 30 days ago
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        // Filter repositories that have been updated in the last 30 days
+        const recentRepos = repositories.filter(repo => {
+          if (repo.updated_at) {
+            const updatedDate = new Date(repo.updated_at);
+            return updatedDate > thirtyDaysAgo;
+          }
+          return false;
+        });
+
+        // If we found recent repositories, pre-select them
+        if (recentRepos.length > 0) {
+          const repoNames = recentRepos.map(repo => repo.full_name);
+          setFilterRepositories(repoNames);
+          console.log(`Auto-selected ${recentRepos.length} recently active repositories`);
+
+          // Mark that we've done auto-selection for this session
+          sessionStorage.setItem(autoSelectKey, 'true');
+        } else {
+          // If no recent repos, select all repositories as fallback
+          const allRepoNames = repositories.map(repo => repo.full_name);
+          setFilterRepositories(allRepoNames);
+          console.log('No recently active repositories found, selected all repositories');
+          sessionStorage.setItem(autoSelectKey, 'true');
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repositories, filters.repositories.length, session]);
+
   // Function to check whether repositories need to be refreshed
   const shouldRefreshRepositories = useCallback(() => {
     // Don't refresh if we have no session
