@@ -8,7 +8,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Remove all decorative ASCII borders from dashboard components** - Delete the terminal-style border components in `src/components/dashboard/AnalysisFilters.tsx`, `src/components/dashboard/CommitAnalysisModule.tsx`, and `src/components/dashboard/RepositorySelector.tsx`. These borders alone consume ~120px of vertical space for zero functional value.
 
-- [ ] **Flatten the activity mode selector into horizontal pills** - In `src/components/dashboard/ActivityModeSelector.tsx`, replace the vertical radio button stack (currently lines 15-45) with inline flex buttons: `<div className="flex gap-2">{modes.map(mode => <button className="px-4 py-2 rounded-lg...`)`. This saves ~100px vertical.
+- [x] **Flatten the activity mode selector into horizontal pills** - In `src/components/dashboard/ActivityModeSelector.tsx`, replace the vertical radio button stack (currently lines 15-45) with inline flex buttons: `<div className="flex gap-2">{modes.map(mode => <button className="px-4 py-2 rounded-lg...`)`. This saves ~100px vertical.
 
 - [ ] **Inline date range inputs on single row** - Modify `src/components/dashboard/DateRangeSelector.tsx` lines 78-95 to place start_date and end_date inputs side-by-side using `grid grid-cols-2 gap-4` instead of stacked. Include the quick-select buttons (Last 7/30 days) as small pills above. Reduces height from ~200px to ~80px.
 

@@ -39,29 +39,9 @@ const meta: Meta<typeof ModeSelector> = {
       description: 'Accessibility label for the radio group',
       control: 'text' 
     },
-    className: { 
+    className: {
       description: 'Additional CSS class names',
-      control: 'text' 
-    },
-    accentColor: {
-      description: 'Primary color for accents (selected items, indicators)',
-      control: 'color'
-    },
-    secondaryColor: {
-      description: 'Text color for descriptions',
-      control: 'color'
-    },
-    textColor: {
-      description: 'Main text color',
-      control: 'color'
-    },
-    backgroundColor: {
-      description: 'Background color for the container',
-      control: 'color'
-    },
-    selectedBackgroundColor: {
-      description: 'Background color for selected items',
-      control: 'color'
+      control: 'text'
     }
   },
   parameters: {
@@ -205,11 +185,7 @@ export const CustomTheme: Story = {
   args: {
     selectedMode: 'my-activity',
     disabled: false,
-    accentColor: '#FF5733',
-    secondaryColor: '#C70039',
-    textColor: '#ffffff',
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
-    selectedBackgroundColor: 'rgba(255, 87, 51, 0.2)',
+    className: 'custom-theme',
   },
   parameters: {
     docs: {

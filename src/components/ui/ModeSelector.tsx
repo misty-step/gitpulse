@@ -29,19 +29,19 @@ export interface ModeOption {
  * Default mode options available in the application
  */
 export const DEFAULT_MODES: ModeOption[] = [
-  { 
-    id: 'my-activity', 
-    label: 'MY ACTIVITY', 
+  {
+    id: 'my-activity',
+    label: 'My Activity',
     description: 'View your commits across all repositories'
   },
-  { 
-    id: 'my-work-activity', 
-    label: 'MY WORK ACTIVITY', 
+  {
+    id: 'my-work-activity',
+    label: 'My Work',
     description: 'View your commits within selected organizations'
   },
-  { 
-    id: 'team-activity', 
-    label: 'TEAM ACTIVITY', 
+  {
+    id: 'team-activity',
+    label: 'Team',
     description: 'View all team members\' activity within selected organizations'
   },
 ];
@@ -83,36 +83,6 @@ export interface ModeSelectorProps {
    * CSS class to apply to the root element
    */
   className?: string;
-  
-  /**
-   * Primary color for accents (selected items, indicators)
-   * @default 'var(--neon-green, #00ff87)'
-   */
-  accentColor?: string;
-  
-  /**
-   * Text color for descriptions
-   * @default 'var(--electric-blue, #3b8eea)'
-   */
-  secondaryColor?: string;
-  
-  /**
-   * Main text color
-   * @default 'var(--foreground, #ffffff)'
-   */
-  textColor?: string;
-  
-  /**
-   * Background color for the container
-   * @default 'rgba(27, 43, 52, 0.7)'
-   */
-  backgroundColor?: string;
-  
-  /**
-   * Background color for selected items
-   * @default 'rgba(0, 255, 135, 0.1)'
-   */
-  selectedBackgroundColor?: string;
 }
 
 /**
@@ -133,18 +103,13 @@ export interface ModeSelectorProps {
  * />
  * ```
  */
-export default function ModeSelector({ 
+export default function ModeSelector({
   selectedMode,
   onChange,
   disabled = false,
   modes = DEFAULT_MODES,
   ariaLabel = 'Activity Mode',
   className = '',
-  accentColor = 'var(--neon-green, #00ff87)',
-  secondaryColor = 'var(--electric-blue, #3b8eea)',
-  textColor = 'var(--foreground, #ffffff)',
-  backgroundColor = 'rgba(27, 43, 52, 0.7)',
-  selectedBackgroundColor = 'rgba(0, 255, 135, 0.1)',
 }: ModeSelectorProps) {
   // Use stable IDs
   const headerId = useId();
@@ -185,99 +150,51 @@ export default function ModeSelector({
   };
 
   return (
-    <div 
-      className={`rounded-lg border ${className}`} 
-      style={{ 
-        backgroundColor: backgroundColor,
-        backdropFilter: 'blur(5px)',
-        borderColor: accentColor,
-      }}
+    <div
+      className={`inline-flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg ${className}`}
       role="radiogroup"
       aria-labelledby={headerId}
       aria-disabled={disabled}
     >
-      <div className="p-3 border-b" style={{ borderColor: accentColor }}>
-        <div className="flex items-center">
-          <div 
-            className="w-2 h-2 rounded-full mr-2" 
-            style={{ backgroundColor: accentColor }}
-            aria-hidden="true"
-          ></div>
-          <h3 
-            id={headerId}
-            className="text-sm uppercase" 
-            style={{ color: accentColor }}
-          >
-            {ariaLabel}
-          </h3>
-        </div>
-      </div>
+      <span id={headerId} className="sr-only">{ariaLabel}</span>
 
-      <div className="p-4">
-        <div className="space-y-3">
-          {modes.map((mode, index) => {
-            const isSelected = selectedMode === mode.id;
-            const optionId = `${groupId}-option-${index}`;
-            
-            return (
-              <div 
-                id={optionId}
-                key={mode.id}
-                className={`p-3 rounded-md transition-all duration-200 
-                  ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  ${isSelected ? 'ring-2' : ''}
-                  focus:outline-none focus:ring-2 focus:ring-offset-1`}
-                style={{ 
-                  backgroundColor: isSelected ? selectedBackgroundColor : 'rgba(27, 43, 52, 0.5)',
-                  borderLeft: `3px solid ${isSelected ? accentColor : 'transparent'}`,
-                  // Use type assertion for CSS custom properties
-                  ...({"--tw-ring-color": accentColor} as React.CSSProperties),
-                  ...({"--tw-ring-offset-color": backgroundColor} as React.CSSProperties)
-                }}
-                onClick={() => handleModeChange(mode.id)}
-                role="radio"
-                aria-checked={isSelected}
-                tabIndex={disabled ? -1 : (isSelected ? 0 : -1)}
-                onKeyDown={(e) => handleKeyDown(e, index)}
-                data-testid={`mode-option-${mode.id}`}
-                aria-disabled={disabled}
-              >
-                <div className="flex items-center">
-                  <div 
-                    className="w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center"
-                    style={{ borderColor: accentColor }}
-                    aria-hidden="true"
-                  >
-                    {isSelected && (
-                      <div 
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: accentColor }}
-                        aria-hidden="true"
-                      />
-                    )}
-                  </div>
-                  <div>
-                    <div 
-                      className="text-sm font-bold" 
-                      style={{ color: textColor }}
-                      id={`${optionId}-label`}
-                    >
-                      {mode.label}
-                    </div>
-                    <div 
-                      className="text-xs mt-1" 
-                      style={{ color: secondaryColor }}
-                      id={`${optionId}-description`}
-                    >
-                      {mode.description}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {modes.map((mode, index) => {
+        const isSelected = selectedMode === mode.id;
+        const optionId = `${groupId}-option-${index}`;
+
+        return (
+          <button
+            id={optionId}
+            key={mode.id}
+            className={`
+              px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              ${isSelected
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+            `}
+            onClick={() => handleModeChange(mode.id)}
+            role="radio"
+            aria-checked={isSelected}
+            aria-label={mode.label}
+            aria-describedby={`${optionId}-description`}
+            tabIndex={disabled ? -1 : (isSelected ? 0 : -1)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            data-testid={`mode-option-${mode.id}`}
+            disabled={disabled}
+            title={mode.description}
+          >
+            <span id={`${optionId}-label`}>
+              {mode.label}
+            </span>
+            <span id={`${optionId}-description`} className="sr-only">
+              {mode.description}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -37,14 +37,14 @@ export default function AnalysisParameters({
   const getActivityModeDisplay = (mode: ActivityMode): string => {
     switch (mode) {
       case 'my-activity':
-        return 'MY ACTIVITY';
+        return 'My Activity';
       case 'my-work-activity':
-        return 'MY WORK ACTIVITY';
+        return 'My Work';
       case 'team-activity':
-        return 'TEAM ACTIVITY';
+        return 'Team';
       default:
         // This should never happen with the current ActivityMode type
-        return 'UNKNOWN MODE';
+        return 'Unknown';
     }
   };
 
