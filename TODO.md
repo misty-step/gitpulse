@@ -22,9 +22,8 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Implement smart repository pre-selection** - In `src/components/dashboard/RepositorySelector.tsx` line 45, add logic to auto-select repos with commits in last 30 days: `const recentRepos = repos.filter(r => r.pushed_at > thirtyDaysAgo)`. Pre-check these on mount. Users shouldn't manually select repos they're obviously working on.
 
-- [ ] **Add keyboard shortcuts for power users** - In `src/app/dashboard/page.tsx`, add useEffect hook listening for: `Cmd+Enter` (submit), `Cmd+A` (select all repos), `Cmd+D` (deselect all), `1/2/3` (activity mode). Power users shouldn't need the mouse.
 
-- [ ] **Show real-time selection feedback** - Update Generate button text dynamically in `src/app/dashboard/page.tsx` line 267: Show "Generate summary for USERNAME" (individual) or "Generate summary for X repos" (count) or "Generate team summary for X members". User should know exactly what will happen before clicking.
+- [x] **Show real-time selection feedback** - Update Generate button text dynamically in `src/app/dashboard/page.tsx` line 267: Show "Generate summary for USERNAME" (individual) or "Generate summary for X repos" (count) or "Generate team summary for X members". User should know exactly what will happen before clicking.
 
 ### Phase 3: State Management (Reduce Friction)
 
