@@ -145,7 +145,7 @@ export default function RepositorySection({
 
             {/* Repository list with organization grouping */}
             {showRepoList && (
-              <div className="max-h-60 overflow-y-auto text-sm">
+              <div className="max-h-96 overflow-y-auto text-sm">
                 {repositories.length > 0 ? (
                   groupRepositoriesByOrg().map(([org, repos]) => (
                     <div key={org} className="mb-3">
