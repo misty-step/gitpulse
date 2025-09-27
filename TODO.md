@@ -41,7 +41,7 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 
 - [x] **Add collapsible "Advanced Options" section** - Hide rarely-used options (custom date ranges, exclude forks, etc.) behind a disclosure triangle. Default closed. 95% of users need only the basics.
 
-- [ ] **Implement responsive breakpoints** - Add tablet/mobile layouts in dashboard page: Stack toolbar vertically on screens < 768px, hide repo list on mobile (default to "all"), adjust font sizes. Current design assumes desktop-only.
+- [x] **Implement responsive breakpoints** - Add tablet/mobile layouts in dashboard page: Stack toolbar vertically on screens < 768px, hide repo list on mobile (default to "all"), adjust font sizes. Current design assumes desktop-only.
 
 ### Phase 5: Performance (Perceived Speed)
 
