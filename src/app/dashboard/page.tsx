@@ -21,6 +21,7 @@ import OperationsPanel from '@/components/dashboard/OperationsPanel';
 import RepositorySection from '@/components/dashboard/RepositorySection';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
+import SummarySkeletonLoader from '@/components/dashboard/SummarySkeletonLoader';
 import QuickActionBar from '@/components/dashboard/QuickActionBar';
 import CompactToolbar from '@/components/dashboard/CompactToolbar';
 import AdvancedOptions from '@/components/dashboard/AdvancedOptions';
@@ -41,6 +42,9 @@ export default function Dashboard() {
   const [excludeForks, setExcludeForks] = useState(false);
   const [filterByLanguage, setFilterByLanguage] = useState('');
   const [showPrivateOnly, setShowPrivateOnly] = useState(false);
+
+  // Optimistic UI state - show skeleton immediately when generating
+  const [showSkeleton, setShowSkeleton] = useState(false);
   
   // Custom hooks for repositories, installations, filters, and summary
   const { 
@@ -306,8 +310,8 @@ export default function Dashboard() {
     }
   }, [activityMode, dateRange, filters.repositories, initialLoad, savePreferences]);
   
-  // Wrap generateSummary to save last generation parameters
-  const handleGenerateSummary = useCallback(() => {
+  // Wrap generateSummary to save last generation parameters and show skeleton
+  const handleGenerateSummary = useCallback(async () => {
     // Save the current parameters as last generation
     const params = {
       activityMode,
@@ -320,8 +324,16 @@ export default function Dashboard() {
     saveLastGeneration(params);
     setLastGeneration({ ...params, timestamp: Date.now() });
 
-    // Call the original generateSummary
-    generateSummary();
+    // Show skeleton immediately (optimistic UI)
+    setShowSkeleton(true);
+
+    // Call the original generateSummary and hide skeleton when done
+    try {
+      await generateSummary();
+    } finally {
+      // Hide skeleton after generation completes (success or error)
+      setShowSkeleton(false);
+    }
   }, [
     activityMode,
     dateRange,
@@ -333,7 +345,7 @@ export default function Dashboard() {
   ]);
 
   // Regenerate with last parameters
-  const handleRegenerateLast = useCallback(() => {
+  const handleRegenerateLast = useCallback(async () => {
     if (!lastGeneration) return;
 
     // Apply the last generation parameters
@@ -343,9 +355,16 @@ export default function Dashboard() {
     setOrganizations([...lastGeneration.organizations]);
     setContributors([...lastGeneration.contributors]);
 
+    // Show skeleton immediately (optimistic UI)
+    setShowSkeleton(true);
+
     // Small delay to ensure state updates are applied
-    setTimeout(() => {
-      generateSummary();
+    setTimeout(async () => {
+      try {
+        await generateSummary();
+      } finally {
+        setShowSkeleton(false);
+      }
     }, 100);
   }, [
     lastGeneration,
@@ -450,20 +469,24 @@ export default function Dashboard() {
             isWithinForm={false}
           />
 
-          {/* Summary View Component (conditionally shown) */}
-          {summary && (
-            <SummaryView
-              summary={summary}
-              activityMode={activityMode}
-              dateRange={dateRange}
-              activeFilters={{
-                contributors: [...filters.contributors],
-                organizations: [...filters.organizations],
-                repositories: [...filters.repositories]
-              }}
-              installationIds={installationIds as readonly number[]}
-              loading={loading}
-            />
+          {/* Show skeleton loader when generating, otherwise show summary if available */}
+          {showSkeleton ? (
+            <SummarySkeletonLoader />
+          ) : (
+            summary && (
+              <SummaryView
+                summary={summary}
+                activityMode={activityMode}
+                dateRange={dateRange}
+                activeFilters={{
+                  contributors: [...filters.contributors],
+                  organizations: [...filters.organizations],
+                  repositories: [...filters.repositories]
+                }}
+                installationIds={installationIds as readonly number[]}
+                loading={loading}
+              />
+            )
           )}
         </div>
       </main>
