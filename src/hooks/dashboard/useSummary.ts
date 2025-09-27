@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { ActivityMode, CommitSummary, DateRange, Installation } from '@/types/dashboard';
 import { logger } from '@/lib/logger';
 import { summaryService } from '@/services/workflows/summary';
+import { generateCacheKey, getCachedSummary, cacheSummary } from '@/lib/summaryCache';
 import { 
   createSummaryRequest, 
   validateSummaryRequestConfig,
@@ -149,6 +150,30 @@ export function useSummary({
       return;
     }
 
+    // Check cache first
+    const cacheKey = generateCacheKey(
+      session?.user?.email || session?.user?.name || undefined,
+      activityMode,
+      dateRange,
+      repositories,
+      organizations,
+      contributors
+    );
+
+    const cachedSummary = getCachedSummary(cacheKey);
+    if (cachedSummary) {
+      logger.info(MODULE_NAME, 'Using cached summary');
+      setSummary(cachedSummary);
+      setLoading(false);
+      setProgress({
+        stage: 'complete',
+        message: 'Summary loaded from cache',
+        totalRepositories: 0,
+        completedRepositories: 0
+      });
+      return;
+    }
+
     // Cancel any ongoing effect
     if (currentEffectRef.current) {
       currentEffectRef.current.cancelled = true;
@@ -276,7 +301,11 @@ export function useSummary({
       });
 
       setSummary(legacySummary);
-      
+
+      // Cache the successful summary
+      cacheSummary(cacheKey, legacySummary);
+      logger.debug(MODULE_NAME, 'Summary cached for future use');
+
       // Update auth method
       setAuthMethod(installationIds.length > 0 ? 'github_app' : 'oauth');
       setProgress(prev => ({
