@@ -321,12 +321,6 @@ export default function Dashboard() {
         <RepositorySection
           repositories={filteredRepositories}
           loading={loading}
-          activeFilters={{
-            contributors: [...filters.contributors],
-            organizations: [...filters.organizations],
-            repositories: [...filters.repositories]
-          }}
-          isWithinForm={false}
         />
 
         {/* Right column: Main content area */}

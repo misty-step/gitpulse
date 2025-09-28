@@ -222,7 +222,15 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
   - Result: 111 lines reduced to 6 lines (95% reduction)
   ```
 
-- [ ] **Combine RepositorySection + RepositoryFilters + RepositoryList** - Single component renders fieldset with checkboxes. No virtualization until proven necessary. Current: 400+ lines. Target: < 100 lines.
+- [x] **Combine RepositorySection + RepositoryFilters + RepositoryList** - Single component renders fieldset with checkboxes. No virtualization until proven necessary. Current: 400+ lines. Target: < 100 lines.
+  ```
+  Work Log:
+  - RepositoryFilters and RepositoryList were already integrated within RepositorySection
+  - Reduced from 239 lines to 59 lines (75% reduction)
+  - Removed: FilterState props, submit button, verbose stats, active filter display
+  - Kept: Essential functionality - grouping by org, collapsible details, checkboxes
+  - Result: Clean semantic HTML fieldset with native controls
+  ```
 
 - [ ] **Replace 15 dashboard components with 5** - Final structure: NavBar (controls), FilterPanel (repos/options), ActivityFeed (content), CommitItem (repeated element), ErrorBoundary. Everything else gets inlined or deleted.
 
