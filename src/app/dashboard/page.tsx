@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getDefaultDateRange } from '@/lib/dashboard-utils';
 import { DateRange } from '@/types/dashboard';
+import { useURLState } from '@/hooks/useURLState';
 
 // Custom hooks
 import { useRepositories } from '@/hooks/dashboard/useRepositories';
 import { useInstallations } from '@/hooks/dashboard/useInstallations';
 import { useFilters } from '@/hooks/dashboard/useFilters';
 import { useSummary } from '@/hooks/dashboard/useSummary';
-import { useLocalStoragePreferences } from '@/hooks/useLocalStoragePreferences';
 import { useLastGenerationParams } from '@/hooks/useLastGenerationParams';
 
 // Components
@@ -23,16 +23,26 @@ import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
 import NavBar from '@/components/dashboard/NavBar';
 
-export default function Dashboard() {
+function DashboardContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { loadPreferences, savePreferences } = useLocalStoragePreferences();
   const { loadLastGeneration, saveLastGeneration } = useLastGenerationParams();
 
-  // State for initial loading and date range
+  // URL state management - single source of truth
+  const {
+    activityMode,
+    dateRange,
+    selectedRepos,
+    selectedOrgs,
+    setActivityMode: setActivityModeURL,
+    setDateRange: setDateRangeURL,
+    setSelectedRepos,
+    setSelectedOrgs
+  } = useURLState();
+
+  // State for initial loading
   const [initialLoad, setInitialLoad] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
-  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
+  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>(selectedRepos);
   const [lastGeneration, setLastGeneration] = useState(() => loadLastGeneration());
 
 
@@ -61,7 +71,6 @@ export default function Dashboard() {
 
   const {
     filters,
-    activityMode,
     setContributors,
     setOrganizations,
     setRepositories: setFilterRepositories,
@@ -69,9 +78,10 @@ export default function Dashboard() {
   } = useFilters({
     initialFilters: {
       contributors: ['me'],
-      organizations: [],
-      repositories: []
-    }
+      organizations: selectedOrgs,
+      repositories: selectedRepos
+    },
+    initialMode: activityMode
   });
 
   const {
@@ -100,24 +110,14 @@ export default function Dashboard() {
   // Combine needsInstallation flags
   const needsInstallation = repoNeedsInstallation || installNeedsInstallation;
 
-  // Store preferences on filter changes
+  // Sync URL state with component state
   useEffect(() => {
-    if (initialLoad) return;
+    setSelectedRepoIds(selectedRepos);
+  }, [selectedRepos]);
 
-    savePreferences({
-      activityMode,
-      dateRange,
-      selectedRepositoryIds: filters.repositories
-    });
-  }, [
-    activityMode,
-    dateRange,
-    filters.repositories,
-    filters.contributors,
-    filters.organizations,
-    savePreferences,
-    initialLoad
-  ]);
+  useEffect(() => {
+    setOrganizations(selectedOrgs);
+  }, [selectedOrgs, setOrganizations]);
 
   // Filter repositories based on selected IDs and advanced options
   const filteredRepositories = useMemo(() => {
@@ -144,13 +144,8 @@ export default function Dashboard() {
       }
 
       try {
-        // Load saved preferences
-        const prefs = loadPreferences();
-        if (prefs) {
-          if (prefs.activityMode) setActivityMode(prefs.activityMode);
-          if (prefs.dateRange) setDateRange(prefs.dateRange);
-          if (prefs.selectedRepositoryIds) setFilterRepositories(prefs.selectedRepositoryIds);
-        }
+        // URL state is now the source of truth - no need to load from localStorage
+        // State is already initialized from URL params
 
         // Fetch repositories
         await fetchRepositories();
@@ -167,9 +162,7 @@ export default function Dashboard() {
     status,
     router,
     fetchRepositories,
-    loadPreferences,
     setActivityMode,
-    setDateRange,
     setFilterRepositories,
     setContributors,
     setOrganizations
@@ -202,26 +195,16 @@ export default function Dashboard() {
       : repositories.map(r => r.id.toString());
   }, [selectedRepoIds, repositories]);
 
-  // Function to handle date range changes
+  // Function to handle date range changes - updates URL
   const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
-    setDateRange(newDateRange);
-    savePreferences({
-      activityMode,
-      dateRange: newDateRange,
-      selectedRepositoryIds: filters.repositories
-    });
-  }, [
-    activityMode,
-    filters.repositories,
-    filters.contributors,
-    filters.organizations,
-    savePreferences
-  ]);
+    setDateRangeURL(newDateRange);
+  }, [setDateRangeURL]);
 
-  // Function to handle organization filter changes
-  const handleOrganizationChange = useCallback((selectedOrgs: string[]) => {
-    setOrganizations(selectedOrgs);
-  }, [setOrganizations]);
+  // Function to handle organization filter changes - updates URL
+  const handleOrganizationChange = useCallback((orgs: string[]) => {
+    setSelectedOrgs(orgs);
+    setOrganizations(orgs);
+  }, [setSelectedOrgs, setOrganizations]);
 
   // Function to handle summary generation
   const handleGenerateSummary = useCallback(async () => {
@@ -261,9 +244,14 @@ export default function Dashboard() {
   const handleRegenerateLast = useCallback(async () => {
     if (!lastGeneration) return;
 
-    // Apply last generation parameters
+    // Apply last generation parameters via URL
+    setActivityModeURL(lastGeneration.activityMode);
+    setDateRangeURL(lastGeneration.dateRange);
+    setSelectedRepos([...lastGeneration.selectedRepositoryIds]);
+    setSelectedOrgs([...lastGeneration.organizations]);
+
+    // Also update local state
     setActivityMode(lastGeneration.activityMode);
-    setDateRange(lastGeneration.dateRange);
     setFilterRepositories(lastGeneration.selectedRepositoryIds);
     setContributors(lastGeneration.contributors);
     setOrganizations(lastGeneration.organizations);
@@ -280,8 +268,11 @@ export default function Dashboard() {
     }
   }, [
     lastGeneration,
+    setActivityModeURL,
+    setDateRangeURL,
+    setSelectedRepos,
+    setSelectedOrgs,
     setActivityMode,
-    setDateRange,
     setFilterRepositories,
     setContributors,
     setOrganizations,
@@ -378,5 +369,14 @@ export default function Dashboard() {
         </div>
       </main>
     </>
+  );
+}
+
+// Wrap in Suspense for Next.js client components with useSearchParams
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<DashboardLoadingState />}>
+      <DashboardContent />
+    </Suspense>
   );
 }

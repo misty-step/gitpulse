@@ -253,7 +253,15 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
 
 ### Phase 5: State Simplification (URL is State)
 
-- [ ] **Move all filter state to URL search params** - Example: `?mode=my&since=2024-01-01&until=2024-01-31&repos=user/repo1,user/repo2`. Browser back button works, sharing works, bookmarking works.
+- [x] **Move all filter state to URL search params** - Example: `?mode=my&since=2024-01-01&until=2024-01-31&repos=user/repo1,user/repo2`. Browser back button works, sharing works, bookmarking works.
+  ```
+  Work Log:
+  - Created useURLState hook to manage state via URL search params
+  - Updated dashboard to use URL as single source of truth
+  - Removed dependency on localStorage for filter state
+  - Added Suspense boundary for Next.js client components with useSearchParams
+  - Result: Shareable URLs, browser navigation support, bookmarkable state
+  ```
 
 - [ ] **Delete useLocalStorage hooks, use URL + sessionStorage** - URL for user-visible state, sessionStorage for auth tokens only. Stop reimplementing browser features.
 
