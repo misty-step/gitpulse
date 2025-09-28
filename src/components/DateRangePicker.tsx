@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useDebounceCallback } from '@/hooks/useDebounce';
 
 export type DateRange = {
   since: string; // YYYY-MM-DD format
@@ -17,175 +16,162 @@ const formatDate = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
-// Debounce delay for date changes (in milliseconds)
-const DATE_DEBOUNCE_DELAY = 300;
-
 export default function DateRangePicker({
   dateRange,
   onChange,
   disabled = false
 }: DateRangePickerProps) {
-  // Internal state for immediate UI feedback
-  const [internalDateRange, setInternalDateRange] = useState<DateRange>(dateRange);
-  
-  // Update internal state when props change
-  useEffect(() => {
-    setInternalDateRange(dateRange);
-  }, [dateRange]);
-  
-  // Create debounced onChange handler (300ms delay)
-  const { callback: debouncedOnChange, pending: isDebouncing } = useDebounceCallback(
-    onChange,
-    DATE_DEBOUNCE_DELAY
-  );
-  
+  // Calculate today's date for max value
+  const today = useMemo(() => formatDate(new Date()), []);
+
   // Calculate common preset date ranges
   const presets = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
     // Last 7 days
-    const last7Days = new Date(today);
-    last7Days.setDate(today.getDate() - 7);
-    
+    const last7Days = new Date(now);
+    last7Days.setDate(now.getDate() - 7);
+
     // Last 30 days
-    const last30Days = new Date(today);
-    last30Days.setDate(today.getDate() - 30);
-    
+    const last30Days = new Date(now);
+    last30Days.setDate(now.getDate() - 30);
+
     // First day of current month
-    const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     // First day of previous month
-    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
     // Last day of previous month
-    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    
-    return {
-      last7Days: {
-        since: formatDate(last7Days),
-        until: formatDate(today)
-      },
-      last30Days: {
-        since: formatDate(last30Days),
-        until: formatDate(today)
-      },
-      thisMonth: {
-        since: formatDate(thisMonth),
-        until: formatDate(today)
-      },
-      lastMonth: {
-        since: formatDate(lastMonthStart),
-        until: formatDate(lastMonthEnd)
-      }
-    };
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    return [
+      { id: 'last7', label: 'Last 7 days', since: formatDate(last7Days), until: formatDate(now) },
+      { id: 'last30', label: 'Last 30 days', since: formatDate(last30Days), until: formatDate(now) },
+      { id: 'thisMonth', label: 'This month', since: formatDate(thisMonth), until: formatDate(now) },
+      { id: 'lastMonth', label: 'Last month', since: formatDate(lastMonthStart), until: formatDate(lastMonthEnd) }
+    ];
   }, []);
-  
+
   // Apply preset date range
-  const applyPreset = useCallback((preset: keyof typeof presets) => {
+  const applyPreset = useCallback((preset: typeof presets[0]) => {
     if (!disabled) {
-      const newRange = presets[preset];
-      // Update internal state immediately
-      setInternalDateRange(newRange);
-      // Trigger the debounced change
-      debouncedOnChange(newRange);
+      onChange({ since: preset.since, until: preset.until });
     }
-  }, [disabled, presets, debouncedOnChange]);
-  
+  }, [disabled, onChange]);
+
   // Handle manual date changes
   const handleDateChange = useCallback((field: keyof DateRange, value: string) => {
     if (!disabled) {
-      const newRange = {
-        ...internalDateRange,
+      onChange({
+        ...dateRange,
         [field]: value
-      };
-      // Update internal state immediately
-      setInternalDateRange(newRange);
-      // Trigger the debounced change
-      debouncedOnChange(newRange);
+      });
     }
-  }, [internalDateRange, disabled, debouncedOnChange]);
-  
+  }, [dateRange, disabled, onChange]);
+
   // Check if a preset is currently active
-  const isPresetActive = useCallback((preset: DateRange): boolean => {
-    return internalDateRange.since === preset.since && internalDateRange.until === preset.until;
-  }, [internalDateRange]);
+  const isPresetActive = useCallback((preset: typeof presets[0]): boolean => {
+    return dateRange.since === preset.since && dateRange.until === preset.until;
+  }, [dateRange]);
 
   return (
-    <div className="space-y-2">
+    <fieldset style={{
+      border: '1px solid var(--border)',
+      borderRadius: '4px',
+      padding: 'var(--space)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 'var(--space)'
+    }} disabled={disabled}>
+      <legend style={{ fontWeight: '500' }}>Date Range</legend>
+
       {/* Compact preset buttons */}
-      <div className="flex flex-wrap gap-1">
-        <div className="grid grid-cols-4 gap-1 w-full">
-          {[
-            { id: 'last7Days', label: 'Last 7 days' },
-            { id: 'last30Days', label: 'Last 30 days' },
-            { id: 'thisMonth', label: 'This month' },
-            { id: 'lastMonth', label: 'Last month' }
-          ].map(preset => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => applyPreset(preset.id as keyof typeof presets)}
-              disabled={disabled || isDebouncing}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                isPresetActive(presets[preset.id as keyof typeof presets])
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              } ${(disabled || isDebouncing) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {/* Date inputs side-by-side */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label
-            htmlFor="since"
-            className="block text-xs mb-1 text-gray-600 dark:text-gray-400"
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 'calc(var(--space) / 2)'
+      }}>
+        {presets.map(preset => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => applyPreset(preset)}
+            disabled={disabled}
+            style={{
+              padding: 'calc(var(--space) / 2)',
+              fontSize: '0.75rem',
+              borderRadius: '4px',
+              border: isPresetActive(preset) ? 'none' : '1px solid var(--border)',
+              background: isPresetActive(preset) ? 'var(--accent)' : 'white',
+              color: isPresetActive(preset) ? 'white' : 'var(--text)',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
           >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Native date inputs side-by-side */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        gap: 'calc(var(--space) / 2)',
+        alignItems: 'end'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--space) / 4)' }}>
+          <label htmlFor="date-since" style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
             From
           </label>
           <input
             type="date"
-            id="since"
-            value={internalDateRange.since}
+            id="date-since"
+            value={dateRange.since}
             onChange={(e) => handleDateChange('since', e.target.value)}
             disabled={disabled}
-            className="block w-full px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            max={dateRange.until}
+            style={{
+              padding: 'calc(var(--space) / 2)',
+              fontSize: '0.875rem',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              background: 'white',
+              font: 'inherit'
+            }}
             required
-            max={internalDateRange.until}
           />
         </div>
 
-        <div>
-          <label
-            htmlFor="until"
-            className="block text-xs mb-1 text-gray-600 dark:text-gray-400"
-          >
+        <span style={{ paddingBottom: 'calc(var(--space) / 2)', color: 'var(--muted)' }}>to</span>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'calc(var(--space) / 4)' }}>
+          <label htmlFor="date-until" style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
             To
           </label>
           <input
             type="date"
-            id="until"
-            value={internalDateRange.until}
+            id="date-until"
+            value={dateRange.until}
             onChange={(e) => handleDateChange('until', e.target.value)}
             disabled={disabled}
-            className="block w-full px-2 py-1 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            min={dateRange.since}
+            max={today}
+            style={{
+              padding: 'calc(var(--space) / 2)',
+              fontSize: '0.875rem',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              background: 'white',
+              font: 'inherit'
+            }}
             required
-            min={internalDateRange.since}
           />
         </div>
       </div>
-
-      {/* Loading indicator */}
-      {isDebouncing && (
-        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-          <span className="inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-1"></span>
-          Updating...
-        </div>
-      )}
-    </div>
+    </fieldset>
   );
 }
