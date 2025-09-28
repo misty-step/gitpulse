@@ -33,19 +33,15 @@ function DashboardContent() {
     setSelectedOrgs
   } = useURLState();
 
-  // State for initial loading
-  const [initialLoad, setInitialLoad] = useState(true);
+  // State management
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>(selectedRepos);
-
-  // Optimistic UI state - show skeleton immediately when generating
-  const [showSkeleton, setShowSkeleton] = useState(false);
 
   // GitHub data hook - consolidated data fetching
   const {
     repositories,
     installations,
     summary,
-    loading,
+    isGenerating,
     error,
     needsInstallation,
     fetchRepositories,
@@ -90,11 +86,8 @@ function DashboardContent() {
 
         // Fetch repositories
         await fetchRepositories();
-
-        setInitialLoad(false);
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
-        setInitialLoad(false);
       }
     };
 
@@ -113,13 +106,13 @@ function DashboardContent() {
     }
   }, [activityMode, repositories]);
 
-  // Simple progress message when loading
+  // Simple progress message when generating
   const progressMessage = useMemo(() => {
-    if (loading && summary === null) {
-      return 'Generating summary...';
+    if (isGenerating) {
+      return 'Generating...';
     }
     return '';
-  }, [loading, summary]);
+  }, [isGenerating]);
 
   // Compute selected repository IDs
   const selectedRepositoryIds = useMemo(() => {
@@ -141,11 +134,7 @@ function DashboardContent() {
 
   // Function to handle summary generation
   const handleGenerateSummary = useCallback(async () => {
-    // Show skeleton loader immediately (optimistic UI)
-    setShowSkeleton(true);
-
-    try {
-      await generateSummaryAPI({
+    await generateSummaryAPI({
         activityMode,
         dateRange,
         selectedRepositoryIds: filterRepositories,
@@ -153,10 +142,6 @@ function DashboardContent() {
         organizations,
         installationIds: installations.map(i => i.id)
       });
-    } finally {
-      // Hide skeleton loader once generation is complete (success or failure)
-      setShowSkeleton(false);
-    }
   }, [
     activityMode,
     dateRange,
@@ -168,8 +153,8 @@ function DashboardContent() {
   ]);
 
 
-  // Show loading state during initial session loading or first data fetch
-  if (status === 'loading' || initialLoad) {
+  // Show loading state during session loading
+  if (status === 'loading') {
     return <DashboardLoadingState />;
   }
 
@@ -185,7 +170,7 @@ function DashboardContent() {
       <NavBar
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
-        loading={loading}
+        loading={isGenerating}
         repositories={filteredRepositories}
         onGenerate={handleGenerateSummary}
       />
@@ -195,14 +180,14 @@ function DashboardContent() {
         {/* Left column: Repository filters */}
         <RepositorySection
           repositories={filteredRepositories}
-          loading={loading}
+          loading={isGenerating}
         />
 
         {/* Right column: Main content area */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space)' }}>
           <OperationsPanel
             error={error}
-            loading={loading}
+            loading={isGenerating}
             needsInstallation={needsInstallation}
             authMethod="github-app"
             installations={installations}
@@ -226,16 +211,8 @@ function DashboardContent() {
           />
 
 
-          {/* Show skeleton loader when generating, otherwise show summary if available */}
-          {showSkeleton ? (
-            <div className="loading">
-              <div style={{ padding: '2rem', textAlign: 'center' }}>
-                <h2 style={{ marginBottom: '1rem', color: 'var(--muted)' }}>Generating Summary</h2>
-                <p style={{ color: 'var(--muted)' }}>Processing commits and generating insights...</p>
-              </div>
-            </div>
-          ) : (
-            summary && (
+          {/* Show summary if available, loading state is handled by components */}
+          {summary && (
               <SummaryView
                 summary={summary}
                 activityMode={activityMode}
@@ -246,9 +223,8 @@ function DashboardContent() {
                   repositories: filterRepositories
                 }}
                 installationIds={installations.map(i => i.id)}
-                loading={loading}
+                loading={isGenerating}
               />
-            )
           )}
         </div>
       </main>

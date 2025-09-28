@@ -285,7 +285,15 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
   - Result: Simplified from 6+ hooks to just 2 (useSession + useGitHubData), plus useURLState for URL management
   ```
 
-- [ ] **Remove all loading states except one** - Single boolean: `isGenerating`. Don't track 15 different loading states. User only cares: "is it done yet?"
+- [x] **Remove all loading states except one** - Single boolean: `isGenerating`. Don't track 15 different loading states. User only cares: "is it done yet?"
+  ```
+  Work Log:
+  - Renamed loading to isGenerating in useGitHubData hook
+  - Removed initialLoad state from dashboard (redundant)
+  - Removed showSkeleton state from dashboard (redundant)
+  - Consolidated all loading states into single isGenerating boolean
+  - Result: Much simpler state management - user only sees "generating" or not
+  ```
 
 - [ ] **Flatten component prop drilling via URL params** - Components read directly from URL: `const params = new URLSearchParams(location.search)`. No more passing 12 props through 5 components.
 

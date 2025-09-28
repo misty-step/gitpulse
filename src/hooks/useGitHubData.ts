@@ -21,8 +21,8 @@ interface UseGitHubDataReturn {
   installations: Installation[] | readonly Installation[];
   summary: any;
 
-  // Loading states
-  loading: boolean;
+  // Single loading state
+  isGenerating: boolean;
 
   // Error states
   error: string | null;
@@ -44,8 +44,8 @@ export function useGitHubData(): UseGitHubDataReturn {
   const [installations, setInstallations] = useState<Installation[] | readonly Installation[]>([]);
   const [summary, setSummary] = useState<any>(null);
 
-  // Loading state - single source of truth
-  const [loading, setLoading] = useState(false);
+  // Single loading state - user only cares "is it done yet?"
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Error state
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export function useGitHubData(): UseGitHubDataReturn {
    */
   const fetchRepositories = useCallback(async (installationId?: number): Promise<boolean> => {
     try {
-      setLoading(true);
+      setIsGenerating(true);
       setError(null);
 
       const url = installationId
@@ -97,7 +97,7 @@ export function useGitHubData(): UseGitHubDataReturn {
       setError('Failed to fetch repositories');
       return false;
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   }, []);
 
@@ -106,7 +106,7 @@ export function useGitHubData(): UseGitHubDataReturn {
    */
   const generateSummary = useCallback(async (params: GenerateSummaryParams): Promise<void> => {
     try {
-      setLoading(true);
+      setIsGenerating(true);
       setError(null);
       setSummary(null);
 
@@ -136,7 +136,7 @@ export function useGitHubData(): UseGitHubDataReturn {
       setError(err instanceof Error ? err.message : 'Failed to generate summary');
       throw err;
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   }, []);
 
@@ -146,8 +146,8 @@ export function useGitHubData(): UseGitHubDataReturn {
     installations,
     summary,
 
-    // Loading states
-    loading,
+    // Single loading state
+    isGenerating,
 
     // Error states
     error,
