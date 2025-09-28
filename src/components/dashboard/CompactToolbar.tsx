@@ -73,51 +73,6 @@ const detectPreset = (range: DateRange): DatePreset => {
   })?.id ?? 'custom';
 };
 
-const getButtonLabel = (
-  loading: boolean,
-  progressMessage: string | undefined,
-  activityMode: ActivityMode,
-  userName: string | null | undefined,
-  contributors: readonly string[],
-  selectedRepositoryIds: readonly string[],
-  repositories: readonly Repository[]
-): string => {
-  if (loading) {
-    return progressMessage || 'Analyzing...';
-  }
-
-  const activeRepositoryNames = selectedRepositoryIds.length > 0
-    ? selectedRepositoryIds
-    : repositories.map(repo => repo.full_name);
-
-  const repoCount = activeRepositoryNames.length;
-
-  if (repoCount === 0) {
-    return 'Select repositories to generate';
-  }
-
-  switch (activityMode) {
-    case 'my-activity': {
-      const displayName = userName || 'your activity';
-      return `Generate summary for ${displayName} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-    }
-    case 'team-activity': {
-      const memberCount = contributors.length;
-      if (memberCount === 0) {
-        return `Generate team summary (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-      }
-      return `Generate summary for ${memberCount} ${memberCount === 1 ? 'member' : 'members'} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-    }
-    case 'my-work-activity': {
-      const orgCount = new Set(activeRepositoryNames.map(name => name.split('/')[0])).size;
-      const displayName = userName || 'your work';
-      return `Generate ${displayName} across ${orgCount} ${orgCount === 1 ? 'org' : 'orgs'} (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-    }
-    default:
-      return `Generate summary (${repoCount} ${repoCount === 1 ? 'repo' : 'repos'})`;
-  }
-};
-
 export default function CompactToolbar({
   activityMode,
   onModeChange,
@@ -139,19 +94,6 @@ export default function CompactToolbar({
     setPreset(detectPreset(dateRange));
   }, [dateRange]);
 
-  const handlePresetChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    const value = event.target.value as DatePreset;
-    setPreset(value);
-
-    if (value === 'custom') {
-      return;
-    }
-
-    const newRange = createPresetRange(value);
-    setLocalRange(newRange);
-    onDateRangeChange(newRange);
-  }, [onDateRangeChange]);
-
   const handleDateChange = useCallback((field: keyof DateRange, value: string) => {
     const nextRange = {
       ...localRange,
@@ -163,97 +105,78 @@ export default function CompactToolbar({
     onDateRangeChange(nextRange);
   }, [localRange, onDateRangeChange]);
 
-  const buttonLabel = useMemo(() => getButtonLabel(
-    loading,
-    progressMessage,
-    activityMode,
-    userName,
-    contributors,
-    selectedRepositoryIds,
-    repositories
-  ), [
-    loading,
-    progressMessage,
-    activityMode,
-    userName,
-    contributors,
-    selectedRepositoryIds,
-    repositories
-  ]);
-
   const disableGenerate = loading || (
     selectedRepositoryIds.length === 0 && repositories.length === 0
   );
 
   return (
-    <nav>
-      <div>
-        <div>
-          <ModeSelector
-            selectedMode={activityMode}
-            onChange={onModeChange}
-            disabled={loading}
-           
-          />
+    <header style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr auto auto',
+      height: '48px',
+      position: 'sticky',
+      top: 0,
+      background: 'white',
+      borderBottom: '1px solid var(--border)',
+      alignItems: 'center',
+      padding: '0 var(--space)',
+      gap: 'var(--space)',
+      zIndex: 10
+    }}>
+      {/* Title */}
+      <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>GitPulse</h1>
 
-          <div>
-            <label htmlFor="toolbar-date-preset">
-              Date preset
-            </label>
-            <select
-              id="toolbar-date-preset"
-              value={preset}
-              onChange={handlePresetChange}
-              disabled={loading}>
-              {PRESET_OPTIONS.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <div>
-              <label htmlFor="toolbar-date-since">
-                Start date
-              </label>
-              <input
-                id="toolbar-date-since"
-                type="date"
-                value={localRange.since}
-                onChange={(event) => handleDateChange('since', event.target.value)}
-                disabled={loading}
-                max={localRange.until}
-               
-              />
-              <span>→</span>
-              <label htmlFor="toolbar-date-until">
-                End date
-              </label>
-              <input
-                id="toolbar-date-until"
-                type="date"
-                value={localRange.until}
-                onChange={(event) => handleDateChange('until', event.target.value)}
-                disabled={loading}
-                min={localRange.since}
-               
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={disableGenerate}
-            title={buttonLabel}
-          >
-            {loading && (
-              <span />
-            )}
-            <span>{buttonLabel}</span>
-          </button>
-        </div>
+      {/* Date picker */}
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <input
+          id="toolbar-date-since"
+          type="date"
+          value={localRange.since}
+          onChange={(event) => handleDateChange('since', event.target.value)}
+          disabled={loading}
+          max={localRange.until}
+          style={{
+            padding: '4px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
+        <span>to</span>
+        <input
+          id="toolbar-date-until"
+          type="date"
+          value={localRange.until}
+          onChange={(event) => handleDateChange('until', event.target.value)}
+          disabled={loading}
+          min={localRange.since}
+          style={{
+            padding: '4px 8px',
+            border: '1px solid var(--border)',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}
+        />
       </div>
-    </nav>
+
+      {/* Generate button */}
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={disableGenerate}
+        style={{
+          padding: '6px 16px',
+          background: disableGenerate ? '#ccc' : 'var(--accent)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: disableGenerate ? 'not-allowed' : 'pointer',
+          fontSize: '14px',
+          fontWeight: 500
+        }}
+      >
+        {loading ? 'Generating...' : 'Generate'}
+      </button>
+    </header>
   );
 }
