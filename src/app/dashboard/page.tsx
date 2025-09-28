@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getDefaultDateRange } from '@/lib/dashboard-utils';
@@ -33,9 +33,6 @@ function DashboardContent() {
     setSelectedOrgs
   } = useURLState();
 
-  // State management
-  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>(selectedRepos);
-
   // GitHub data hook - consolidated data fetching
   const {
     repositories,
@@ -48,27 +45,11 @@ function DashboardContent() {
     generateSummary: generateSummaryAPI
   } = useGitHubData();
 
-  // Filter state - simple React state instead of custom hook
-  const [contributors, setContributors] = useState<string[]>(['me']);
-  const [organizations, setOrganizations] = useState<string[]>(selectedOrgs);
-  const [filterRepositories, setFilterRepositories] = useState<string[]>(selectedRepos);
-  const [localActivityMode, setLocalActivityMode] = useState<ActivityMode>(activityMode);
-
-
-  // Sync URL state with component state
-  useEffect(() => {
-    setSelectedRepoIds(selectedRepos);
-  }, [selectedRepos]);
-
-  useEffect(() => {
-    setOrganizations(selectedOrgs);
-  }, [selectedOrgs, setOrganizations]);
-
-  // Filter repositories based on selected IDs
+  // Filter repositories based on selected IDs from URL
   const filteredRepositories = useMemo(() => {
-    if (filterRepositories.length === 0) return repositories;
-    return repositories.filter(repo => filterRepositories.includes(repo.id.toString()));
-  }, [repositories, filterRepositories]);
+    if (selectedRepos.length === 0) return repositories;
+    return repositories.filter(repo => selectedRepos.includes(repo.id.toString()));
+  }, [repositories, selectedRepos]);
 
   // Initialize preferences and repositories on mount
   useEffect(() => {
@@ -98,56 +79,37 @@ function DashboardContent() {
     fetchRepositories
   ]);
 
-  // Auto-select repositories based on activity mode
-  useEffect(() => {
-    if (activityMode === 'my-activity' && repositories.length > 0) {
-      // In "my" mode, we analyze all repositories by default
-      setSelectedRepoIds([]);
-    }
-  }, [activityMode, repositories]);
-
-  // Simple progress message when generating
-  const progressMessage = useMemo(() => {
-    if (isGenerating) {
-      return 'Generating...';
-    }
-    return '';
-  }, [isGenerating]);
-
-  // Compute selected repository IDs
-  const selectedRepositoryIds = useMemo(() => {
-    return filterRepositories.length > 0
-      ? filterRepositories
-      : repositories.map(r => r.id.toString());
-  }, [filterRepositories, repositories]);
 
   // Function to handle date range changes - updates URL
   const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
     setDateRangeURL(newDateRange);
   }, [setDateRangeURL]);
 
-  // Function to handle organization filter changes - updates URL
+  // Function to handle organization filter changes - updates URL only
   const handleOrganizationChange = useCallback((orgs: string[]) => {
     setSelectedOrgs(orgs);
-    setOrganizations(orgs);
   }, [setSelectedOrgs]);
 
   // Function to handle summary generation
   const handleGenerateSummary = useCallback(async () => {
+    const repoIds = selectedRepos.length > 0
+      ? selectedRepos
+      : repositories.map(r => r.id.toString());
+
     await generateSummaryAPI({
         activityMode,
         dateRange,
-        selectedRepositoryIds: filterRepositories,
-        contributors,
-        organizations,
+        selectedRepositoryIds: repoIds,
+        contributors: activityMode === 'my-activity' ? ['me'] : [],
+        organizations: selectedOrgs,
         installationIds: installations.map(i => i.id)
       });
   }, [
     activityMode,
     dateRange,
-    filterRepositories,
-    contributors,
-    organizations,
+    selectedRepos,
+    selectedOrgs,
+    repositories,
     installations,
     generateSummaryAPI
   ]);
@@ -194,9 +156,9 @@ function DashboardContent() {
             currentInstallations={installations}
             activityMode={activityMode}
             activeFilters={{
-              contributors,
-              organizations,
-              repositories: filterRepositories
+              contributors: activityMode === 'my-activity' ? ['me'] : [],
+              organizations: selectedOrgs,
+              repositories: selectedRepos
             }}
             userName={session?.user?.name}
             onOrganizationChange={handleOrganizationChange}
