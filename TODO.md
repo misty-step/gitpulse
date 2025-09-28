@@ -1,5 +1,10 @@
 # TODO.md
 
+## Immediate CI Fix Required
+
+### [CI FIX] Resolve pnpm Version Mismatch in GitHub Actions
+- [ ] **Fix pnpm version conflict in enforce-pnpm.yml** - Remove hardcoded `version: 9` from line 56 in `.github/workflows/enforce-pnpm.yml`. Let pnpm/action-setup@v4 auto-detect version from package.json's packageManager field. This fixes the "Multiple versions of pnpm specified" CI error blocking PR #119.
+
 ## Critical Path: Fix UI Information Density
 
 The current UI wastes ~70% of vertical space on decorative borders and excessive padding. The generate button is below the fold on most screens. This is unacceptable. Every task below directly improves time-to-action.
