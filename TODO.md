@@ -203,7 +203,15 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
 
 ### Phase 4: Component Reduction (Merge or Delete)
 
-- [ ] **Merge CompactToolbar + QuickActionBar + AdvancedOptions into single NavBar** - One component, one file: `NavBar.tsx`. 100 lines max. If it doesn't fit, it's too complex. Current: 3 files, 450+ lines.
+- [x] **Merge CompactToolbar + QuickActionBar + AdvancedOptions into single NavBar** - One component, one file: `NavBar.tsx`. 100 lines max. If it doesn't fit, it's too complex. Current: 3 files, 450+ lines.
+  ```
+  Work Log:
+  - Merged 3 components (433 lines) into 1 NavBar (108 lines)
+  - Kept essential features: title, date range, generate button, quick regenerate
+  - Removed complex features: date presets, advanced filters, repository selection
+  - Advanced filtering moved to RepositorySection where it belongs
+  - Result: 75% code reduction, simpler interface
+  ```
 
 - [ ] **Delete SummarySkeletonLoader, use CSS animation** - Replace 150-line component with: `.loading { animation: pulse 2s infinite; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); }`.
 

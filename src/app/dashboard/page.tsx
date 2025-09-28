@@ -22,9 +22,7 @@ import RepositorySection from '@/components/dashboard/RepositorySection';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
 import SummarySkeletonLoader from '@/components/dashboard/SummarySkeletonLoader';
-import QuickActionBar from '@/components/dashboard/QuickActionBar';
-import CompactToolbar from '@/components/dashboard/CompactToolbar';
-import AdvancedOptions from '@/components/dashboard/AdvancedOptions';
+import NavBar from '@/components/dashboard/NavBar';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -38,10 +36,6 @@ export default function Dashboard() {
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
   const [lastGeneration, setLastGeneration] = useState(() => loadLastGeneration());
 
-  // Advanced options state
-  const [excludeForks, setExcludeForks] = useState(false);
-  const [filterByLanguage, setFilterByLanguage] = useState('');
-  const [showPrivateOnly, setShowPrivateOnly] = useState(false);
 
   // Optimistic UI state - show skeleton immediately when generating
   const [showSkeleton, setShowSkeleton] = useState(false);
@@ -137,24 +131,8 @@ export default function Dashboard() {
       );
     }
 
-    // Apply advanced filters
-    if (excludeForks) {
-      // Remove if repo has 'fork' property - currently not in type
-      // filtered = filtered.filter(repo => !repo.fork);
-    }
-
-    if (filterByLanguage) {
-      filtered = filtered.filter(repo =>
-        repo.language?.toLowerCase() === filterByLanguage.toLowerCase()
-      );
-    }
-
-    if (showPrivateOnly) {
-      filtered = filtered.filter(repo => repo.private);
-    }
-
     return filtered;
-  }, [repositories, selectedRepoIds, excludeForks, filterByLanguage, showPrivateOnly]);
+  }, [repositories, selectedRepoIds]);
 
   // Initialize preferences and repositories on mount
   useEffect(() => {
@@ -325,23 +303,16 @@ export default function Dashboard() {
         signOutCallbackUrl="/"
       />
 
-      <CompactToolbar
-        activityMode={activityMode}
-        onModeChange={setActivityMode}
+      <NavBar
         dateRange={dateRange}
         onDateRangeChange={handleDateRangeChange}
         loading={loading}
-        progressMessage={progressMessage}
         repositories={filteredRepositories}
-        selectedRepositoryIds={selectedRepositoryIds}
-        contributors={filters.contributors}
-        userName={session?.user?.name}
         onGenerate={handleGenerateSummary}
-      />
-
-      <QuickActionBar
-        lastGeneration={lastGeneration}
-        loading={loading}
+        lastGeneration={lastGeneration ? {
+          timestamp: lastGeneration.timestamp,
+          repoCount: lastGeneration.selectedRepositoryIds.length
+        } : null}
         onRegenerateLast={handleRegenerateLast}
       />
 
@@ -386,18 +357,6 @@ export default function Dashboard() {
             organizations={filters.organizations}
           />
 
-          <AdvancedOptions
-            repositories={repositories}
-            selectedRepositoryIds={selectedRepositoryIds}
-            onRepositorySelectionChange={setFilterRepositories}
-            excludeForks={excludeForks}
-            onExcludeForksChange={setExcludeForks}
-            filterByLanguage={filterByLanguage}
-            onLanguageFilterChange={setFilterByLanguage}
-            showPrivateOnly={showPrivateOnly}
-            onPrivateOnlyChange={setShowPrivateOnly}
-            disabled={loading}
-          />
 
           {/* Show skeleton loader when generating, otherwise show summary if available */}
           {showSkeleton ? (
