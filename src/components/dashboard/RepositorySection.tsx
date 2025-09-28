@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Repository, FilterState } from '@/types/dashboard';
 
 export interface RepositorySectionProps {
@@ -46,6 +46,27 @@ export default function RepositorySection({
   isWithinForm = true,
   onSubmit
 }: RepositorySectionProps) {
+  const [repoFilter, setRepoFilter] = useState<'all' | 'active'>('all');
+
+  /**
+   * Filter repositories based on active status
+   * Active = updated within last 30 days
+   */
+  const filteredRepositories = useMemo(() => {
+    if (repoFilter === 'all') {
+      return repositories;
+    }
+
+    // Filter for active repositories (updated in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    return repositories.filter(repo => {
+      if (!repo.updated_at) return false;
+      const updatedDate = new Date(repo.updated_at);
+      return updatedDate > thirtyDaysAgo;
+    });
+  }, [repositories, repoFilter]);
 
   /**
    * Group repositories by organization
@@ -53,7 +74,7 @@ export default function RepositorySection({
   const groupRepositoriesByOrg = (): [string, Repository[]][] => {
     const reposByOrg: Record<string, Repository[]> = {};
 
-    repositories.forEach(repo => {
+    filteredRepositories.forEach(repo => {
       const orgName = repo.full_name.split('/')[0];
       if (!reposByOrg[orgName]) {
         reposByOrg[orgName] = [];
@@ -71,7 +92,7 @@ export default function RepositorySection({
       {/* Native HTML details/summary for expand/collapse */}
       <details open={initialShowRepoList} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: 'var(--space)' }}>
         <summary style={{ cursor: 'pointer', fontWeight: '500' }}>
-          {repositories.length} repositories
+          {filteredRepositories.length} of {repositories.length} repositories
         </summary>
 
         {/* Repository info container */}
@@ -82,8 +103,31 @@ export default function RepositorySection({
             </div>
           ) : (
             <>
+              {/* Repository filter dropdown */}
               <div>
-                Analyzing all accessible repositories
+                <label htmlFor="repo-filter" style={{ display: 'block', marginBottom: 'calc(var(--space) / 2)', fontSize: '14px' }}>
+                  Filter repositories:
+                </label>
+                <select
+                  id="repo-filter"
+                  name="repo-filter"
+                  value={repoFilter}
+                  onChange={(e) => setRepoFilter(e.target.value as 'all' | 'active')}
+                  style={{
+                    width: '100%',
+                    font: 'inherit',
+                    padding: 'calc(var(--space) / 2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <option value="all">All repositories</option>
+                  <option value="active">Active only (updated in last 30 days)</option>
+                </select>
+              </div>
+
+              <div>
+                Analyzing {repoFilter === 'active' ? 'recently active' : 'all accessible'} repositories
               </div>
 
               {/* Display filter information if applied */}
@@ -110,25 +154,25 @@ export default function RepositorySection({
               )}
 
               {/* Repository stats summary */}
-              {repositories.length > 0 && (
+              {filteredRepositories.length > 0 && (
                 <div style={{ display: 'flex', gap: 'calc(var(--space) * 2)' }}>
                   <div>
                     <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Repos</div>
-                    <div style={{ fontWeight: '500' }}>{repositories.length}</div>
+                    <div style={{ fontWeight: '500' }}>{filteredRepositories.length}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Orgs</div>
-                    <div style={{ fontWeight: '500' }}>{new Set(repositories.map(repo => repo.full_name.split('/')[0])).size}</div>
+                    <div style={{ fontWeight: '500' }}>{new Set(filteredRepositories.map(repo => repo.full_name.split('/')[0])).size}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Private</div>
-                    <div style={{ fontWeight: '500' }}>{repositories.filter(repo => repo.private).length}</div>
+                    <div style={{ fontWeight: '500' }}>{filteredRepositories.filter(repo => repo.private).length}</div>
                   </div>
                 </div>
               )}
 
               {/* Repository list with native HTML checkboxes */}
-              {repositories.length > 0 ? (
+              {filteredRepositories.length > 0 ? (
                 <fieldset style={{ border: '1px solid var(--border)', padding: 'var(--space)', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: 'var(--space)' }}>
                   <legend>Select Repositories</legend>
                   {groupRepositoriesByOrg().map(([org, repos]) => (
@@ -162,9 +206,11 @@ export default function RepositorySection({
                     </details>
                   ))}
                 </fieldset>
-              ) : repositories.length === 0 && !loading ? (
+              ) : filteredRepositories.length === 0 && !loading ? (
                 <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 'calc(var(--space) * 2)' }}>
-                  NO REPOSITORIES DETECTED
+                  {repoFilter === 'active' && repositories.length > 0
+                    ? 'No repositories updated in the last 30 days'
+                    : 'NO REPOSITORIES DETECTED'}
                 </div>
               ) : null}
             </>

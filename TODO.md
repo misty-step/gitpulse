@@ -193,9 +193,9 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
   - Line count reduced from 191 to 177 (-14 lines, -7.3%)
   ```
 
-- [ ] **Convert ModeSelector to radio button fieldset** - Replace custom pills with: `<fieldset><legend>Activity Mode</legend><label><input type="radio" name="mode" value="my"> My Activity</label></fieldset>`. Accessible by default, works without JS.
+- [x] **Convert ModeSelector to radio button fieldset** - Replace custom pills with: `<fieldset><legend>Activity Mode</legend><label><input type="radio" name="mode" value="my"> My Activity</label></fieldset>`. Accessible by default, works without JS.
 
-- [ ] **Use native select for repository count dropdown** - Replace custom dropdown with: `<select><option>All repositories</option><option>Active only</option></select>`. Mobile UX is free, keyboard navigation is free.
+- [x] **Use native select for repository count dropdown** - Replace custom dropdown with: `<select><option>All repositories</option><option>Active only</option></select>`. Mobile UX is free, keyboard navigation is free.
 
 - [ ] **Style form controls with exactly 4 properties** - Only allow: `font: inherit; padding: calc(var(--space) / 2); border: 1px solid var(--border); border-radius: 4px;`. Nothing else. Constraints breed consistency.
 
