@@ -86,6 +86,14 @@ button.generate-button:disabled {
   cursor: not-allowed;
 }
 
+/* Loading state - replaces 150-line SummarySkeletonLoader component */
+.loading {
+  animation: pulse 2s infinite;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  min-height: 200px;
+  border-radius: 4px;
+}
+
 /* Animation keyframes */
 @keyframes pulse {
   0%, 100% { opacity: 1; }

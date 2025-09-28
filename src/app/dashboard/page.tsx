@@ -21,7 +21,6 @@ import OperationsPanel from '@/components/dashboard/OperationsPanel';
 import RepositorySection from '@/components/dashboard/RepositorySection';
 import AnalysisParameters from '@/components/dashboard/AnalysisParameters';
 import SummaryView from '@/components/dashboard/SummaryView';
-import SummarySkeletonLoader from '@/components/dashboard/SummarySkeletonLoader';
 import NavBar from '@/components/dashboard/NavBar';
 
 export default function Dashboard() {
@@ -360,7 +359,12 @@ export default function Dashboard() {
 
           {/* Show skeleton loader when generating, otherwise show summary if available */}
           {showSkeleton ? (
-            <SummarySkeletonLoader />
+            <div className="loading">
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <h2 style={{ marginBottom: '1rem', color: 'var(--muted)' }}>Generating Summary</h2>
+                <p style={{ color: 'var(--muted)' }}>Processing commits and generating insights...</p>
+              </div>
+            </div>
           ) : (
             summary && (
               <SummaryView
