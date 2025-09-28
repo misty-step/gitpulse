@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useProgressiveLoading } from '@/hooks/useProgressiveLoading';
 import { FixedSizeList as List } from 'react-window';
 import IntersectionObserver from './IntersectionObserver';
-import LoadMoreButton from '@/components/ui/LoadMoreButton';
 import { logger } from '@/lib/logger';
 import CommitItem from './dashboard/activityFeed/components/CommitItem';
 
@@ -394,12 +393,19 @@ export default function ActivityFeed({
                   </div>
                 </IntersectionObserver>
               ) : (
-                <LoadMoreButton
+                <button
                   onClick={loadMore}
-                  loading={incrementalLoading}
-                  hasMore={hasMore}
-                  className="mt-3"
-                />
+                  disabled={incrementalLoading || !hasMore}
+                  style={{
+                    padding: 'calc(var(--space) * 1.5)',
+                    width: '100%',
+                    marginTop: 'var(--space)',
+                    cursor: incrementalLoading || !hasMore ? 'not-allowed' : 'pointer',
+                    opacity: incrementalLoading || !hasMore ? '0.5' : '1'
+                  }}
+                >
+                  {incrementalLoading ? 'Loading...' : hasMore ? 'Load More' : 'No more commits'}
+                </button>
               )}
             </>
           )}

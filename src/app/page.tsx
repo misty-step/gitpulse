@@ -3,7 +3,6 @@
 import { signIn } from "next-auth/react";
 import Image from "next/image";
 import useProtectedRoute from "@/hooks/useProtectedRoute";
-import AuthLoadingScreen from "@/components/ui/AuthLoadingScreen";
 
 export default function Home() {
   // Use the protected route hook in reverse - redirect to dashboard if authenticated
@@ -15,10 +14,19 @@ export default function Home() {
 
   // Show loading screen when we're redirecting to dashboard
   if (isLoading && status === 'authenticated') {
-    return <AuthLoadingScreen
-      message="Authenticated"
-      subMessage="Redirecting to your dashboard..."
-    />;
+    return (
+      <div className="loading" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        flexDirection: 'column',
+        gap: 'var(--space)'
+      }}>
+        <h2>Authenticated</h2>
+        <p style={{ color: 'var(--muted)' }}>Redirecting to your dashboard...</p>
+      </div>
+    );
   }
 
   return (
