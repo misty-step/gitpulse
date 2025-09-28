@@ -204,24 +204,13 @@ function DashboardContent() {
             onSignOut={signOut}
           />
 
-          <AnalysisParameters
-            activityMode={activityMode}
-            dateRange={dateRange}
-            organizations={organizations}
-          />
+          <AnalysisParameters />
 
 
           {/* Show summary if available, loading state is handled by components */}
           {summary && (
               <SummaryView
                 summary={summary}
-                activityMode={activityMode}
-                dateRange={dateRange}
-                activeFilters={{
-                  contributors,
-                  organizations,
-                  repositories: filterRepositories
-                }}
                 installationIds={installations.map(i => i.id)}
                 loading={isGenerating}
               />

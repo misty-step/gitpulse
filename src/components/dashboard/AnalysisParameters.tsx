@@ -1,38 +1,17 @@
 'use client';
 
-import { ActivityMode, DateRange } from '@/types/dashboard';
-
-export interface AnalysisParametersProps {
-  /**
-   * The currently selected activity mode
-   */
-  activityMode: ActivityMode;
-
-  /**
-   * The currently selected date range
-   */
-  dateRange: DateRange;
-
-  /**
-   * The organizations currently selected in filters
-   */
-  organizations?: readonly string[];
-
-  /**
-   * Whether to show the help text at the bottom of the component
-   */
-  showHelpText?: boolean;
-}
+import { ActivityMode } from '@/types/dashboard';
+import { useURLState } from '@/hooks/useURLState';
 
 /**
- * Displays the current analysis parameters in a styled card
+ * Displays the current analysis parameters by reading directly from URL
+ * No props needed - everything comes from the URL state
  */
-export default function AnalysisParameters({
-  activityMode,
-  dateRange,
-  organizations = [],
-  showHelpText = true
-}: AnalysisParametersProps) {
+export default function AnalysisParameters() {
+  // Read state directly from URL
+  const { activityMode, dateRange, selectedOrgs } = useURLState();
+  const organizations = selectedOrgs;
+  const showHelpText = true;
   // Map activity mode to display text
   const getActivityModeDisplay = (mode: ActivityMode): string => {
     switch (mode) {

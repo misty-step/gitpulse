@@ -3,34 +3,20 @@ import ActivityFeed from '@/components/ActivityFeed';
 import SummaryStats from '@/components/dashboard/SummaryStats';
 import SummaryDetails from '@/components/dashboard/SummaryDetails';
 import { createActivityFetcher } from '@/lib/activity';
-import { ActivityMode, CommitSummary, DateRange, FilterState } from '@/types/dashboard';
+import { CommitSummary } from '@/types/dashboard';
+import { useURLState } from '@/hooks/useURLState';
 
 export interface SummaryViewProps {
   /**
    * The commit summary data to display
    */
   summary: CommitSummary | null;
-  
-  /**
-   * The current activity mode
-   */
-  activityMode: ActivityMode;
-  
-  /**
-   * The selected date range
-   */
-  dateRange: DateRange;
-  
-  /**
-   * Active filters applied to the data
-   */
-  activeFilters: FilterState;
-  
+
   /**
    * Installation IDs for GitHub App
    */
   installationIds: readonly number[];
-  
+
   /**
    * Whether the component is in a loading state
    */
@@ -39,15 +25,20 @@ export interface SummaryViewProps {
 
 /**
  * Displays a comprehensive summary view of GitHub activity
+ * Reads activity mode, date range, and filters directly from URL
  */
 const SummaryView: React.FC<SummaryViewProps> = ({
   summary,
-  activityMode,
-  dateRange,
-  activeFilters,
   installationIds,
   loading = false
 }) => {
+  // Read state directly from URL instead of props
+  const { activityMode, dateRange, selectedRepos, selectedOrgs } = useURLState();
+  const activeFilters = {
+    repositories: selectedRepos,
+    organizations: selectedOrgs,
+    contributors: activityMode === 'my-activity' ? ['me'] : []
+  };
   if (!summary) return null;
 
   return (
