@@ -40,4 +40,17 @@ a {
   text-decoration: none;
 }
 
-/* That's it. 40 lines. Everything else is bloat. */
+/* Single-column mobile-first layout */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space);
+}
+
+/* Stack everything vertically by default */
+main > * {
+  display: block;
+  margin-bottom: var(--space);
+}
+
+/* That's it. 52 lines. Everything else is bloat. */

@@ -391,7 +391,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div>
       {/* Quick Action Bar */}
       <QuickActionBar
         lastGeneration={lastGeneration}
@@ -414,7 +414,7 @@ export default function Dashboard() {
       />
 
       {/* Advanced Options Section - Hidden on mobile for simplicity */}
-      <div className="hidden sm:block max-w-7xl mx-auto px-2 sm:px-3 mt-3">
+      <div>
         <AdvancedOptions
           repositories={repositories}
           selectedRepositoryIds={selectedRepositoryIds}
@@ -436,8 +436,8 @@ export default function Dashboard() {
         signOutCallbackUrl="/"
       />
 
-      <main className="max-w-7xl mx-auto py-3 sm:py-6 px-2 sm:px-3">
-        <div className="py-3 sm:py-6">
+      <main>
+        <div>
           {/* Operations Panel Component */}
           <OperationsPanel
             error={activeError}
@@ -458,7 +458,7 @@ export default function Dashboard() {
             onSignOut={signOut}
           />
           
-          <div className="mb-4">
+          <div>
             <AnalysisParameters
               activityMode={activityMode}
               dateRange={dateRange}
