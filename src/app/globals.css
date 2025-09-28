@@ -40,17 +40,21 @@ a {
   text-decoration: none;
 }
 
-/* Single-column mobile-first layout */
+/* CSS Grid dashboard layout */
 main {
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--space);
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--space);
 }
 
-/* Stack everything vertically by default */
-main > * {
-  display: block;
-  margin-bottom: var(--space);
+/* Mobile: single column */
+@media (max-width: 768px) {
+  main {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* That's it. 55 lines. Everything else is bloat. */
