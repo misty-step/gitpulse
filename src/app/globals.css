@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 :root {
   /* Clean modern color palette - Terminal theme deprecated */
   --dark-slate: #f9fafb; /* Updated to light gray background */
@@ -32,13 +30,6 @@
   /* Transitions */
   --transition-speed: 200ms;
   --transition-timing: ease-in-out;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-roboto-mono), monospace;
-  --font-mono: var(--font-roboto-mono), monospace;
 }
 
 body {
