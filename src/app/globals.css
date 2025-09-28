@@ -1,255 +1,43 @@
-:root {
-  /* Clean modern color palette - Terminal theme deprecated */
-  --dark-slate: #f9fafb; /* Updated to light gray background */
-  --neon-green: #10B981; /* Updated to emerald-500 for better readability */
-  --electric-blue: #3b82f6; /* Updated to blue-500 for consistency */
-  --luminous-yellow: #f59e0b; /* Updated to amber-500 for clarity */
-  --crimson-red: #ef4444; /* Updated to red-500 for consistency */
+/* Minimal CSS Reset - 40 lines max */
 
-  /* Default theme variables */
-  --background: #ffffff;
-  --background-secondary: #f9fafb;
-  --foreground: #111827;
-  --accent-primary: #10b981;
-  --accent-secondary: #3b82f6;
-  --warning: #f59e0b;
-  --error: #ef4444;
+/* Import the minimal CSS variables */
+@import "./minimal.css";
 
-  /* Shadows and effects */
-  --box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --gradient-bg: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-
-  /* Spacing */
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-
-  /* Border radius */
-  --border-radius: 6px;
-
-  /* Transitions */
-  --transition-speed: 200ms;
-  --transition-timing: ease-in-out;
+/* Box model reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
+/* Document setup */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Body defaults */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  line-height: 1.5;
+  font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  background: white;
   min-height: 100vh;
 }
 
-/* UI Element Styles */
-
-/* Buttons */
-.btn {
-  background-color: #ffffff;
-  color: #10B981;
-  border: 1px solid var(--neon-green);
-  border-radius: var(--border-radius);
-  padding: 8px 16px;
-  font-weight: 500;
-  transition: all var(--transition-speed) var(--transition-timing);
+/* Typography basics */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: var(--space);
 }
 
-.btn:hover {
-  background-color: #10B981;
-  color: #ffffff;
-  transform: scale(1.05);
-  box-shadow: var(--glow-effect);
+/* Links */
+a {
+  color: var(--accent);
+  text-decoration: none;
 }
 
-.btn:active {
-  border-color: var(--electric-blue);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background-color: #ffffff;
-  color: #ef4444;
-  border-color: var(--crimson-red);
-}
-
-.btn-danger:hover {
-  background-color: #ef4444;
-  color: #ffffff;
-}
-
-/* Form inputs */
-input,
-select,
-textarea {
-  background-color: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: var(--border-radius);
-  color: var(--foreground);
-  padding: 8px 12px;
-  transition: all var(--transition-speed) var(--transition-timing);
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 142, 234, 0.3);
-  outline: none;
-}
-
-/* Cards */
-.card {
-  background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
-  padding: 20px;
-  transition: all var(--transition-speed) var(--transition-timing);
-}
-
-.card:hover {
-  box-shadow: var(--glow-effect);
-}
-
-/* Headings */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: "Roboto Mono", "Courier New", monospace;
-  font-weight: bold;
-}
-
-h1 {
-  font-size: 28px;
-}
-
-h2 {
-  font-size: 24px;
-}
-
-h3 {
-  font-size: 20px;
-}
-
-h4 {
-  font-size: 18px;
-  font-weight: normal;
-}
-
-h5 {
-  font-size: 16px;
-  font-weight: normal;
-}
-
-h6 {
-  font-size: 14px;
-  font-weight: normal;
-}
-
-/* Captions */
-.caption {
-  font-size: 12px;
-  font-style: italic;
-}
-
-/* Custom Scrollbars */
-::-webkit-scrollbar, .scrollbar-custom::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track, .scrollbar-custom::-webkit-scrollbar-track {
-  background: #f3f4f6;
-}
-
-::-webkit-scrollbar-thumb, .scrollbar-custom::-webkit-scrollbar-thumb {
-  background: #10B981;
-  border-radius: var(--border-radius);
-}
-
-::-webkit-scrollbar-thumb:hover, .scrollbar-custom::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6;
-}
-
-/* Selection */
-::selection {
-  background-color: #10B981;
-  color: #ffffff;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulseHighlight {
-  0% {
-    background-color: rgba(16, 185, 129, 0.05);
-  }
-  30% {
-    background-color: rgba(59, 142, 234, 0.15);
-  }
-  100% {
-    background-color: rgba(59, 142, 234, 0);
-  }
-}
-
-@keyframes borderPulse {
-  0% {
-    border-color: var(--electric-blue);
-    box-shadow: 0 0 5px rgba(59, 142, 234, 0.1);
-  }
-  50% {
-    border-color: var(--neon-green);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
-  }
-  100% {
-    border-color: var(--electric-blue);
-    box-shadow: 0 0 5px rgba(59, 142, 234, 0.1);
-  }
-}
-
-@keyframes incrementalLoadingPulse {
-  0% {
-    height: 2px;
-    opacity: 0.6;
-  }
-  50% {
-    height: 3px;
-    opacity: 1;
-  }
-  100% {
-    height: 2px;
-    opacity: 0.6;
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-in-out forwards;
-}
-
-.animate-pulse-highlight {
-  animation: pulseHighlight 1.5s ease-in-out forwards;
-}
-
-.animate-border-pulse {
-  animation: borderPulse 2s ease-in-out;
-}
-
-.animate-incremental-loading {
-  animation: incrementalLoadingPulse 1.5s ease-in-out infinite;
-}
+/* That's it. 40 lines. Everything else is bloat. */
