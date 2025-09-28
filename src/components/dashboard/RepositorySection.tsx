@@ -70,19 +70,19 @@ export default function RepositorySection({
     <aside>
       {/* Native HTML details/summary for expand/collapse */}
       <details open={initialShowRepoList} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: 'var(--space)' }}>
-        <summary style={{ cursor: 'pointer', fontWeight: '500', marginBottom: 'var(--space)' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: '500' }}>
           {repositories.length} repositories
         </summary>
 
         {/* Repository info container */}
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space)', paddingTop: 'var(--space)' }}>
           {loading && repositories.length === 0 ? (
             <div style={{ color: 'var(--muted)' }}>
               Scanning repositories...
             </div>
           ) : (
             <>
-              <div style={{ marginBottom: 'var(--space)' }}>
+              <div>
                 Analyzing all accessible repositories
               </div>
 
@@ -90,11 +90,11 @@ export default function RepositorySection({
               {(activeFilters.contributors.length > 0 ||
                 activeFilters.organizations.length > 0 ||
                 activeFilters.repositories.length > 0) && (
-                <div style={{ background: '#f9fafb', padding: 'var(--space)', borderRadius: '4px', marginBottom: 'var(--space)' }}>
-                  <div style={{ fontWeight: '500', marginBottom: 'calc(var(--space) / 2)' }}>
+                <div style={{ background: '#f9fafb', padding: 'var(--space)', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: 'calc(var(--space) / 2)' }}>
+                  <div style={{ fontWeight: '500' }}>
                     Active Filters
                   </div>
-                  <div style={{ fontSize: '0.9em', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: '0.9em', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 'calc(var(--space) / 4)' }}>
                     {activeFilters.contributors.length > 0 && (
                       <div>
                         Contributors: {activeFilters.contributors.includes('me') ? 'Only Me' : activeFilters.contributors.join(', ')}
@@ -111,7 +111,7 @@ export default function RepositorySection({
 
               {/* Repository stats summary */}
               {repositories.length > 0 && (
-                <div style={{ display: 'flex', gap: 'calc(var(--space) * 2)', marginBottom: 'var(--space)' }}>
+                <div style={{ display: 'flex', gap: 'calc(var(--space) * 2)' }}>
                   <div>
                     <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Repos</div>
                     <div style={{ fontWeight: '500' }}>{repositories.length}</div>
@@ -129,31 +129,30 @@ export default function RepositorySection({
 
               {/* Repository list with native HTML checkboxes */}
               {repositories.length > 0 ? (
-                <fieldset style={{ border: '1px solid var(--border)', padding: 'var(--space)', borderRadius: '4px', marginTop: 'var(--space)' }}>
+                <fieldset style={{ border: '1px solid var(--border)', padding: 'var(--space)', borderRadius: '4px', display: 'flex', flexDirection: 'column', gap: 'var(--space)' }}>
                   <legend>Select Repositories</legend>
                   {groupRepositoriesByOrg().map(([org, repos]) => (
-                    <details key={org} open style={{ marginBottom: 'var(--space)' }}>
-                      <summary style={{ cursor: 'pointer', fontWeight: '500', marginBottom: 'calc(var(--space) / 2)' }}>
+                    <details key={org} open>
+                      <summary style={{ cursor: 'pointer', fontWeight: '500' }}>
                         {org} ({repos.length})
                       </summary>
-                      <div style={{ paddingLeft: 'calc(var(--space) * 2)' }}>
+                      <div style={{ paddingLeft: 'calc(var(--space) * 2)', paddingTop: 'calc(var(--space) / 2)', display: 'flex', flexDirection: 'column', gap: 'calc(var(--space) / 2)' }}>
                         {repos.map((repo) => (
-                          <label key={repo.id} style={{ display: 'block', marginBottom: 'calc(var(--space) / 2)', cursor: 'pointer' }}>
+                          <label key={repo.id} style={{ display: 'flex', alignItems: 'center', gap: 'calc(var(--space) / 2)', cursor: 'pointer' }}>
                             <input
                               type="checkbox"
                               name="repository"
                               value={repo.full_name}
                               defaultChecked
-                              style={{ marginRight: 'calc(var(--space) / 2)' }}
                             />
-                            {repo.name}
+                            <span>{repo.name}</span>
                             {repo.private && (
-                              <span style={{ marginLeft: 'calc(var(--space) / 2)', fontSize: '0.8em', color: 'var(--muted)' }}>
+                              <span style={{ fontSize: '0.8em', color: 'var(--muted)' }}>
                                 (private)
                               </span>
                             )}
                             {repo.language && (
-                              <span style={{ marginLeft: 'calc(var(--space) / 2)', fontSize: '0.8em', color: 'var(--muted)' }}>
+                              <span style={{ fontSize: '0.8em', color: 'var(--muted)' }}>
                                 • {repo.language}
                               </span>
                             )}
@@ -175,7 +174,7 @@ export default function RepositorySection({
 
       {/* Submit button */}
       {isWithinForm && (
-        <div style={{ marginTop: 'var(--space)' }}>
+        <div style={{ paddingTop: 'var(--space)' }}>
           <button
             type={onSubmit ? "button" : "submit"}
             onClick={onSubmit}

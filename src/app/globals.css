@@ -57,4 +57,15 @@ main {
   }
 }
 
-/* That's it. 55 lines. Everything else is bloat. */
+/* Animation keyframes */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* That's it. 65 lines. Everything else is bloat. */
