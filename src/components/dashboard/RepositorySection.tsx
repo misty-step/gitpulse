@@ -113,13 +113,7 @@ export default function RepositorySection({
                   name="repo-filter"
                   value={repoFilter}
                   onChange={(e) => setRepoFilter(e.target.value as 'all' | 'active')}
-                  style={{
-                    width: '100%',
-                    font: 'inherit',
-                    padding: 'calc(var(--space) / 2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '4px'
-                  }}
+                  style={{ width: '100%' }}
                 >
                   <option value="all">All repositories</option>
                   <option value="active">Active only (updated in last 30 days)</option>

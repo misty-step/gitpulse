@@ -134,14 +134,6 @@ export default function DateRangePicker({
             onChange={(e) => handleDateChange('since', e.target.value)}
             disabled={disabled}
             max={dateRange.until}
-            style={{
-              padding: 'calc(var(--space) / 2)',
-              fontSize: '0.875rem',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              background: 'white',
-              font: 'inherit'
-            }}
             required
           />
         </div>
@@ -160,14 +152,6 @@ export default function DateRangePicker({
             disabled={disabled}
             min={dateRange.since}
             max={today}
-            style={{
-              padding: 'calc(var(--space) / 2)',
-              fontSize: '0.875rem',
-              border: '1px solid var(--border)',
-              borderRadius: '4px',
-              background: 'white',
-              font: 'inherit'
-            }}
             required
           />
         </div>

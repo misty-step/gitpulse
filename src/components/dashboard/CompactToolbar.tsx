@@ -134,12 +134,6 @@ export default function CompactToolbar({
           onChange={(event) => handleDateChange('since', event.target.value)}
           disabled={loading}
           max={localRange.until}
-          style={{
-            padding: '4px 8px',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
         />
         <span>to</span>
         <input
@@ -149,12 +143,6 @@ export default function CompactToolbar({
           onChange={(event) => handleDateChange('until', event.target.value)}
           disabled={loading}
           min={localRange.since}
-          style={{
-            padding: '4px 8px',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            fontSize: '14px'
-          }}
         />
       </div>
 

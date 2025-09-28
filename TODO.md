@@ -197,7 +197,7 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
 
 - [x] **Use native select for repository count dropdown** - Replace custom dropdown with: `<select><option>All repositories</option><option>Active only</option></select>`. Mobile UX is free, keyboard navigation is free.
 
-- [ ] **Style form controls with exactly 4 properties** - Only allow: `font: inherit; padding: calc(var(--space) / 2); border: 1px solid var(--border); border-radius: 4px;`. Nothing else. Constraints breed consistency.
+- [x] **Style form controls with exactly 4 properties** - Only allow: `font: inherit; padding: calc(var(--space) / 2); border: 1px solid var(--border); border-radius: 4px;`. Nothing else. Constraints breed consistency.
 
 - [ ] **Make Generate button the only styled element** - Apply background color ONLY to submit button: `background: var(--accent); color: white; border: none; font-weight: 500;`. Everything else inherits system styling.
 

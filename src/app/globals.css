@@ -57,6 +57,16 @@ main {
   }
 }
 
+/* Form controls - exactly 4 properties */
+input,
+select,
+textarea {
+  font: inherit;
+  padding: calc(var(--space) / 2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
 /* Animation keyframes */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -68,4 +78,4 @@ main {
   to { transform: rotate(360deg); }
 }
 
-/* That's it. 65 lines. Everything else is bloat. */
+/* That's it. Everything else is bloat. */
