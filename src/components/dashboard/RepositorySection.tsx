@@ -166,7 +166,7 @@ export default function RepositorySection({
 
                       <ul>
                         {repos.map((repo) => (
-                          <li key={repo.id>
+                          <li key={repo.id}>
                             <div>
                             </div>
                             <div>
