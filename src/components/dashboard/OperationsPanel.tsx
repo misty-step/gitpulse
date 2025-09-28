@@ -252,7 +252,7 @@ export default function OperationsPanel({
                             key={installation.id}>
                             {installation.account.login}
                             <button
-                              onClick={handleSignOut}
+                              onClick={() => onSignOut({ callbackUrl: '/' })}
                             >
                               ×
                             </button>

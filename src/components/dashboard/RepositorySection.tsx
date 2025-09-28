@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Repository, FilterState } from '@/types/dashboard';
 
 export interface RepositorySectionProps {
@@ -6,28 +6,28 @@ export interface RepositorySectionProps {
    * List of repositories to display
    */
   repositories: readonly Repository[];
-  
+
   /**
    * Whether repositories are being loaded
    */
   loading: boolean;
-  
+
   /**
    * Active filters to display
    */
   activeFilters: FilterState;
-  
+
   /**
    * Initial visibility state of the repository list
    */
   initialShowRepoList?: boolean;
-  
+
   /**
    * Whether the component is within a form element
    * Controls whether the section has a submit button
    */
   isWithinForm?: boolean;
-  
+
   /**
    * Optional callback for submit action
    * Only used when isWithinForm is true
@@ -46,14 +46,13 @@ export default function RepositorySection({
   isWithinForm = true,
   onSubmit
 }: RepositorySectionProps) {
-  const [showRepoList, setShowRepoList] = useState(initialShowRepoList);
-  
+
   /**
    * Group repositories by organization
    */
   const groupRepositoriesByOrg = (): [string, Repository[]][] => {
     const reposByOrg: Record<string, Repository[]> = {};
-    
+
     repositories.forEach(repo => {
       const orgName = repo.full_name.split('/')[0];
       if (!reposByOrg[orgName]) {
@@ -61,168 +60,145 @@ export default function RepositorySection({
       }
       reposByOrg[orgName].push(repo);
     });
-    
+
     // Sort organizations by repo count (descending)
     return Object.entries(reposByOrg)
       .sort(([, reposA], [, reposB]) => reposB.length - reposA.length);
   };
-  
+
   const renderRepositorySection = () => (
     <aside>
-      {/* Hidden on mobile, shown on tablet and up */}
-      <div>
-        <div>
-          <div>
-            <label>
-              Target Repositories
-            </label>
-            <button
-              type="button"
-              onClick={() => setShowRepoList(!showRepoList)}>
-              {showRepoList ? 'Hide' : 'Show'} List
-            </button>
-          </div>
-          <div>
-            {repositories.length} repositories
-          </div>
-        </div>
-      </div>
+      {/* Native HTML details/summary for expand/collapse */}
+      <details open={initialShowRepoList} style={{ border: '1px solid var(--border)', borderRadius: '4px', padding: 'var(--space)' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: '500', marginBottom: 'var(--space)' }}>
+          {repositories.length} repositories
+        </summary>
 
-      {/* Mobile version - simple count display */}
-      <div>
+        {/* Repository info container */}
         <div>
-          Analyzing all {repositories.length} accessible repositories
-        </div>
-      </div>
-      
-      {/* Repository info container */}
-      <div>
-        {loading && repositories.length === 0 ? (
-          <div>
-            <span></span>
-            <span>Scanning repositories...</span>
-          </div>
-        ) : (
-          <div>
-            <div>
-              <div>
+          {loading && repositories.length === 0 ? (
+            <div style={{ color: 'var(--muted)' }}>
+              Scanning repositories...
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 'var(--space)' }}>
                 Analyzing all accessible repositories
               </div>
-              
+
               {/* Display filter information if applied */}
               {(activeFilters.contributors.length > 0 ||
                 activeFilters.organizations.length > 0 ||
                 activeFilters.repositories.length > 0) && (
-                <div>
-                  <div>
+                <div style={{ background: '#f9fafb', padding: 'var(--space)', borderRadius: '4px', marginBottom: 'var(--space)' }}>
+                  <div style={{ fontWeight: '500', marginBottom: 'calc(var(--space) / 2)' }}>
                     Active Filters
                   </div>
-                  <div>
+                  <div style={{ fontSize: '0.9em', color: 'var(--muted)' }}>
                     {activeFilters.contributors.length > 0 && (
-                      <span>
+                      <div>
                         Contributors: {activeFilters.contributors.includes('me') ? 'Only Me' : activeFilters.contributors.join(', ')}
-                      </span>
+                      </div>
                     )}
                     {activeFilters.organizations.length > 0 && (
-                      <span>
-                        Orgs: {activeFilters.organizations.join(', ')}
-                      </span>
+                      <div>
+                        Organizations: {activeFilters.organizations.join(', ')}
+                      </div>
                     )}
                   </div>
                 </div>
               )}
-              
+
               {/* Repository stats summary */}
               {repositories.length > 0 && (
-                <div>
+                <div style={{ display: 'flex', gap: 'calc(var(--space) * 2)', marginBottom: 'var(--space)' }}>
                   <div>
-                    <div>Repos</div>
-                    <div>{repositories.length}</div>
+                    <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Repos</div>
+                    <div style={{ fontWeight: '500' }}>{repositories.length}</div>
                   </div>
                   <div>
-                    <div>Orgs</div>
-                    <div>{new Set(repositories.map(repo => repo.full_name.split('/')[0])).size}</div>
+                    <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Orgs</div>
+                    <div style={{ fontWeight: '500' }}>{new Set(repositories.map(repo => repo.full_name.split('/')[0])).size}</div>
                   </div>
                   <div>
-                    <div>Private</div>
-                    <div>{repositories.filter(repo => repo.private).length}</div>
+                    <div style={{ fontSize: '0.8em', color: 'var(--muted)' }}>Private</div>
+                    <div style={{ fontWeight: '500' }}>{repositories.filter(repo => repo.private).length}</div>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Repository list with organization grouping - Hidden on mobile */}
-            {showRepoList && (
-              <div>
-                {repositories.length > 0 ? (
-                  groupRepositoriesByOrg().map(([org, repos]) => (
-                    <div key={org>
-                      <div>
-                        <span>{org}</span>
-                        <span>
-                          {repos.length}
-                        </span>
-                      </div>
-
-                      <ul>
+              {/* Repository list with native HTML checkboxes */}
+              {repositories.length > 0 ? (
+                <fieldset style={{ border: '1px solid var(--border)', padding: 'var(--space)', borderRadius: '4px', marginTop: 'var(--space)' }}>
+                  <legend>Select Repositories</legend>
+                  {groupRepositoriesByOrg().map(([org, repos]) => (
+                    <details key={org} open style={{ marginBottom: 'var(--space)' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: '500', marginBottom: 'calc(var(--space) / 2)' }}>
+                        {org} ({repos.length})
+                      </summary>
+                      <div style={{ paddingLeft: 'calc(var(--space) * 2)' }}>
                         {repos.map((repo) => (
-                          <li key={repo.id}>
-                            <div>
-                            </div>
-                            <div>
-                              {repo.private && (
-                                <span>
-                                  PRIVATE
-                                </span>
-                              )}
-                              {repo.language && (
-                                <span>
-                                  {repo.language}
-                                </span>
-                              )}
-                            </div>
-                          </li>
+                          <label key={repo.id} style={{ display: 'block', marginBottom: 'calc(var(--space) / 2)', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              name="repository"
+                              value={repo.full_name}
+                              defaultChecked
+                              style={{ marginRight: 'calc(var(--space) / 2)' }}
+                            />
+                            {repo.name}
+                            {repo.private && (
+                              <span style={{ marginLeft: 'calc(var(--space) / 2)', fontSize: '0.8em', color: 'var(--muted)' }}>
+                                (private)
+                              </span>
+                            )}
+                            {repo.language && (
+                              <span style={{ marginLeft: 'calc(var(--space) / 2)', fontSize: '0.8em', color: 'var(--muted)' }}>
+                                • {repo.language}
+                              </span>
+                            )}
+                          </label>
                         ))}
-                      </ul>
-                    </div>
-                  ))
-                ) : repositories.length === 0 && !loading ? (
-                  <div>
-                    NO REPOSITORIES DETECTED
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      
+                      </div>
+                    </details>
+                  ))}
+                </fieldset>
+              ) : repositories.length === 0 && !loading ? (
+                <div style={{ color: 'var(--muted)', textAlign: 'center', padding: 'calc(var(--space) * 2)' }}>
+                  NO REPOSITORIES DETECTED
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </details>
+
+      {/* Submit button */}
       {isWithinForm && (
-        <div>
+        <div style={{ marginTop: 'var(--space)' }}>
           <button
             type={onSubmit ? "button" : "submit"}
             onClick={onSubmit}
             disabled={loading}
             title="Analyze your GitHub commits and generate activity summary with AI insights"
+            style={{
+              width: '100%',
+              padding: 'calc(var(--space) * 1.5)',
+              background: loading ? 'var(--muted)' : 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: '500',
+              cursor: loading ? 'default' : 'pointer',
+              fontSize: '1em'
+            }}
           >
-            {loading ? (
-              <>
-                <span></span>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clipRule="evenodd" />
-                </svg>
-                Generate Summary
-              </>
-            )}
+            {loading ? 'Analyzing...' : 'Generate Summary'}
           </button>
         </div>
       )}
     </aside>
   );
-  
+
   return renderRepositorySection();
 }

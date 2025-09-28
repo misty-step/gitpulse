@@ -22,6 +22,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
 }) => {
   return (
     <section>
+      <div>
         <div>
           <div></div>
           <h3>
@@ -70,7 +71,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
         <div>
           <ul>
             {aiSummary.accomplishments.map((accomplishment, index) => (
-              <li key={index>
+              <li key={index}>
                 <span>→</span>
                 <span>{accomplishment}</span>
               </li>
@@ -89,7 +90,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
         </div>
         <div>
           {aiSummary.commitsByType.map((type, index) => (
-            <div key={index>
+            <div key={index}>
               <div>
                 <h4>
                   {type.type}
@@ -116,7 +117,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
         </div>
         <div>
           {aiSummary.timelineHighlights.map((highlight, index) => (
-            <div key={index>
+            <div key={index}>
               <div>
                 {index + 1}
               </div>
