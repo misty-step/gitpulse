@@ -51,36 +51,27 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   if (!summary) return null;
 
   return (
-    <div className="mt-8 border rounded-lg p-2" style={{ 
-      backgroundColor: 'rgba(249, 250, 251, 0.95)',
-      backdropFilter: 'blur(5px)',
-      borderColor: 'var(--electric-blue)',
-      boxShadow: '0 0 20px rgba(59, 130, 246, 0.15)'
-    }}>
+    <div>
       {/* Terminal-like header */}
-      <div className="flex items-center justify-between mb-6 border-b pb-3" style={{ borderColor: 'var(--electric-blue)' }}>
-        <div className="flex items-center">
-          <div className="w-3 h-3 rounded-full mr-3" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h2 className="text-xl font-bold" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h2>
             COMMIT ANALYSIS: {summary.user?.toUpperCase()}
           </h2>
         </div>
-        <div className="px-2 py-1 text-xs rounded flex items-center" style={{ 
-          backgroundColor: 'rgba(249, 250, 251, 0.8)', 
-          border: '1px solid var(--neon-green)',
-          color: 'var(--neon-green)'
-        }}>
-          <span className="inline-block w-2 h-2 rounded-full mr-2 animate-pulse" style={{ backgroundColor: 'var(--neon-green)' }}></span>
+        <div>
+          <span></span>
           <span>ANALYSIS COMPLETE</span>
         </div>
       </div>
 
       {/* Activity Feed with Progressive Loading */}
       {summary.commits && (
-        <div className="mb-8">
-          <div className="flex items-center mb-3">
-            <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-            <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+        <div>
+          <div>
+            <div></div>
+            <h3>
               COMMIT ACTIVITY
             </h3>
           </div>
@@ -128,7 +119,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
       )}
 
       {/* Stats dashboard with cyber styling */}
-      <SummaryStats summary={summary} className="mb-8" />
+      <SummaryStats summary={summary} />
 
       {summary.aiSummary && (
         <SummaryDetails aiSummary={summary.aiSummary} />

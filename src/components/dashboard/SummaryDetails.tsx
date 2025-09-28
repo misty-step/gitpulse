@@ -21,26 +21,17 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
   className = ''
 }) => {
   return (
-    <div className={className}>
-      {/* Key Themes */}
-      <div className="mb-8">
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h3>
             IDENTIFIED PATTERNS
           </h3>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div>
           {aiSummary.keyThemes.map((theme, index) => (
             <span
-              key={index}
-              className="px-3 py-1 rounded-md text-sm"
-              style={{ 
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid var(--neon-green)',
-                color: 'var(--neon-green)'
-              }}
-            >
+              key={index}>
               {theme}
             </span>
           ))}
@@ -48,28 +39,19 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
       </div>
 
       {/* Technical Areas */}
-      <div className="mb-8">
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h3>
             TECHNICAL FOCUS AREAS
           </h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
           {aiSummary.technicalAreas.map((area, index) => (
             <div
-              key={index}
-              className="flex justify-between items-center p-3 rounded-md"
-              style={{ 
-                backgroundColor: 'rgba(249, 250, 251, 0.8)',
-                border: '1px solid var(--electric-blue)'
-              }}
-            >
-              <span style={{ color: 'var(--foreground)' }}>{area.name}</span>
-              <span className="px-2 py-1 rounded text-xs" style={{ 
-                backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                color: 'var(--electric-blue)'
-              }}>
+              key={index}>
+              <span>{area.name}</span>
+              <span>
                 {area.count}
               </span>
             </div>
@@ -78,21 +60,18 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
       </div>
 
       {/* Accomplishments */}
-      <div className="mb-8">
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h3>
             KEY ACHIEVEMENTS
           </h3>
         </div>
-        <div className="border rounded-md p-1.5" style={{ 
-          backgroundColor: 'rgba(249, 250, 251, 0.8)',
-          borderColor: 'var(--neon-green)'
-        }}>
-          <ul className="space-y-3" style={{ color: 'var(--foreground)' }}>
+        <div>
+          <ul>
             {aiSummary.accomplishments.map((accomplishment, index) => (
-              <li key={index} className="flex items-start">
-                <span className="inline-block w-5 flex-shrink-0 mr-2" style={{ color: 'var(--neon-green)' }}>→</span>
+              <li key={index>
+                <span>→</span>
                 <span>{accomplishment}</span>
               </li>
             ))}
@@ -101,28 +80,25 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
       </div>
 
       {/* Commit Types */}
-      <div className="mb-8">
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h3>
             COMMIT CLASSIFICATION
           </h3>
         </div>
-        <div className="space-y-4">
+        <div>
           {aiSummary.commitsByType.map((type, index) => (
-            <div key={index} className="border-l-2 pl-4 py-1" style={{ borderColor: 'var(--neon-green)' }}>
-              <div className="flex justify-between items-center">
-                <h4 className="font-medium" style={{ color: 'var(--neon-green)' }}>
+            <div key={index>
+              <div>
+                <h4>
                   {type.type}
                 </h4>
-                <span className="text-xs px-2 py-1 rounded" style={{ 
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  color: 'var(--neon-green)'
-                }}>
+                <span>
                   {type.count}
                 </span>
               </div>
-              <p className="text-sm mt-1" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              <p>
                 {type.description}
               </p>
             </div>
@@ -131,28 +107,24 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
       </div>
 
       {/* Timeline */}
-      <div className="mb-8">
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+      <div>
+        <div>
+          <div></div>
+          <h3>
             TEMPORAL ANALYSIS
           </h3>
         </div>
-        <div className="space-y-4">
+        <div>
           {aiSummary.timelineHighlights.map((highlight, index) => (
-            <div key={index} className="flex border-b pb-3" style={{ borderColor: 'rgba(59, 130, 246, 0.2)' }}>
-              <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3" style={{ 
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                border: '1px solid var(--electric-blue)',
-                color: 'var(--electric-blue)'
-              }}>
+            <div key={index>
+              <div>
                 {index + 1}
               </div>
               <div>
-                <div className="text-xs font-mono mb-1" style={{ color: 'var(--electric-blue)' }}>
+                <div>
                   {new Date(highlight.date).toLocaleDateString()}
                 </div>
-                <div style={{ color: 'var(--foreground)' }}>
+                <div>
                   {highlight.description}
                 </div>
               </div>
@@ -163,18 +135,14 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
 
       {/* Overall Summary */}
       <div>
-        <div className="flex items-center mb-3">
-          <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: 'var(--electric-blue)' }}></div>
-          <h3 className="text-sm uppercase" style={{ color: 'var(--electric-blue)' }}>
+        <div>
+          <div></div>
+          <h3>
             COMPREHENSIVE ANALYSIS
           </h3>
         </div>
-        <div className="p-1.5 rounded-md border" style={{ 
-          backgroundColor: 'rgba(249, 250, 251, 0.8)',
-          borderColor: 'var(--neon-green)',
-          color: 'var(--foreground)'
-        }}>
-          <div className="text-xs mb-2 font-mono" style={{ color: 'var(--neon-green)' }}>
+        <div>
+          <div>
             $ AI_ANALYSIS --detailed-output
           </div>
           {aiSummary.overallSummary}

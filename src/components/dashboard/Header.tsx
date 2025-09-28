@@ -39,73 +39,40 @@ export default function Header({
   };
   
   return (
-    <header className="border-b shadow-lg" style={{ 
-      borderColor: 'var(--neon-green)',
-      backgroundColor: 'rgba(249, 250, 251, 0.95)',
-      boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.1), 0 2px 4px -1px rgba(16, 185, 129, 0.06)'
-    }}>
-      <div className="max-w-7xl mx-auto py-1.5 px-2 sm:px-3 flex justify-between items-center">
-        <div className="flex items-center">
-          <div className="w-2 sm:w-3 h-2 sm:h-3 rounded-full mr-2 sm:mr-3 animate-pulse" style={{ backgroundColor: 'var(--neon-green)' }}></div>
-          <h1 className="text-xl sm:text-2xl font-bold" style={{
-            color: 'var(--neon-green)',
-            textShadow: '0 0 5px rgba(16, 185, 129, 0.3)'
-          }}>PULSE</h1>
+    <header>
+      <div>
+        <div>
+          <div></div>
+          <h1>PULSE</h1>
           {showCommandTerminal && (
-            <div className="hidden sm:flex ml-4 px-2 py-1 text-xs rounded items-center" style={{
-              backgroundColor: 'rgba(249, 250, 251, 0.8)',
-              border: '1px solid var(--electric-blue)',
-              color: 'var(--electric-blue)'
-            }}>
+            <div>
               <span>COMMAND TERMINAL</span>
             </div>
           )}
         </div>
 
         {userImage && (
-          <div className="flex items-center">
+          <div>
             {userName && (
-              <div className="hidden sm:block mr-3 px-3 py-1 text-xs rounded" style={{
-                backgroundColor: 'rgba(249, 250, 251, 0.8)',
-                border: '1px solid var(--neon-green)',
-                color: 'var(--neon-green)'
-              }}>
+              <div>
                 USER: {userName.toUpperCase()}
               </div>
             )}
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full" style={{
-                border: '2px solid var(--neon-green)',
-                boxShadow: '0 0 5px rgba(16, 185, 129, 0.5)',
-                transform: 'scale(1.1)'
-              }}></div>
+            <div>
+              <div></div>
               <Image
                 src={userImage}
                 alt={userName || 'User'}
                 width={36}
                 height={36}
-                className="rounded-full w-8 h-8 sm:w-9 sm:h-9"
+               
               />
             </div>
             <button
               onClick={handleSignOut}
-              className="ml-2 sm:ml-4 px-2 sm:px-3 py-1 text-xs sm:text-sm transition-all duration-200 rounded"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                color: 'var(--crimson-red)',
-                border: '1px solid var(--crimson-red)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--crimson-red)';
-                e.currentTarget.style.color = 'var(--dark-slate)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.color = 'var(--crimson-red)';
-              }}
             >
-              <span className="hidden sm:inline">DISCONNECT</span>
-              <span className="sm:hidden">EXIT</span>
+              <span>DISCONNECT</span>
+              <span>EXIT</span>
             </button>
           </div>
         )}

@@ -186,27 +186,25 @@ export default function CompactToolbar({
   );
 
   return (
-    <div className="sticky top-0 z-40 backdrop-blur bg-white/90 dark:bg-gray-900/90 border-b border-gray-200 dark:border-gray-700">
-      <div className="max-w-7xl mx-auto px-2 sm:px-3">
-        <div className="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-2 md:gap-3 py-2">
+    <div>
+      <div>
+        <div>
           <ModeSelector
             selectedMode={activityMode}
             onChange={onModeChange}
             disabled={loading}
-            className="bg-white dark:bg-gray-800 w-full md:w-auto"
+           
           />
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-sm w-full md:w-auto">
-            <label htmlFor="toolbar-date-preset" className="sr-only">
+          <div>
+            <label htmlFor="toolbar-date-preset">
               Date preset
             </label>
             <select
               id="toolbar-date-preset"
               value={preset}
               onChange={handlePresetChange}
-              disabled={loading}
-              className="h-10 w-full sm:w-auto sm:min-w-[9rem] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+              disabled={loading}>
               {PRESET_OPTIONS.map(option => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -214,8 +212,8 @@ export default function CompactToolbar({
               ))}
             </select>
 
-            <div className="flex items-center gap-1 w-full sm:w-auto">
-              <label htmlFor="toolbar-date-since" className="sr-only">
+            <div>
+              <label htmlFor="toolbar-date-since">
                 Start date
               </label>
               <input
@@ -225,10 +223,10 @@ export default function CompactToolbar({
                 onChange={(event) => handleDateChange('since', event.target.value)}
                 disabled={loading}
                 max={localRange.until}
-                className="h-10 flex-1 sm:flex-none sm:w-36 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+               
               />
-              <span className="text-xs text-gray-400">→</span>
-              <label htmlFor="toolbar-date-until" className="sr-only">
+              <span>→</span>
+              <label htmlFor="toolbar-date-until">
                 End date
               </label>
               <input
@@ -238,7 +236,7 @@ export default function CompactToolbar({
                 onChange={(event) => handleDateChange('until', event.target.value)}
                 disabled={loading}
                 min={localRange.since}
-                className="h-10 flex-1 sm:flex-none sm:w-36 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+               
               />
             </div>
           </div>
@@ -248,16 +246,11 @@ export default function CompactToolbar({
             onClick={onGenerate}
             disabled={disableGenerate}
             title={buttonLabel}
-            className={`w-full md:w-auto md:ml-auto flex h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-all shadow-sm ${
-              disableGenerate
-                ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-md'
-            }`}
           >
             {loading && (
-              <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span />
             )}
-            <span className="whitespace-nowrap">{buttonLabel}</span>
+            <span>{buttonLabel}</span>
           </button>
         </div>
       </div>

@@ -63,3 +63,107 @@ The current UI wastes ~70% of vertical space on decorative borders and excessive
 The terminal aesthetic is a self-indulgent distraction. Users want their commit summary, not a cyberpunk fantasy. Every pixel of chrome should justify its existence through improved task completion rate. The current design optimizes for screenshots, not daily use.
 
 Remember Carmack's principle: "Focus on what you can measure and improve." We can measure pixels wasted, clicks required, and time-to-action. Optimize those relentlessly.
+
+## Critical Path 2: Radical Simplification (Semantic Minimalism)
+
+The Phase 1 improvements fixed density but created new problems: mixed visual metaphors, competing color schemes, and 2000+ lines of CSS doing work that 200 lines should handle. Time to burn it down to the studs and rebuild with discipline.
+
+### Phase 1: Scorched Earth CSS Removal (Delete First, Add Later)
+
+- [x] **Create new minimal.css with exactly 5 CSS variables** - Create `src/app/minimal.css` with only: `--space: 8px; --text: #111827; --muted: #6b7280; --border: #e5e7eb; --accent: #10b981;`. No gradients, no shadows, no animations. Raw materials only.
+
+- [~] **Delete all Tailwind utility classes from dashboard components** - Full regex replacement in all `.tsx` files under `src/components/dashboard/`: Remove `className="..."` entirely. Let semantic HTML show through first. Count deleted characters: target > 50,000.
+
+- [ ] **Remove Tailwind and its 67KB of CSS overhead** - In `src/app/globals.css`, delete line 1 `@import "tailwindcss"`. Remove postcss config. Delete tailwind.config.ts. Measure bundle size reduction (expect ~70KB saved).
+
+- [ ] **Replace 265 lines of custom CSS with 40-line reset** - Rewrite `globals.css` to only: `* { margin: 0; padding: 0; box-sizing: border-box; }`, system font stack, and base typography. Delete ALL component classes, animations, and effects.
+
+- [ ] **Convert all styled divs to semantic HTML elements** - Replace: `<div className="card">` → `<article>`, `<div className="toolbar">` → `<nav>`, `<div className="sidebar">` → `<aside>`. HTML elements have default styles for a reason. Use them.
+
+### Phase 2: Layout Via Structure (Grid and Flexbox Only)
+
+- [ ] **Implement single-column mobile-first layout** - Dashboard becomes: `body > main { max-width: 1200px; margin: 0 auto; padding: var(--space); }`. Everything stacks vertically by default. No media queries yet.
+
+- [ ] **Create 3-element fixed header: title | datepicker | button** - New structure: `<header style="display: grid; grid-template-columns: 1fr auto auto; height: 48px; position: sticky; top: 0;">`. No classes. Inline critical layout CSS only.
+
+- [ ] **Convert repository list to native HTML details/summary** - Replace custom checkbox list with: `<details><summary>143 repositories</summary><label><input type="checkbox">repo-name</label></details>`. Browser handles expand/collapse. Zero JS required.
+
+- [ ] **Use CSS Grid for dashboard sections** - Main area: `display: grid; grid-template-columns: 300px 1fr; gap: var(--space);`. Left: filters. Right: content. No wrapper divs, no layout components.
+
+- [ ] **Replace all spacer/divider components with CSS gap** - Delete every `<div className="spacer">`, `<hr>`, and margin/padding utility. Use flexbox/grid `gap` exclusively. Spacing becomes structural, not decorative.
+
+### Phase 3: Form Controls Reset (Native is Good Now)
+
+- [ ] **Replace custom date picker with HTML5 date inputs** - Change `DateRangeSelector.tsx` to render: `<input type="date" value={since} max={today}>`. Native pickers are better than they were in 2015. Stop fighting the platform.
+
+- [ ] **Convert ModeSelector to radio button fieldset** - Replace custom pills with: `<fieldset><legend>Activity Mode</legend><label><input type="radio" name="mode" value="my"> My Activity</label></fieldset>`. Accessible by default, works without JS.
+
+- [ ] **Use native select for repository count dropdown** - Replace custom dropdown with: `<select><option>All repositories</option><option>Active only</option></select>`. Mobile UX is free, keyboard navigation is free.
+
+- [ ] **Style form controls with exactly 4 properties** - Only allow: `font: inherit; padding: calc(var(--space) / 2); border: 1px solid var(--border); border-radius: 4px;`. Nothing else. Constraints breed consistency.
+
+- [ ] **Make Generate button the only styled element** - Apply background color ONLY to submit button: `background: var(--accent); color: white; border: none; font-weight: 500;`. Everything else inherits system styling.
+
+### Phase 4: Component Reduction (Merge or Delete)
+
+- [ ] **Merge CompactToolbar + QuickActionBar + AdvancedOptions into single NavBar** - One component, one file: `NavBar.tsx`. 100 lines max. If it doesn't fit, it's too complex. Current: 3 files, 450+ lines.
+
+- [ ] **Delete SummarySkeletonLoader, use CSS animation** - Replace 150-line component with: `.loading { animation: pulse 2s infinite; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); }`.
+
+- [ ] **Combine RepositorySection + RepositoryFilters + RepositoryList** - Single component renders fieldset with checkboxes. No virtualization until proven necessary. Current: 400+ lines. Target: < 100 lines.
+
+- [ ] **Replace 15 dashboard components with 5** - Final structure: NavBar (controls), FilterPanel (repos/options), ActivityFeed (content), CommitItem (repeated element), ErrorBoundary. Everything else gets inlined or deleted.
+
+- [ ] **Delete all "UI helper" components** - Remove: Badge, Card, Tooltip, Modal, Spinner, Avatar, Icon components. Use semantic HTML + minimal CSS. If HTML doesn't have it, you probably don't need it.
+
+### Phase 5: State Simplification (URL is State)
+
+- [ ] **Move all filter state to URL search params** - Example: `?mode=my&since=2024-01-01&until=2024-01-31&repos=user/repo1,user/repo2`. Browser back button works, sharing works, bookmarking works.
+
+- [ ] **Delete useLocalStorage hooks, use URL + sessionStorage** - URL for user-visible state, sessionStorage for auth tokens only. Stop reimplementing browser features.
+
+- [ ] **Replace 8 custom hooks with 2** - Keep only: `useAuth()` (session management) and `useGitHubData(params)` (fetch wrapper). Everything else becomes regular React state.
+
+- [ ] **Remove all loading states except one** - Single boolean: `isGenerating`. Don't track 15 different loading states. User only cares: "is it done yet?"
+
+- [ ] **Flatten component prop drilling via URL params** - Components read directly from URL: `const params = new URLSearchParams(location.search)`. No more passing 12 props through 5 components.
+
+### Phase 6: Performance Baseline (Measure Everything)
+
+- [ ] **Target: 100 PageSpeed score on mobile** - Current score: measure first. Every task must improve or maintain score. Use Lighthouse CLI in CI.
+
+- [ ] **CSS must be < 5KB gzipped** - Current: ~70KB with Tailwind. Target: < 5KB. That's 93% reduction. Anything more is bloat.
+
+- [ ] **Time to Interactive < 1 second on 3G** - Measure with Chrome DevTools throttling. Current: unknown. Target: < 1000ms. No negotiation.
+
+- [ ] **Zero runtime CSS calculations** - No CSS-in-JS, no dynamic styles, no style prop. All styles resolved at build time. Runtime is for data, not painting.
+
+- [ ] **Memory usage < 50MB for 1000 commits** - Current: unknown. Measure with Chrome Memory Profiler. Pagination only if this target is exceeded.
+
+### Success Metrics
+
+- Total CSS lines: < 100 (current: ~2000)
+- React components: < 10 (current: ~30)
+- Bundle size: < 100KB (current: ~400KB)
+- Lighthouse mobile score: 100 (current: unmeasured)
+- Time to generate (3 clicks): < 5 seconds (current: ~15 seconds)
+
+### Anti-Patterns to Destroy
+
+1. **No "design system"** - Systems are procrastination. Ship the page.
+2. **No "utility classes"** - Tailwind is 67KB to avoid writing 20 lines of CSS
+3. **No "CSS-in-JS"** - Runtime styling is a performance tax
+4. **No "component libraries"** - HTML already has components. Use them.
+5. **No "micro-optimizations"** - Delete 1000 lines before optimizing 1
+
+### Implementation Order
+
+Do Phase 1 completely before starting Phase 2. Deletion before addition. Measure after each task. If a metric gets worse, revert immediately.
+
+The goal: Make it impossible for the UI to be slow or broken. Not through testing or types, but through having so little code that bugs have nowhere to hide.
+
+Estimated LOC reduction: 5,000 → 500 (90% deletion rate)
+Estimated time to implement: 2 days of focused work
+Estimated maintenance burden: 10% of current
+
+The best code is no code. The best CSS is no CSS. The best component is an HTML element.
