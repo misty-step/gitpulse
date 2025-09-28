@@ -7,11 +7,6 @@ export interface NavBarProps {
   loading: boolean;
   repositories: readonly Repository[];
   onGenerate: () => void;
-  lastGeneration?: {
-    timestamp: number;
-    repoCount: number;
-  } | null;
-  onRegenerateLast?: () => void;
 }
 
 export default function NavBar({
@@ -19,9 +14,7 @@ export default function NavBar({
   onDateRangeChange,
   loading,
   repositories,
-  onGenerate,
-  lastGeneration,
-  onRegenerateLast
+  onGenerate
 }: NavBarProps) {
   const [localRange, setLocalRange] = useState<DateRange>(dateRange);
 
@@ -33,19 +26,10 @@ export default function NavBar({
 
   const disableGenerate = loading || repositories.length === 0;
 
-  // Format time since last generation
-  const getTimeSince = () => {
-    if (!lastGeneration) return null;
-    const minutes = Math.floor((Date.now() - lastGeneration.timestamp) / 60000);
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    return `${Math.floor(minutes / 60)}h ago`;
-  };
-
   return (
     <nav style={{
       display: 'grid',
-      gridTemplateColumns: lastGeneration ? '1fr auto auto auto' : '1fr auto auto',
+      gridTemplateColumns: '1fr auto auto',
       height: '48px',
       position: 'sticky',
       top: 0,
@@ -80,19 +64,6 @@ export default function NavBar({
           max={new Date().toISOString().split('T')[0]}
         />
       </div>
-
-      {/* Quick regenerate (if available) */}
-      {lastGeneration && onRegenerateLast && (
-        <button
-          type="button"
-          onClick={onRegenerateLast}
-          disabled={loading}
-          title={`Regenerate ${lastGeneration.repoCount} repos from ${getTimeSince()}`}
-          style={{ fontSize: '14px' }}
-        >
-          ↻ Last
-        </button>
-      )}
 
       {/* Generate button */}
       <button

@@ -2,14 +2,9 @@
  * Custom hook for managing GitHub App installations
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Installation } from '@/types/dashboard';
-import { 
-  setCacheItem, 
-  getStaleItem,
-  ClientCacheTTL
-} from '@/lib/localStorageCache';
 
 interface UseInstallationsOptions {
   readonly fetchRepositories: (installationId?: number) => Promise<boolean>;
@@ -37,27 +32,6 @@ export function useInstallations(options: UseInstallationsOptions) {
   // State for whether GitHub App installation is needed
   const [needsInstallation, setNeedsInstallation] = useState(false);
 
-  /**
-   * Load installations from cache on initial mount
-   */
-  useEffect(() => {
-    // Try to load installations from cache
-    const { data: cachedInstallations } = getStaleItem<Installation[]>('installations');
-    
-    if (cachedInstallations && cachedInstallations.length > 0) {
-      console.log('Using cached installations:', cachedInstallations.length);
-      setInstallationsState(cachedInstallations);
-    }
-    
-    // Try to load current installations from cache
-    const { data: cachedCurrentInstallations } = getStaleItem<Installation[]>('currentInstallations');
-    
-    if (cachedCurrentInstallations && cachedCurrentInstallations.length > 0) {
-      console.log('Using cached current installations:', cachedCurrentInstallations.length);
-      setCurrentInstallations(cachedCurrentInstallations);
-      setInstallationIds(cachedCurrentInstallations.map(inst => inst.id));
-    }
-  }, []);
 
   /**
    * Set the available installations and update cache
@@ -66,11 +40,6 @@ export function useInstallations(options: UseInstallationsOptions) {
    */
   const setInstallations = useCallback((newInstallations: Installation[] | readonly Installation[]) => {
     setInstallationsState(newInstallations);
-    
-    // Cache installations with a longer TTL
-    if (newInstallations.length > 0) {
-      setCacheItem('installations', newInstallations, ClientCacheTTL.LONG);
-    }
   }, []);
 
   /**
@@ -85,13 +54,10 @@ export function useInstallations(options: UseInstallationsOptions) {
       
       if (!exists) {
         const newInstallations = [...prev, installation];
-        
+
         // Update installation IDs
         setInstallationIds(newInstallations.map(inst => inst.id));
-        
-        // Cache current installations
-        setCacheItem('currentInstallations', newInstallations, ClientCacheTTL.LONG);
-        
+
         return newInstallations;
       }
       
@@ -129,15 +95,12 @@ export function useInstallations(options: UseInstallationsOptions) {
       fetchRepositories(primaryInstallId).then(success => {
         // If we successfully switched, update the current installations
         if (success) {
-          // Update last installation switch timestamp
-          localStorage.setItem('lastInstallationSwitch', Date.now().toString());
-          
           // Update the current installations
           setCurrentInstallations(selectedInstallations);
-          
+
           // Update the installation IDs state
           setInstallationIds(installIds);
-          
+
           // Clear installation needed flag
           setNeedsInstallation(false);
         }

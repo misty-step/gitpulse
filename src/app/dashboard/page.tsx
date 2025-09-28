@@ -12,7 +12,6 @@ import { useRepositories } from '@/hooks/dashboard/useRepositories';
 import { useInstallations } from '@/hooks/dashboard/useInstallations';
 import { useFilters } from '@/hooks/dashboard/useFilters';
 import { useSummary } from '@/hooks/dashboard/useSummary';
-import { useLastGenerationParams } from '@/hooks/useLastGenerationParams';
 
 // Components
 import Header from '@/components/dashboard/Header';
@@ -26,7 +25,6 @@ import NavBar from '@/components/dashboard/NavBar';
 function DashboardContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { loadLastGeneration, saveLastGeneration } = useLastGenerationParams();
 
   // URL state management - single source of truth
   const {
@@ -43,7 +41,6 @@ function DashboardContent() {
   // State for initial loading
   const [initialLoad, setInitialLoad] = useState(true);
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>(selectedRepos);
-  const [lastGeneration, setLastGeneration] = useState(() => loadLastGeneration());
 
 
   // Optimistic UI state - show skeleton immediately when generating
@@ -220,8 +217,7 @@ function DashboardContent() {
       organizations: filters.organizations,
       installationIds: installationIds as number[]
     };
-    saveLastGeneration(params);
-    setLastGeneration({ ...params, timestamp: Date.now() });
+    // URL state is now the source of truth for all parameters
 
     try {
       await generateSummary();
@@ -237,47 +233,8 @@ function DashboardContent() {
     filters.organizations,
     installationIds,
     generateSummary,
-    saveLastGeneration
   ]);
 
-  // Function to regenerate with last parameters
-  const handleRegenerateLast = useCallback(async () => {
-    if (!lastGeneration) return;
-
-    // Apply last generation parameters via URL
-    setActivityModeURL(lastGeneration.activityMode);
-    setDateRangeURL(lastGeneration.dateRange);
-    setSelectedRepos([...lastGeneration.selectedRepositoryIds]);
-    setSelectedOrgs([...lastGeneration.organizations]);
-
-    // Also update local state
-    setActivityMode(lastGeneration.activityMode);
-    setFilterRepositories(lastGeneration.selectedRepositoryIds);
-    setContributors(lastGeneration.contributors);
-    setOrganizations(lastGeneration.organizations);
-
-    // Wait for state updates to propagate
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Generate summary with optimistic UI
-    setShowSkeleton(true);
-    try {
-      await generateSummary();
-    } finally {
-      setShowSkeleton(false);
-    }
-  }, [
-    lastGeneration,
-    setActivityModeURL,
-    setDateRangeURL,
-    setSelectedRepos,
-    setSelectedOrgs,
-    setActivityMode,
-    setFilterRepositories,
-    setContributors,
-    setOrganizations,
-    generateSummary
-  ]);
 
   // Show loading state during initial session loading or first data fetch
   if (status === 'loading' || initialLoad) {
@@ -299,11 +256,6 @@ function DashboardContent() {
         loading={loading}
         repositories={filteredRepositories}
         onGenerate={handleGenerateSummary}
-        lastGeneration={lastGeneration ? {
-          timestamp: lastGeneration.timestamp,
-          repoCount: lastGeneration.selectedRepositoryIds.length
-        } : null}
-        onRegenerateLast={handleRegenerateLast}
       />
 
       {/* Main grid layout: left sidebar (300px) | right content (1fr) */}

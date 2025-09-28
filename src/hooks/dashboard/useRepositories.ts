@@ -5,11 +5,6 @@
 import { useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Repository } from '@/types/dashboard';
-import { 
-  setCacheItem, 
-  getStaleItem,
-  ClientCacheTTL
-} from '@/lib/localStorageCache';
 
 interface ReposResponse {
   readonly repositories: readonly Repository[];
@@ -54,9 +49,6 @@ interface ReposResponse {
   }[];
 }
 
-interface FetchOptions {
-  readonly forceFetch?: boolean;
-}
 
 /**
  * Custom hook for fetching and managing GitHub repositories
@@ -96,40 +88,11 @@ export function useRepositories() {
    * @returns Promise that resolves to true if fetch was successful, false otherwise
    */
   const fetchRepositories = useCallback(async (
-    selectedInstallationId?: number,
-    options: FetchOptions = {}
+    selectedInstallationId?: number
   ): Promise<boolean> => {
-    // Create a consistent cache key
-    const cacheKey = `repos:${session?.user?.email || 'user'}`;
-    let forceFetch = options.forceFetch || false;
-    
-    // If we already have repositories from a previous session, maintain them while fetching fresh data
-    if (!forceFetch && !selectedInstallationId) {
-      // Check for cached data using stale-while-revalidate approach
-      const { data: cachedRepos, isStale } = getStaleItem<Repository[]>(cacheKey);
-      
-      // If we have cached data, use it immediately
-      if (cachedRepos && cachedRepos.length > 0) {
-        setRepositories(cachedRepos);
-        console.log('Using cached repositories:', cachedRepos.length);
-        
-        // If data is fresh enough, don't fetch
-        if (!isStale) {
-          console.log('Cache is fresh, skipping fetch');
-          return true;
-        }
-        
-        // If data is stale, continue with fetch in background but don't show loading state
-        console.log('Cache is stale, fetching in background');
-        forceFetch = true;
-      }
-    }
     
     try {
-      // Only show loading if we don't have cached data
-      if (!forceFetch) {
-        setLoading(true);
-      }
+      setLoading(true);
       
       // Add installation_id query parameter if it was provided
       const url = selectedInstallationId 
@@ -165,12 +128,7 @@ export function useRepositories() {
       }
       
       const data: ReposResponse = await response.json();
-      
-      // Cache the repositories for future use with 1 hour TTL
-      if (data.repositories && data.repositories.length > 0) {
-        setCacheItem(cacheKey, data.repositories, ClientCacheTTL.LONG);
-      }
-      
+
       setRepositories(data.repositories);
       
       // If we successfully fetched repositories, clear any previous errors and installation needed flag
@@ -183,9 +141,7 @@ export function useRepositories() {
       setError('Failed to fetch repositories. Please try again.');
       return false;
     } finally {
-      if (!forceFetch) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [
     session, 

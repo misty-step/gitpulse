@@ -67,11 +67,8 @@ export default function FilterPanel({
       
       const data = await response.json();
       setContributors(data.contributors || []);
-      
-      // Set a flag in localStorage to prevent excessive fetching
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('contributorsFetchedAt', Date.now().toString());
-      }
+
+      // Fetching is now managed per session
     } catch (error) {
       console.error('Error fetching contributors:', error);
     } finally {
@@ -79,24 +76,13 @@ export default function FilterPanel({
     }
   }, [installations, setContributors, setLoadingContributors]);
   
-  // Check if we should fetch based on cache time
-  const shouldFetchContributors = useCallback(() => {
-    if (typeof window === 'undefined') return true;
-    
-    const lastFetchedAt = localStorage.getItem('contributorsFetchedAt');
-    if (!lastFetchedAt) return true;
-    
-    // Only fetch if it's been more than 15 minutes since last fetch
-    const fifteenMinutes = 15 * 60 * 1000;
-    return Date.now() - parseInt(lastFetchedAt, 10) > fifteenMinutes;
-  }, []);
   
   // Fetch contributors when the component loads
   useEffect(() => {
-    if (expanded && !loadingContributors && (contributors.length === 0 || shouldFetchContributors())) {
+    if (expanded && !loadingContributors && contributors.length === 0) {
       fetchContributors();
     }
-  }, [expanded, contributors.length, loadingContributors, fetchContributors, shouldFetchContributors]);
+  }, [expanded, contributors.length, loadingContributors, fetchContributors]);
 
   // Apply filters when any filter changes
   useEffect(() => {
