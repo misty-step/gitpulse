@@ -186,7 +186,7 @@ export default function CompactToolbar({
   );
 
   return (
-    <div>
+    <nav>
       <div>
         <div>
           <ModeSelector
@@ -254,6 +254,6 @@ export default function CompactToolbar({
           </button>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }

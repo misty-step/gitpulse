@@ -68,7 +68,7 @@ export default function RepositorySection({
   };
   
   const renderRepositorySection = () => (
-    <div>
+    <aside>
       {/* Hidden on mobile, shown on tablet and up */}
       <div>
         <div>
@@ -221,7 +221,7 @@ export default function RepositorySection({
           </button>
         </div>
       )}
-    </div>
+    </aside>
   );
   
   return renderRepositorySection();

@@ -49,7 +49,7 @@ export default function AnalysisParameters({
   };
 
   return (
-    <div>
+    <section>
       {/* Header */}
       <h3>
         Analysis Parameters
@@ -92,6 +92,6 @@ export default function AnalysisParameters({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

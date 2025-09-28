@@ -61,7 +61,7 @@ export default function QuickActionBar({
   };
 
   return (
-    <div>
+    <nav>
       <button
         type="button"
         onClick={onRegenerateLast}
@@ -88,6 +88,6 @@ export default function QuickActionBar({
       <span>
         ({formatTimeSince(lastGeneration.timestamp)})
       </span>
-    </div>
+    </nav>
   );
 }

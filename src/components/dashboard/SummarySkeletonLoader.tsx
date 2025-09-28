@@ -6,7 +6,7 @@ import React from 'react';
  */
 export default function SummarySkeletonLoader() {
   return (
-    <div>
+    <article>
       {/* Terminal-like header skeleton */}
       <div>
         <div>
@@ -106,6 +106,6 @@ export default function SummarySkeletonLoader() {
           <span>Processing commits and generating summary...</span>
         </div>
       </div>
-    </div>
+    </article>
   );
 }

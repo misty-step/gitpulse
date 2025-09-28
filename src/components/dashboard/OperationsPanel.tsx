@@ -88,7 +88,7 @@ export default function OperationsPanel({
   onSignOut
 }: OperationsPanelProps) {
   return (
-    <div>
+    <section>
       {/* Simplified header */}
       <div>
         <h2>
@@ -290,6 +290,6 @@ export default function OperationsPanel({
           />
         </div>
       )}
-    </div>
+    </section>
   );
 }

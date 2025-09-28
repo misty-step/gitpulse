@@ -51,7 +51,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   if (!summary) return null;
 
   return (
-    <div>
+    <article>
       {/* Terminal-like header */}
       <div>
         <div>
@@ -124,7 +124,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
       {summary.aiSummary && (
         <SummaryDetails aiSummary={summary.aiSummary} />
       )}
-    </div>
+    </article>
   );
 };
 

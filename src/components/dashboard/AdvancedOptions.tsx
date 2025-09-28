@@ -59,7 +59,7 @@ export default function AdvancedOptions({
   }, [onPrivateOnlyChange]);
 
   return (
-    <div>
+    <section>
       <button
         type="button"
         onClick={toggleExpanded}
@@ -174,6 +174,6 @@ export default function AdvancedOptions({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

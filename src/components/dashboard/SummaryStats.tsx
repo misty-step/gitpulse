@@ -21,7 +21,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
   className = ''
 }) => {
   return (
-    <div>
+    <section>
       <h3>
         METRICS OVERVIEW
       </h3>
@@ -48,7 +48,7 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

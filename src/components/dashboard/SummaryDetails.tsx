@@ -21,7 +21,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
   className = ''
 }) => {
   return (
-      <div>
+    <section>
         <div>
           <div></div>
           <h3>
@@ -148,7 +148,7 @@ const SummaryDetails: React.FC<SummaryDetailsProps> = ({
           {aiSummary.overallSummary}
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

@@ -35,7 +35,7 @@ const CommitItem = React.memo(({
   const commitTitle = commit.commit.message.split('\n')[0];
 
   return (
-    <div>
+    <article>
       {/* Timeline dot */}
       <div></div>
       
@@ -108,7 +108,7 @@ const CommitItem = React.memo(({
           </a>
         </div>
       </div>
-    </div>
+    </article>
   );
 });
 
