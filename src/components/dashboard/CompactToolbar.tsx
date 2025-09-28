@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, ChangeEvent } from 'react';
-import ModeSelector, { ActivityMode } from '@/components/ui/ModeSelector';
-import { DateRange, Repository } from '@/types/dashboard';
+import { ActivityMode, DateRange, Repository } from '@/types/dashboard';
 
 export type DatePreset = 'last7' | 'last30' | 'thisMonth' | 'lastMonth' | 'custom';
 

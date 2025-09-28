@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import ModeSelector, { ActivityMode, DEFAULT_MODES, ModeOption } from './ModeSelector';
+import ModeSelector, { DEFAULT_MODES, ModeOption } from './ModeSelector';
+import { ActivityMode } from '@/types/dashboard';
 
 /**
  * ModeSelector stories showcase a radio group component for selecting between 
@@ -35,12 +36,8 @@ const meta: Meta<typeof ModeSelector> = {
       description: 'Available modes to display (defaults to DEFAULT_MODES)',
       control: 'object'
     },
-    ariaLabel: { 
-      description: 'Accessibility label for the radio group',
-      control: 'text' 
-    },
-    className: {
-      description: 'Additional CSS class names',
+    name: {
+      description: 'HTML name attribute for the radio group',
       control: 'text'
     }
   },
@@ -185,7 +182,6 @@ export const CustomTheme: Story = {
   args: {
     selectedMode: 'my-activity',
     disabled: false,
-    className: 'custom-theme',
   },
   parameters: {
     docs: {
@@ -203,8 +199,7 @@ export const CustomLabel: Story = {
   args: {
     selectedMode: 'my-activity',
     disabled: false,
-    ariaLabel: 'Select View Mode',
-    className: 'shadow-lg'
+    name: 'view-mode',
   },
   parameters: {
     docs: {
