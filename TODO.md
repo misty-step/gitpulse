@@ -274,7 +274,16 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
   - Result: All user state now managed via URL params, no localStorage usage
   ```
 
-- [ ] **Replace 8 custom hooks with 2** - Keep only: `useAuth()` (session management) and `useGitHubData(params)` (fetch wrapper). Everything else becomes regular React state.
+- [x] **Replace 8 custom hooks with 2** - Keep only: `useAuth()` (session management) and `useGitHubData(params)` (fetch wrapper). Everything else becomes regular React state.
+  ```
+  Work Log:
+  - Created new consolidated useGitHubData hook for all GitHub operations
+  - Converted filter state to regular React state (no custom hook needed)
+  - Kept useURLState as it has a focused purpose (URL state management)
+  - Removed 5 custom hooks: useRepositories, useInstallations, useFilters, useSummary, useCommits
+  - Deleted entire src/hooks/dashboard/ directory
+  - Result: Simplified from 6+ hooks to just 2 (useSession + useGitHubData), plus useURLState for URL management
+  ```
 
 - [ ] **Remove all loading states except one** - Single boolean: `isGenerating`. Don't track 15 different loading states. User only cares: "is it done yet?"
 

@@ -4,14 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'rea
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { getDefaultDateRange } from '@/lib/dashboard-utils';
-import { DateRange } from '@/types/dashboard';
+import { ActivityMode, DateRange } from '@/types/dashboard';
 import { useURLState } from '@/hooks/useURLState';
-
-// Custom hooks
-import { useRepositories } from '@/hooks/dashboard/useRepositories';
-import { useInstallations } from '@/hooks/dashboard/useInstallations';
-import { useFilters } from '@/hooks/dashboard/useFilters';
-import { useSummary } from '@/hooks/dashboard/useSummary';
+import { useGitHubData } from '@/hooks/useGitHubData';
 
 // Components
 import Header from '@/components/dashboard/Header';
@@ -42,70 +37,27 @@ function DashboardContent() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>(selectedRepos);
 
-
   // Optimistic UI state - show skeleton immediately when generating
   const [showSkeleton, setShowSkeleton] = useState(false);
 
-  // Custom hooks for repositories, installations, filters, and summary
+  // GitHub data hook - consolidated data fetching
   const {
     repositories,
-    loading: repoLoading,
-    error: repoError,
-    needsInstallation: repoNeedsInstallation,
-    fetchRepositories
-  } = useRepositories();
-
-  const {
     installations,
-    currentInstallations,
-    installationIds,
-    needsInstallation: installNeedsInstallation,
-    switchInstallations,
-    setInstallations,
-    addCurrentInstallation,
-    setNeedsInstallation
-  } = useInstallations({ fetchRepositories });
-
-  const {
-    filters,
-    setContributors,
-    setOrganizations,
-    setRepositories: setFilterRepositories,
-    setActivityMode
-  } = useFilters({
-    initialFilters: {
-      contributors: ['me'],
-      organizations: selectedOrgs,
-      repositories: selectedRepos
-    },
-    initialMode: activityMode
-  });
-
-  const {
-    loading: summaryLoading,
-    error: summaryError,
     summary,
-    generateSummary,
-    authMethod,
-    currentInstallations: summaryInstallations,
-    progress: summaryProgress
-  } = useSummary({
-    dateRange,
-    activityMode,
-    organizations: filters.organizations,
-    repositories: filters.repositories,
-    contributors: filters.contributors,
-    installationIds: installationIds as readonly number[]
-  });
+    loading,
+    error,
+    needsInstallation,
+    fetchRepositories,
+    generateSummary: generateSummaryAPI
+  } = useGitHubData();
 
-  // Combine loading states
-  const loading = repoLoading || summaryLoading;
+  // Filter state - simple React state instead of custom hook
+  const [contributors, setContributors] = useState<string[]>(['me']);
+  const [organizations, setOrganizations] = useState<string[]>(selectedOrgs);
+  const [filterRepositories, setFilterRepositories] = useState<string[]>(selectedRepos);
+  const [localActivityMode, setLocalActivityMode] = useState<ActivityMode>(activityMode);
 
-  // Combine error messages
-  const activeError = repoError || summaryError;
-
-  // Combine needsInstallation flags
-  const needsInstallation = repoNeedsInstallation || installNeedsInstallation;
 
   // Sync URL state with component state
   useEffect(() => {
@@ -116,19 +68,11 @@ function DashboardContent() {
     setOrganizations(selectedOrgs);
   }, [selectedOrgs, setOrganizations]);
 
-  // Filter repositories based on selected IDs and advanced options
+  // Filter repositories based on selected IDs
   const filteredRepositories = useMemo(() => {
-    let filtered = repositories;
-
-    // Apply repository selection filter if any are selected
-    if (selectedRepoIds.length > 0) {
-      filtered = filtered.filter(repo =>
-        selectedRepoIds.includes(repo.id.toString())
-      );
-    }
-
-    return filtered;
-  }, [repositories, selectedRepoIds]);
+    if (filterRepositories.length === 0) return repositories;
+    return repositories.filter(repo => filterRepositories.includes(repo.id.toString()));
+  }, [repositories, filterRepositories]);
 
   // Initialize preferences and repositories on mount
   useEffect(() => {
@@ -158,11 +102,7 @@ function DashboardContent() {
   }, [
     status,
     router,
-    fetchRepositories,
-    setActivityMode,
-    setFilterRepositories,
-    setContributors,
-    setOrganizations
+    fetchRepositories
   ]);
 
   // Auto-select repositories based on activity mode
@@ -173,24 +113,20 @@ function DashboardContent() {
     }
   }, [activityMode, repositories]);
 
-  // Create progress message based on summary progress
+  // Simple progress message when loading
   const progressMessage = useMemo(() => {
-    if (!summaryProgress) return '';
-
-    const { completedRepositories, totalRepositories } = summaryProgress;
-    if (completedRepositories > 0 && totalRepositories > 0) {
-      return `Analyzing repository ${completedRepositories} of ${totalRepositories}...`;
+    if (loading && summary === null) {
+      return 'Generating summary...';
     }
+    return '';
+  }, [loading, summary]);
 
-    return 'Preparing analysis...';
-  }, [summaryProgress]);
-
-  // Pre-compute selected repository IDs for toolbar
+  // Compute selected repository IDs
   const selectedRepositoryIds = useMemo(() => {
-    return selectedRepoIds.length > 0
-      ? selectedRepoIds
+    return filterRepositories.length > 0
+      ? filterRepositories
       : repositories.map(r => r.id.toString());
-  }, [selectedRepoIds, repositories]);
+  }, [filterRepositories, repositories]);
 
   // Function to handle date range changes - updates URL
   const handleDateRangeChange = useCallback((newDateRange: DateRange) => {
@@ -201,26 +137,22 @@ function DashboardContent() {
   const handleOrganizationChange = useCallback((orgs: string[]) => {
     setSelectedOrgs(orgs);
     setOrganizations(orgs);
-  }, [setSelectedOrgs, setOrganizations]);
+  }, [setSelectedOrgs]);
 
   // Function to handle summary generation
   const handleGenerateSummary = useCallback(async () => {
     // Show skeleton loader immediately (optimistic UI)
     setShowSkeleton(true);
 
-    // Save last generation params for quick re-run
-    const params = {
-      activityMode,
-      dateRange,
-      selectedRepositoryIds: filters.repositories,
-      contributors: filters.contributors,
-      organizations: filters.organizations,
-      installationIds: installationIds as number[]
-    };
-    // URL state is now the source of truth for all parameters
-
     try {
-      await generateSummary();
+      await generateSummaryAPI({
+        activityMode,
+        dateRange,
+        selectedRepositoryIds: filterRepositories,
+        contributors,
+        organizations,
+        installationIds: installations.map(i => i.id)
+      });
     } finally {
       // Hide skeleton loader once generation is complete (success or failure)
       setShowSkeleton(false);
@@ -228,11 +160,11 @@ function DashboardContent() {
   }, [
     activityMode,
     dateRange,
-    filters.repositories,
-    filters.contributors,
-    filters.organizations,
-    installationIds,
-    generateSummary,
+    filterRepositories,
+    contributors,
+    organizations,
+    installations,
+    generateSummaryAPI
   ]);
 
 
@@ -269,28 +201,28 @@ function DashboardContent() {
         {/* Right column: Main content area */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space)' }}>
           <OperationsPanel
-            error={activeError}
+            error={error}
             loading={loading}
             needsInstallation={needsInstallation}
-            authMethod={authMethod}
+            authMethod="github-app"
             installations={installations}
-            currentInstallations={currentInstallations}
+            currentInstallations={installations}
             activityMode={activityMode}
             activeFilters={{
-              contributors: [...filters.contributors],
-              organizations: [...filters.organizations],
-              repositories: [...filters.repositories]
+              contributors,
+              organizations,
+              repositories: filterRepositories
             }}
             userName={session?.user?.name}
             onOrganizationChange={handleOrganizationChange}
-            onSwitchInstallations={switchInstallations}
+            onSwitchInstallations={(ids) => fetchRepositories(ids[0])}
             onSignOut={signOut}
           />
 
           <AnalysisParameters
             activityMode={activityMode}
             dateRange={dateRange}
-            organizations={filters.organizations}
+            organizations={organizations}
           />
 
 
@@ -309,11 +241,11 @@ function DashboardContent() {
                 activityMode={activityMode}
                 dateRange={dateRange}
                 activeFilters={{
-                  contributors: [...filters.contributors],
-                  organizations: [...filters.organizations],
-                  repositories: [...filters.repositories]
+                  contributors,
+                  organizations,
+                  repositories: filterRepositories
                 }}
-                installationIds={installationIds as readonly number[]}
+                installationIds={installations.map(i => i.id)}
                 loading={loading}
               />
             )
