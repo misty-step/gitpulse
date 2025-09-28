@@ -102,13 +102,7 @@ export default function DateRangePicker({
             style={{
               padding: 'calc(var(--space) / 2)',
               fontSize: '0.75rem',
-              borderRadius: '4px',
-              border: isPresetActive(preset) ? 'none' : '1px solid var(--border)',
-              background: isPresetActive(preset) ? 'var(--accent)' : 'white',
-              color: isPresetActive(preset) ? 'white' : 'var(--text)',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              opacity: disabled ? 0.5 : 1,
-              transition: 'all 0.2s'
+              textDecoration: isPresetActive(preset) ? 'underline' : 'none'
             }}
           >
             {preset.label}

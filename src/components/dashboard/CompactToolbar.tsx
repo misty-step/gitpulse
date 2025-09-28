@@ -149,18 +149,10 @@ export default function CompactToolbar({
       {/* Generate button */}
       <button
         type="button"
+        className="generate-button"
         onClick={onGenerate}
         disabled={disableGenerate}
-        style={{
-          padding: '6px 16px',
-          background: disableGenerate ? '#ccc' : 'var(--accent)',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: disableGenerate ? 'not-allowed' : 'pointer',
-          fontSize: '14px',
-          fontWeight: 500
-        }}
+        style={{ padding: '6px 16px', borderRadius: '4px', fontSize: '14px' }}
       >
         {loading ? 'Generating...' : 'Generate'}
       </button>

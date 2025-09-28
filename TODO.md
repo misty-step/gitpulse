@@ -199,7 +199,7 @@ The Phase 1 improvements fixed density but created new problems: mixed visual me
 
 - [x] **Style form controls with exactly 4 properties** - Only allow: `font: inherit; padding: calc(var(--space) / 2); border: 1px solid var(--border); border-radius: 4px;`. Nothing else. Constraints breed consistency.
 
-- [ ] **Make Generate button the only styled element** - Apply background color ONLY to submit button: `background: var(--accent); color: white; border: none; font-weight: 500;`. Everything else inherits system styling.
+- [x] **Make Generate button the only styled element** - Apply background color ONLY to submit button: `background: var(--accent); color: white; border: none; font-weight: 500;`. Everything else inherits system styling.
 
 ### Phase 4: Component Reduction (Merge or Delete)
 

@@ -217,18 +217,14 @@ export default function RepositorySection({
         <div style={{ paddingTop: 'var(--space)' }}>
           <button
             type={onSubmit ? "button" : "submit"}
+            className="generate-button"
             onClick={onSubmit}
             disabled={loading}
             title="Analyze your GitHub commits and generate activity summary with AI insights"
             style={{
               width: '100%',
               padding: 'calc(var(--space) * 1.5)',
-              background: loading ? 'var(--muted)' : 'var(--accent)',
-              color: 'white',
-              border: 'none',
               borderRadius: '4px',
-              fontWeight: '500',
-              cursor: loading ? 'default' : 'pointer',
               fontSize: '1em'
             }}
           >

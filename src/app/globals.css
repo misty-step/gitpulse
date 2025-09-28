@@ -67,6 +67,25 @@ textarea {
   border-radius: 4px;
 }
 
+/* Buttons inherit system styling by default */
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Only Generate button gets styled appearance */
+button.generate-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-weight: 500;
+}
+
+button.generate-button:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
 /* Animation keyframes */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
