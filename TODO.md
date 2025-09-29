@@ -37,7 +37,7 @@
 - [x] Define `BATCH_COMMITS_QUERY` that accepts array of node IDs and date range
 - [x] Add `rateLimit { cost, remaining, resetAt }` to all queries for monitoring
 - [ ] Test queries in GitHub GraphQL Explorer (https://docs.github.com/en/graphql/overview/explorer)
-- [ ] Save working query examples in `src/lib/github/graphql/queries.examples.graphql`
+- [x] Save working query examples in `src/lib/github/graphql/queries.examples.graphql`
 
 ## 🔧 Phase 2: Core Implementation (Days 3-5)
 
