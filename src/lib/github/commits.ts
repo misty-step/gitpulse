@@ -323,6 +323,9 @@ export async function fetchCommitsForRepositories(
         phase: "initial",
       });
       results.push(commits);
+
+      // Add delay to respect GitHub rate limits
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
     results.forEach((commits) => allCommits.push(...commits));
   }
