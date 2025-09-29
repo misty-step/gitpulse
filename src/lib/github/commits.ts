@@ -305,25 +305,25 @@ export async function fetchCommitsForRepositories(
       { batchRepos: batch },
     );
 
-    const results = await Promise.all(
-      batch.map(async (repoFullName) => {
-        const [owner, repo] = repoFullName.split("/");
-        const commits = await fetchRepositoryCommits(
-          accessToken,
-          installationId,
-          owner,
-          repo,
-          since,
-          until,
-          githubUsername,
-        );
-        options.onRepositoryComplete?.({
-          repository: repoFullName,
-          phase: "initial",
-        });
-        return commits;
-      }),
-    );
+    // Process repositories sequentially to avoid rate limits
+    const results: Commit[][] = [];
+    for (const repoFullName of batch) {
+      const [owner, repo] = repoFullName.split("/");
+      const commits = await fetchRepositoryCommits(
+        accessToken,
+        installationId,
+        owner,
+        repo,
+        since,
+        until,
+        githubUsername,
+      );
+      options.onRepositoryComplete?.({
+        repository: repoFullName,
+        phase: "initial",
+      });
+      results.push(commits);
+    }
     results.forEach((commits) => allCommits.push(...commits));
   }
 
