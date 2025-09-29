@@ -30,21 +30,21 @@ const SummaryStats: React.FC<SummaryStatsProps> = ({
           <div></div>
           <p>COMMIT COUNT</p>
           <p>
-            {summary.stats.totalCommits}
+            {summary?.stats?.totalCommits || 0}
           </p>
         </div>
         <div>
           <div></div>
           <p>REPOSITORIES</p>
           <p>
-            {summary.stats.repositories.length}
+            {summary?.stats?.repositories?.length || 0}
           </p>
         </div>
         <div>
           <div></div>
           <p>ACTIVE DAYS</p>
           <p>
-            {summary.stats.dates.length}
+            {summary?.stats?.dates?.length || 0}
           </p>
         </div>
       </div>

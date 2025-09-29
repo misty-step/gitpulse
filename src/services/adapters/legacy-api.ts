@@ -111,6 +111,7 @@ export const transformSummaryStatsToLegacyResponse = (
     commitsByAuthor: stats.commitsByAuthor,
     // Additional legacy fields
     repositories: stats.repositories,
+    dates: Object.keys(stats.commitsByDay).sort(), // Add dates array for frontend compatibility
     dateRange: filterInfo.dateRange
   };
 
