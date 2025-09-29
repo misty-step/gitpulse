@@ -11,6 +11,7 @@ import { buildRepositoryNodeIdQuery, buildBatchCommitsQuery, buildAuthorFilter, 
 import type { Commit } from '../types';
 import { transformGraphQLCommit } from './transformers';
 import { parseGraphQLError } from './errors';
+import { captureException, addBreadcrumb, ErrorSeverity } from '../../errorTracking';
 
 const MODULE_NAME = 'github:graphql:client';
 
@@ -93,6 +94,20 @@ export class GitHubGraphQLClient {
         isRecoverable: graphqlError.isRecoverable(),
       });
 
+      // Capture exception in error tracking service
+      captureException(graphqlError, {
+        tags: {
+          errorCode: graphqlError.code,
+          module: MODULE_NAME,
+          recoverable: graphqlError.isRecoverable().toString(),
+        },
+        extra: {
+          statusCode: graphqlError.statusCode,
+          rateLimit: graphqlError.rateLimit,
+          context: graphqlError.context,
+        },
+      });
+
       // Additional logging for specific error types
       if (graphqlError.isRateLimitError()) {
         logger.warn(MODULE_NAME, 'Rate limit detected in GraphQL API', {
@@ -100,10 +115,19 @@ export class GitHubGraphQLClient {
           reset: graphqlError.rateLimit?.reset,
           limit: graphqlError.rateLimit?.limit,
         });
+
+        // Add breadcrumb for rate limit
+        addBreadcrumb('GraphQL rate limit hit', {
+          remaining: graphqlError.rateLimit?.remaining,
+          reset: graphqlError.rateLimit?.reset,
+        });
       } else if (graphqlError.isNodeLimitError()) {
         logger.warn(MODULE_NAME, 'Node limit exceeded in GraphQL query', {
           context: graphqlError.context,
         });
+
+        // Add breadcrumb for node limit
+        addBreadcrumb('GraphQL node limit exceeded', graphqlError.context);
       }
 
       throw graphqlError;
