@@ -26,9 +26,9 @@
 - [x] Configure client with GitHub GraphQL endpoint `https://api.github.com/graphql`
 - [x] Add authorization header `Bearer ${accessToken}` to client configuration
 - [x] Add `X-Github-Next-Global-ID: 1` header for new ID format support
-- [ ] Create unit test file `src/lib/github/graphql/__tests__/client.test.ts`
-- [ ] Write test to verify client instantiation with mock token
-- [ ] Write test to verify headers are set correctly
+- [x] Create unit test file `src/lib/github/graphql/__tests__/client.test.ts`
+- [x] Write test to verify client instantiation with mock token
+- [x] Write test to verify headers are set correctly
 
 ### GraphQL Query Templates
 - [ ] Create `src/lib/github/graphql/queries.ts` file
