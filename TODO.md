@@ -111,15 +111,15 @@
 ## ⚡ Phase 4: Rate Limiting (Days 8-9)
 
 ### Token Bucket Implementation
-- [ ] Create `src/lib/rateLimit/tokenBucket.ts`
-- [ ] Implement `TokenBucket` class with capacity and refill rate
-- [ ] Add `take(tokens: number): boolean` method
-- [ ] Implement time-based refill logic without timers
-- [ ] Add `tokensAvailable(): number` getter
-- [ ] Add `timeUntilNextToken(): number` for UI feedback
-- [ ] Write unit test for token consumption
-- [ ] Write unit test for token refill over time
-- [ ] Write test for burst capacity
+- [x] Create `src/lib/rateLimit/tokenBucket.ts`
+- [x] Implement `TokenBucket` class with capacity and refill rate
+- [x] Add `take(tokens: number): boolean` method
+- [x] Implement time-based refill logic without timers
+- [x] Add `tokensAvailable(): number` getter
+- [x] Add `timeUntilNextToken(): number` for UI feedback
+- [x] Write unit test for token consumption
+- [x] Write unit test for token refill over time
+- [x] Write test for burst capacity
 
 ### Adaptive Rate Limiter
 - [ ] Create `src/lib/rateLimit/adaptiveRateLimiter.ts`
