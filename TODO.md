@@ -63,9 +63,9 @@
 - [x] Preserve `repository.full_name` in transformed commits
 - [x] Handle null author.user gracefully (non-GitHub users)
 - [x] Add performance timing with `console.time()` for development
-- [ ] Write test for single repository with 50 commits
-- [ ] Write test for pagination with 150 commits
-- [ ] Write test for author filtering
+- [x] Write test for single repository with 50 commits
+- [x] Write test for pagination with 150 commits
+- [x] Write test for author filtering
 
 ### Data Transformation Layer
 - [ ] Create `src/lib/github/graphql/transformers.ts`
