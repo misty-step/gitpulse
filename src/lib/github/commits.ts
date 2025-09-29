@@ -11,6 +11,7 @@ import { Commit } from "./types";
 import { createOAuthOctokit, getInstallationOctokit } from "./auth";
 import { isGraphQLEnabled } from "../features";
 import { createGitHubGraphQLClient } from "./graphql/client";
+import { GraphQLError } from "./graphql/errors";
 
 const MODULE_NAME = "github:commits";
 
@@ -334,9 +335,25 @@ export async function fetchCommitsForRepositories(
           return commits;
         }
       } catch (error: any) {
-        logger.error(MODULE_NAME, "GraphQL commit fetch failed, falling back to REST API", {
-          error: error.message,
-        });
+        // Enhanced error handling with GraphQLError information
+        const isGraphQLError = error instanceof GraphQLError;
+        const errorInfo: Record<string, any> = {
+          message: error.message,
+          isRecoverable: isGraphQLError ? error.isRecoverable() : false,
+        };
+
+        if (isGraphQLError) {
+          errorInfo.code = error.code;
+          errorInfo.statusCode = error.statusCode;
+          errorInfo.isRateLimitError = error.isRateLimitError();
+          errorInfo.isNodeLimitError = error.isNodeLimitError();
+
+          if (error.rateLimit) {
+            errorInfo.rateLimit = error.rateLimit;
+          }
+        }
+
+        logger.error(MODULE_NAME, "GraphQL commit fetch failed, falling back to REST API", errorInfo);
         // Fall through to REST API implementation
       }
     }
