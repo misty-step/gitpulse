@@ -87,12 +87,12 @@
 - [x] Add `FEATURE_GRAPHQL_PAGE_SIZE=100` for pagination tuning
 
 ### Backwards Compatible Wrapper
-- [ ] In `src/lib/github/commits.ts`, add GraphQL import at top
-- [ ] Modify `fetchCommitsForRepositories` to check feature flag first
-- [ ] If GraphQL enabled, call new GraphQL implementation
-- [ ] If GraphQL disabled, use existing REST implementation (now serial)
-- [ ] Ensure function signature remains unchanged
-- [ ] Add debug logging to indicate which path was taken
+- [x] In `src/lib/github/commits.ts`, add GraphQL import at top
+- [x] Modify `fetchCommitsForRepositories` to check feature flag first
+- [x] If GraphQL enabled, call new GraphQL implementation
+- [x] If GraphQL disabled, use existing REST implementation (now serial)
+- [x] Ensure function signature remains unchanged
+- [x] Add debug logging to indicate which path was taken
 - [ ] Test with flag enabled - verify GraphQL path
 - [ ] Test with flag disabled - verify REST path
 - [ ] Test data parity between both implementations

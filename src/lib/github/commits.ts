@@ -9,6 +9,8 @@ import { Octokit } from "octokit";
 import { logger } from "../logger";
 import { Commit } from "./types";
 import { createOAuthOctokit, getInstallationOctokit } from "./auth";
+import { isGraphQLEnabled } from "../features";
+import { createGitHubGraphQLClient } from "./graphql/client";
 
 const MODULE_NAME = "github:commits";
 
@@ -290,6 +292,56 @@ export async function fetchCommitsForRepositories(
     throw new Error(
       "No GitHub authentication available. Please sign in again.",
     );
+  }
+
+  // Check if GraphQL API is enabled
+  const useGraphQL = isGraphQLEnabled();
+
+  if (useGraphQL) {
+    logger.info(MODULE_NAME, "Using GraphQL API for commit fetching (experimental)");
+
+    // GraphQL requires an access token
+    if (!accessToken) {
+      logger.warn(MODULE_NAME, "GraphQL requires access token, falling back to REST API");
+    } else {
+      try {
+        // Create GraphQL client
+        const graphQLClient = createGitHubGraphQLClient(accessToken);
+
+        // Resolve repository names to node IDs
+        logger.debug(MODULE_NAME, "Resolving repository IDs via GraphQL");
+        const repoIdMap = await graphQLClient.resolveRepositoryIds(repositories);
+
+        if (repoIdMap.size === 0) {
+          logger.warn(MODULE_NAME, "No repository IDs resolved, falling back to REST API");
+        } else {
+          // Fetch commits using GraphQL
+          const nodeIds = Array.from(repoIdMap.values());
+          logger.debug(MODULE_NAME, `Fetching commits for ${nodeIds.length} repositories via GraphQL`);
+
+          const commits = await graphQLClient.fetchCommitsGraphQL(
+            nodeIds,
+            since,
+            until,
+            author
+          );
+
+          logger.info(MODULE_NAME, "GraphQL commit fetch successful", {
+            totalRepositories: repositories.length,
+            totalCommits: commits.length,
+          });
+
+          return commits;
+        }
+      } catch (error: any) {
+        logger.error(MODULE_NAME, "GraphQL commit fetch failed, falling back to REST API", {
+          error: error.message,
+        });
+        // Fall through to REST API implementation
+      }
+    }
+  } else {
+    logger.debug(MODULE_NAME, "Using REST API for commit fetching (GraphQL disabled)");
   }
 
   const allCommits: Commit[] = [];
