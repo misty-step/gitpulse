@@ -68,11 +68,11 @@
 - [x] Write test for author filtering
 
 ### Data Transformation Layer
-- [ ] Create `src/lib/github/graphql/transformers.ts`
-- [ ] Implement `transformGraphQLCommit(graphqlCommit: any): Commit` function
-- [ ] Map all required fields maintaining backwards compatibility
-- [ ] Handle optional fields with sensible defaults
-- [ ] Create `transformGraphQLRepository(graphqlRepo: any): Repository` function
+- [x] Create `src/lib/github/graphql/transformers.ts`
+- [x] Implement `transformGraphQLCommit(graphqlCommit: any): Commit` function
+- [x] Map all required fields maintaining backwards compatibility
+- [x] Handle optional fields with sensible defaults
+- [x] Create `transformGraphQLRepository(graphqlRepo: any): Repository` function
 - [ ] Write comprehensive unit tests for all field mappings
 - [ ] Test with actual GitHub API response samples
 
