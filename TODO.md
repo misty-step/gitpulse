@@ -50,8 +50,8 @@
 - [x] Handle repositories that return null (private/deleted) by filtering from results
 - [x] Add retry logic for transient failures with 1-second delay
 - [x] Cache resolved IDs in memory with 1-hour TTL
-- [ ] Write test with mock data for 100 repositories
-- [ ] Write test for handling missing repositories gracefully
+- [x] Write test with mock data for 100 repositories
+- [x] Write test for handling missing repositories gracefully
 
 ### Commit History Fetching
 - [ ] Create `fetchCommitsGraphQL(nodeIds: string[], since: string, until: string, author?: string): Promise<Commit[]>`
