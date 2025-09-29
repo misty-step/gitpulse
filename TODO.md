@@ -14,10 +14,10 @@
 ## 📦 Phase 1: GraphQL Foundation (Days 1-2)
 
 ### Package Installation
-- [ ] Run `pnpm add graphql@^16.8.0` to install GraphQL core
-- [ ] Run `pnpm add graphql-request@^6.1.0` for GraphQL client
-- [ ] Run `pnpm add @graphql-codegen/cli @graphql-codegen/typescript --save-dev` for type generation
-- [ ] Verify packages installed correctly with `pnpm ls graphql graphql-request`
+- [x] Run `pnpm add graphql@^16.8.0` to install GraphQL core
+- [x] Run `pnpm add graphql-request@^6.1.0` for GraphQL client
+- [x] Run `pnpm add @graphql-codegen/cli @graphql-codegen/typescript --save-dev` for type generation
+- [x] Verify packages installed correctly with `pnpm ls graphql graphql-request`
 
 ### GraphQL Client Setup
 - [ ] Create directory `src/lib/github/graphql/`
