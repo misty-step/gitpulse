@@ -20,12 +20,12 @@
 - [x] Verify packages installed correctly with `pnpm ls graphql graphql-request`
 
 ### GraphQL Client Setup
-- [ ] Create directory `src/lib/github/graphql/`
-- [ ] Create `src/lib/github/graphql/client.ts` with basic GraphQLClient class skeleton
-- [ ] Add constructor that accepts `accessToken: string` parameter
-- [ ] Configure client with GitHub GraphQL endpoint `https://api.github.com/graphql`
-- [ ] Add authorization header `Bearer ${accessToken}` to client configuration
-- [ ] Add `X-Github-Next-Global-ID: 1` header for new ID format support
+- [x] Create directory `src/lib/github/graphql/`
+- [x] Create `src/lib/github/graphql/client.ts` with basic GraphQLClient class skeleton
+- [x] Add constructor that accepts `accessToken: string` parameter
+- [x] Configure client with GitHub GraphQL endpoint `https://api.github.com/graphql`
+- [x] Add authorization header `Bearer ${accessToken}` to client configuration
+- [x] Add `X-Github-Next-Global-ID: 1` header for new ID format support
 - [ ] Create unit test file `src/lib/github/graphql/__tests__/client.test.ts`
 - [ ] Write test to verify client instantiation with mock token
 - [ ] Write test to verify headers are set correctly
