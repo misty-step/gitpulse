@@ -8,8 +8,8 @@
 - [x] In `src/lib/github/commits.ts:342-361`, replace second `Promise.all` with sequential processing
 - [x] In `src/lib/github/commits.ts:373-392`, replace third `Promise.all` with sequential processing
 - [x] Test with 10 repositories to verify no rate limit errors (see docs/RATE_LIMIT_FIX_TESTING.md)
-- [ ] Test with 50 repositories to verify no rate limit errors
-- [ ] Deploy behind environment variable `GITHUB_SERIAL_FETCH=true` for quick rollback
+- [x] Test with 50 repositories to verify no rate limit errors (see docs/RATE_LIMIT_FIX_TESTING.md)
+- [x] Deploy behind environment variable `GITHUB_SERIAL_FETCH=true` for quick rollback
 
 ## 📦 Phase 1: GraphQL Foundation (Days 1-2)
 
