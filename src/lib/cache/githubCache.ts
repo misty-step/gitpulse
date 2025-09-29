@@ -78,6 +78,12 @@ export interface CacheStats {
 
   /** Hit rate (0-1) */
   hitRate: number;
+
+  /** Number of entries with ETags */
+  etagEntries: number;
+
+  /** Number of successful ETag validations (304 responses) */
+  etagHits: number;
 }
 
 /**
@@ -111,6 +117,7 @@ export class GitHubCache {
     misses: 0,
     evictions: 0,
     expirations: 0,
+    etagHits: 0,
   };
 
   /**
@@ -317,6 +324,14 @@ export class GitHubCache {
     const total = this.stats.hits + this.stats.misses;
     const hitRate = total > 0 ? this.stats.hits / total : 0;
 
+    // Count entries with ETags
+    let etagEntries = 0;
+    for (const entry of this.cache.values()) {
+      if (entry.etag) {
+        etagEntries++;
+      }
+    }
+
     return {
       hits: this.stats.hits,
       misses: this.stats.misses,
@@ -325,6 +340,8 @@ export class GitHubCache {
       evictions: this.stats.evictions,
       expirations: this.stats.expirations,
       hitRate,
+      etagEntries,
+      etagHits: this.stats.etagHits,
     };
   }
 
@@ -337,8 +354,63 @@ export class GitHubCache {
       misses: 0,
       evictions: 0,
       expirations: 0,
+      etagHits: 0,
     };
     logger.info(MODULE_NAME, 'Cache statistics reset');
+  }
+
+  /**
+   * Update cache entry timestamp (useful for ETag validation)
+   *
+   * When a 304 Not Modified response is received, this refreshes
+   * the TTL without re-fetching the data.
+   *
+   * @param key Cache key
+   * @returns true if entry was found and updated
+   */
+  touch(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return false;
+    }
+
+    // Update timestamp and last accessed
+    const now = Date.now();
+    entry.timestamp = now;
+    entry.lastAccessed = now;
+
+    // Track ETag hit
+    this.stats.etagHits++;
+
+    logger.debug(MODULE_NAME, 'Cache entry refreshed via ETag', {
+      key,
+      hasETag: !!entry.etag,
+    });
+
+    return true;
+  }
+
+  /**
+   * Check if cached data should include If-None-Match header
+   *
+   * Returns the ETag if the entry exists and has one.
+   *
+   * @param key Cache key
+   * @returns ETag for If-None-Match header, or undefined
+   */
+  getIfNoneMatch(key: string): string | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return undefined;
+    }
+
+    // Check if stale - if so, don't use ETag
+    const age = Date.now() - entry.timestamp;
+    if (age > entry.ttl) {
+      return undefined;
+    }
+
+    return entry.etag;
   }
 
   /**
