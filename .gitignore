@@ -48,6 +48,9 @@ DEV-REF.md
 **/glance.md
 thinktank_output/
 thinktank_output_tasks/
+
+# MCP configuration
+.mcp.json
 consultation-report/
 *-plan.md
 diff.md
