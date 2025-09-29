@@ -296,6 +296,17 @@ export async function fetchCommitsForRepositories(
   let githubUsername = author;
   const batchSize = 5;
 
+  // Feature flag for serial vs parallel fetching
+  // Default: true (use serial fetching to avoid rate limits)
+  // Set GITHUB_SERIAL_FETCH=false to revert to parallel fetching (for emergency rollback)
+  const useSerialFetch = process.env.GITHUB_SERIAL_FETCH !== 'false';
+
+  if (useSerialFetch) {
+    logger.info(MODULE_NAME, "Using serial fetch mode (rate limit safe)");
+  } else {
+    logger.warn(MODULE_NAME, "Using parallel fetch mode (may hit rate limits)");
+  }
+
   // first pass with "author" if provided
   for (let i = 0; i < repositories.length; i += batchSize) {
     const batch = repositories.slice(i, i + batchSize);
@@ -305,29 +316,53 @@ export async function fetchCommitsForRepositories(
       { batchRepos: batch },
     );
 
-    // Process repositories sequentially to avoid rate limits
-    const results: Commit[][] = [];
-    for (const repoFullName of batch) {
-      const [owner, repo] = repoFullName.split("/");
-      const commits = await fetchRepositoryCommits(
-        accessToken,
-        installationId,
-        owner,
-        repo,
-        since,
-        until,
-        githubUsername,
-      );
-      options.onRepositoryComplete?.({
-        repository: repoFullName,
-        phase: "initial",
-      });
-      results.push(commits);
+    if (useSerialFetch) {
+      // Process repositories sequentially to avoid rate limits
+      const results: Commit[][] = [];
+      for (const repoFullName of batch) {
+        const [owner, repo] = repoFullName.split("/");
+        const commits = await fetchRepositoryCommits(
+          accessToken,
+          installationId,
+          owner,
+          repo,
+          since,
+          until,
+          githubUsername,
+        );
+        options.onRepositoryComplete?.({
+          repository: repoFullName,
+          phase: "initial",
+        });
+        results.push(commits);
 
-      // Add delay to respect GitHub rate limits
-      await new Promise(resolve => setTimeout(resolve, 100));
+        // Add delay to respect GitHub rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      results.forEach((commits) => allCommits.push(...commits));
+    } else {
+      // Parallel processing (legacy behavior - may hit rate limits)
+      const results = await Promise.all(
+        batch.map(async (repoFullName) => {
+          const [owner, repo] = repoFullName.split("/");
+          const commits = await fetchRepositoryCommits(
+            accessToken,
+            installationId,
+            owner,
+            repo,
+            since,
+            until,
+            githubUsername,
+          );
+          options.onRepositoryComplete?.({
+            repository: repoFullName,
+            phase: "initial",
+          });
+          return commits;
+        }),
+      );
+      results.forEach((commits) => allCommits.push(...commits));
     }
-    results.forEach((commits) => allCommits.push(...commits));
   }
 
   // if we found no commits with that author, try with owner name or no author
@@ -342,29 +377,54 @@ export async function fetchCommitsForRepositories(
       githubUsername = fallbackOwner;
       for (let i = 0; i < repositories.length; i += batchSize) {
         const batch = repositories.slice(i, i + batchSize);
-        // Process repositories sequentially to avoid rate limits
-        const results: Commit[][] = [];
-        for (const repoFullName of batch) {
-          const [owner, repo] = repoFullName.split("/");
-          const commits = await fetchRepositoryCommits(
-            accessToken,
-            installationId,
-            owner,
-            repo,
-            since,
-            until,
-            githubUsername,
-          );
-          options.onRepositoryComplete?.({
-            repository: repoFullName,
-            phase: "retry-with-owner",
-          });
-          results.push(commits);
 
-          // Add delay to respect GitHub rate limits
-          await new Promise(resolve => setTimeout(resolve, 100));
+        if (useSerialFetch) {
+          // Process repositories sequentially to avoid rate limits
+          const results: Commit[][] = [];
+          for (const repoFullName of batch) {
+            const [owner, repo] = repoFullName.split("/");
+            const commits = await fetchRepositoryCommits(
+              accessToken,
+              installationId,
+              owner,
+              repo,
+              since,
+              until,
+              githubUsername,
+            );
+            options.onRepositoryComplete?.({
+              repository: repoFullName,
+              phase: "retry-with-owner",
+            });
+            results.push(commits);
+
+            // Add delay to respect GitHub rate limits
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          results.forEach((commits) => allCommits.push(...commits));
+        } else {
+          // Parallel processing (legacy behavior - may hit rate limits)
+          const results = await Promise.all(
+            batch.map(async (repoFullName) => {
+              const [owner, repo] = repoFullName.split("/");
+              const commits = await fetchRepositoryCommits(
+                accessToken,
+                installationId,
+                owner,
+                repo,
+                since,
+                until,
+                githubUsername,
+              );
+              options.onRepositoryComplete?.({
+                repository: repoFullName,
+                phase: "retry-with-owner",
+              });
+              return commits;
+            }),
+          );
+          results.forEach((commits) => allCommits.push(...commits));
         }
-        results.forEach((commits) => allCommits.push(...commits));
       }
     }
   }
@@ -376,29 +436,54 @@ export async function fetchCommitsForRepositories(
     );
     for (let i = 0; i < repositories.length; i += batchSize) {
       const batch = repositories.slice(i, i + batchSize);
-      // Process repositories sequentially to avoid rate limits
-      const results: Commit[][] = [];
-      for (const repoFullName of batch) {
-        const [owner, repo] = repoFullName.split("/");
-        const commits = await fetchRepositoryCommits(
-          accessToken,
-          installationId,
-          owner,
-          repo,
-          since,
-          until,
-          undefined,
-        );
-        options.onRepositoryComplete?.({
-          repository: repoFullName,
-          phase: "retry-unfiltered",
-        });
-        results.push(commits);
 
-        // Add delay to respect GitHub rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
+      if (useSerialFetch) {
+        // Process repositories sequentially to avoid rate limits
+        const results: Commit[][] = [];
+        for (const repoFullName of batch) {
+          const [owner, repo] = repoFullName.split("/");
+          const commits = await fetchRepositoryCommits(
+            accessToken,
+            installationId,
+            owner,
+            repo,
+            since,
+            until,
+            undefined,
+          );
+          options.onRepositoryComplete?.({
+            repository: repoFullName,
+            phase: "retry-unfiltered",
+          });
+          results.push(commits);
+
+          // Add delay to respect GitHub rate limits
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        results.forEach((commits) => allCommits.push(...commits));
+      } else {
+        // Parallel processing (legacy behavior - may hit rate limits)
+        const results = await Promise.all(
+          batch.map(async (repoFullName) => {
+            const [owner, repo] = repoFullName.split("/");
+            const commits = await fetchRepositoryCommits(
+              accessToken,
+              installationId,
+              owner,
+              repo,
+              since,
+              until,
+              undefined,
+            );
+            options.onRepositoryComplete?.({
+              repository: repoFullName,
+              phase: "retry-unfiltered",
+            });
+            return commits;
+          }),
+        );
+        results.forEach((commits) => allCommits.push(...commits));
       }
-      results.forEach((commits) => allCommits.push(...commits));
     }
   }
 
