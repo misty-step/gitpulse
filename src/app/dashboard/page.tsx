@@ -94,7 +94,7 @@ function DashboardContent() {
   const handleGenerateSummary = useCallback(async () => {
     const repoIds = selectedRepos.length > 0
       ? selectedRepos
-      : repositories.map(r => r.id.toString());
+      : repositories.map(r => r.full_name);
 
     await generateSummaryAPI({
         activityMode,
