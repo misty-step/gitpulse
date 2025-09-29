@@ -9,6 +9,7 @@ import { GraphQLClient } from 'graphql-request';
 import { logger } from '../../logger';
 import { buildRepositoryNodeIdQuery, buildBatchCommitsQuery, buildAuthorFilter, formatGitHubDate, type CommitNode, type RepositoryNode } from './queries';
 import type { Commit } from '../types';
+import { transformGraphQLCommit } from './transformers';
 
 const MODULE_NAME = 'github:graphql:client';
 
@@ -323,7 +324,7 @@ export class GitHubGraphQLClient {
 
           // Transform commits to match existing Commit interface
           const commits = history.nodes.map(node =>
-            this.transformCommitNode(node, repoData.nameWithOwner)
+            transformGraphQLCommit(node, repoData.nameWithOwner)
           );
 
           allCommits.push(...commits);
@@ -412,7 +413,7 @@ export class GitHubGraphQLClient {
 
         // Transform and add commits
         const pageCommits = history.nodes.map((node: CommitNode) =>
-          this.transformCommitNode(node, repoData.nameWithOwner)
+          transformGraphQLCommit(node, repoData.nameWithOwner)
         );
         commits.push(...pageCommits);
 
@@ -435,43 +436,6 @@ export class GitHubGraphQLClient {
 
     logger.debug(MODULE_NAME, `Fetched ${commits.length} additional commits across ${pageCount} pages`);
     return commits;
-  }
-
-  /**
-   * Transform GraphQL CommitNode to REST API Commit format
-   * @private
-   */
-  private transformCommitNode(node: CommitNode, repoFullName: string): Commit {
-    return {
-      sha: node.oid,
-      commit: {
-        author: {
-          name: node.author?.name || undefined,
-          email: node.author?.email || undefined,
-          date: node.committedDate,
-        },
-        committer: node.committer ? {
-          name: node.committer.name || undefined,
-          email: node.committer.email || undefined,
-          date: node.committedDate,
-        } : undefined,
-        message: node.message,
-      },
-      html_url: `https://github.com/${repoFullName}/commit/${node.oid}`,
-      author: node.author?.user ? {
-        login: node.author.user.login,
-        avatar_url: `https://github.com/${node.author.user.login}.png`,
-        type: 'User',
-      } : null,
-      committer: node.committer?.user ? {
-        login: node.committer.user.login,
-        avatar_url: `https://github.com/${node.committer.user.login}.png`,
-        type: 'User',
-      } : undefined,
-      repository: {
-        full_name: repoFullName,
-      },
-    };
   }
 
   /**
