@@ -12,6 +12,7 @@ import type { Commit } from '../types';
 import { transformGraphQLCommit } from './transformers';
 import { parseGraphQLError } from './errors';
 import { captureException, addBreadcrumb, ErrorSeverity } from '../../errorTracking';
+import { AdaptiveRateLimiter } from '../../rateLimit/adaptiveRateLimiter';
 
 const MODULE_NAME = 'github:graphql:client';
 
@@ -27,17 +28,39 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 export class GitHubGraphQLClient {
   private client: GraphQLClient;
   private accessToken: string;
+  private rateLimiter: AdaptiveRateLimiter;
+  private isGitHubApp: boolean;
 
   /**
    * Creates a new GitHub GraphQL client
    * @param accessToken GitHub OAuth access token or GitHub App installation token
+   * @param options Optional configuration
    */
-  constructor(accessToken: string) {
+  constructor(accessToken: string, options?: { isGitHubApp?: boolean }) {
     if (!accessToken) {
       throw new Error('GitHub access token is required');
     }
 
     this.accessToken = accessToken;
+    this.isGitHubApp = options?.isGitHubApp ?? false;
+
+    // Configure rate limiter based on token type
+    // GitHub App: 5000 requests/hour = ~1.39 requests/second
+    // OAuth: 5000 requests/hour = ~1.39 requests/second
+    // We use conservative values with burst capacity
+    const capacity = this.isGitHubApp ? 20 : 10; // GitHub App gets higher burst capacity
+    const refillRate = 1.3; // Slightly under the limit for safety
+
+    this.rateLimiter = new AdaptiveRateLimiter({
+      capacity,
+      refillRate,
+    });
+
+    logger.debug(MODULE_NAME, 'Rate limiter configured', {
+      tokenType: this.isGitHubApp ? 'GitHubApp' : 'OAuth',
+      capacity,
+      refillRate,
+    });
 
     // Configure client with GitHub GraphQL endpoint
     this.client = new GraphQLClient('https://api.github.com/graphql', {
@@ -67,20 +90,25 @@ export class GitHubGraphQLClient {
    * @returns The query response
    */
   async query<T = any>(query: string, variables?: Record<string, any>): Promise<T> {
-    try {
-      logger.debug(MODULE_NAME, 'Executing GraphQL query', {
-        queryLength: query.length,
-        hasVariables: !!variables,
-      });
+    // Wrap the actual query execution with rate limiter
+    return this.rateLimiter.execute(async () => {
+      try {
+        logger.debug(MODULE_NAME, 'Executing GraphQL query', {
+          queryLength: query.length,
+          hasVariables: !!variables,
+        });
 
-      const response = await this.client.request<T>(query, variables);
+        const response = await this.client.request<T>(query, variables);
 
-      logger.debug(MODULE_NAME, 'GraphQL query successful', {
-        responseKeys: Object.keys(response || {}),
-      });
+        logger.debug(MODULE_NAME, 'GraphQL query successful', {
+          responseKeys: Object.keys(response || {}),
+        });
 
-      return response;
-    } catch (error: any) {
+        // Extract and log rate limit info if present in response
+        this.updateRateLimiterFromResponse(response);
+
+        return response;
+      } catch (error: any) {
       // Parse error into structured GraphQLError
       const graphqlError = parseGraphQLError(error);
 
@@ -131,6 +159,59 @@ export class GitHubGraphQLClient {
       }
 
       throw graphqlError;
+      }
+    });
+  }
+
+  /**
+   * Update rate limiter configuration based on API response
+   * @param response GraphQL response that may contain rate limit info
+   * @private
+   */
+  private updateRateLimiterFromResponse(response: any): void {
+    // Check if response contains rate limit information
+    if (response && typeof response === 'object') {
+      // GraphQL responses can include rateLimit data in several forms
+      const rateLimit = response.rateLimit || response.data?.rateLimit;
+
+      if (rateLimit && typeof rateLimit.remaining === 'number') {
+        const { remaining, resetAt, limit } = rateLimit;
+
+        logger.debug(MODULE_NAME, 'Rate limit info from response', {
+          remaining,
+          limit,
+          resetAt,
+        });
+
+        // Adjust refill rate based on remaining quota
+        // If we're getting low on quota, reduce refill rate
+        if (remaining < 500 && limit) {
+          // Calculate time until reset
+          const resetTime = new Date(resetAt).getTime();
+          const now = Date.now();
+          const secondsUntilReset = Math.max(0, (resetTime - now) / 1000);
+
+          if (secondsUntilReset > 0) {
+            // Calculate safe refill rate: remaining requests / seconds until reset
+            // Use 90% of calculated rate for safety margin
+            const safeRefillRate = (remaining / secondsUntilReset) * 0.9;
+
+            // Only adjust if the new rate is significantly different
+            const currentConfig = this.rateLimiter.getTokenBucketConfig();
+            const rateDifference = Math.abs(currentConfig.refillRate - safeRefillRate) / currentConfig.refillRate;
+
+            if (rateDifference > 0.2) { // More than 20% difference
+              this.rateLimiter.setRefillRate(safeRefillRate);
+              logger.info(MODULE_NAME, 'Adjusted rate limiter based on API quota', {
+                oldRate: currentConfig.refillRate,
+                newRate: safeRefillRate,
+                remaining,
+                secondsUntilReset: Math.round(secondsUntilReset),
+              });
+            }
+          }
+        }
+      }
     }
   }
 
@@ -476,6 +557,26 @@ export class GitHubGraphQLClient {
   }
 
   /**
+   * Get rate limiter metrics for monitoring and debugging
+   * @returns Current rate limiter metrics
+   */
+  getRateLimiterMetrics() {
+    return this.rateLimiter.getMetrics();
+  }
+
+  /**
+   * Get rate limiter state for logging and observability
+   * @returns Current rate limiter state including token bucket config
+   */
+  getRateLimiterState() {
+    return {
+      metrics: this.rateLimiter.getMetrics(),
+      tokenBucket: this.rateLimiter.getTokenBucketConfig(),
+      tokenType: this.isGitHubApp ? 'GitHubApp' : 'OAuth',
+    };
+  }
+
+  /**
    * Clear the repository ID cache
    */
   clearRepositoryIdCache(): void {
@@ -511,8 +612,12 @@ export class GitHubGraphQLClient {
 /**
  * Factory function to create a GitHub GraphQL client
  * @param accessToken GitHub OAuth access token or GitHub App installation token
+ * @param options Optional configuration including token type
  * @returns A configured GitHubGraphQLClient instance
  */
-export function createGitHubGraphQLClient(accessToken: string): GitHubGraphQLClient {
-  return new GitHubGraphQLClient(accessToken);
+export function createGitHubGraphQLClient(
+  accessToken: string,
+  options?: { isGitHubApp?: boolean }
+): GitHubGraphQLClient {
+  return new GitHubGraphQLClient(accessToken, options);
 }
