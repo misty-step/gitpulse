@@ -79,12 +79,12 @@
 ## 🎛️ Phase 3: Integration & Feature Flags (Days 6-7)
 
 ### Feature Flag System
-- [ ] Add `FEATURE_GRAPHQL_COMMITS=false` to `.env.local`
-- [ ] Create `src/lib/features.ts` with `isGraphQLEnabled()` function
-- [ ] Read from `process.env.FEATURE_GRAPHQL_COMMITS` with fallback to false
-- [ ] Add runtime toggle check (don't require restart)
-- [ ] Create `FEATURE_GRAPHQL_BATCH_SIZE=50` for configurable batching
-- [ ] Add `FEATURE_GRAPHQL_PAGE_SIZE=100` for pagination tuning
+- [x] Add `FEATURE_GRAPHQL_COMMITS=false` to `.env.example`
+- [x] Create `src/lib/features.ts` with `isGraphQLEnabled()` function
+- [x] Read from `process.env.FEATURE_GRAPHQL_COMMITS` with fallback to false
+- [x] Add runtime toggle check (don't require restart)
+- [x] Create `FEATURE_GRAPHQL_BATCH_SIZE=50` for configurable batching
+- [x] Add `FEATURE_GRAPHQL_PAGE_SIZE=100` for pagination tuning
 
 ### Backwards Compatible Wrapper
 - [ ] In `src/lib/github/commits.ts`, add GraphQL import at top
