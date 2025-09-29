@@ -28,6 +28,9 @@ describe('GitHubGraphQLClient', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Clear the module-level cache before each test
+    const client = new GitHubGraphQLClient(mockAccessToken);
+    client.clearRepositoryIdCache();
   });
 
   describe('Constructor', () => {
@@ -277,6 +280,232 @@ describe('GitHubGraphQLClient', () => {
           }),
         })
       );
+    });
+  });
+
+  describe('resolveRepositoryIds', () => {
+    it('should handle 100 repositories across multiple batches', async () => {
+      // Generate 100 test repositories
+      const repos: string[] = [];
+      for (let i = 0; i < 100; i++) {
+        repos.push(`org${Math.floor(i / 10)}/repo${i}`);
+      }
+
+      // Mock the GraphQL responses for each batch (50 repos per batch)
+      const mockRequest = jest.fn()
+        .mockResolvedValueOnce(
+          // First batch: repos 0-49
+          Object.fromEntries(
+            Array.from({ length: 50 }, (_, i) => [
+              `repo${i}`,
+              { id: `node_id_${i}` }
+            ])
+          )
+        )
+        .mockResolvedValueOnce(
+          // Second batch: repos 50-99
+          Object.fromEntries(
+            Array.from({ length: 50 }, (_, i) => [
+              `repo${i}`,
+              { id: `node_id_${i + 50}` }
+            ])
+          )
+        );
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      const result = await client.resolveRepositoryIds(repos);
+
+      // Should have called the API twice (2 batches of 50)
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+
+      // Should return all 100 repository IDs
+      expect(result.size).toBe(100);
+
+      // Verify a sample of the results
+      expect(result.get('org0/repo0')).toBe('node_id_0');
+      expect(result.get('org5/repo55')).toBe('node_id_55');
+      expect(result.get('org9/repo99')).toBe('node_id_99');
+    });
+
+    it('should handle missing repositories gracefully', async () => {
+      const repos = [
+        'facebook/react',
+        'private-org/private-repo',  // Will be null
+        'microsoft/vscode',
+        'deleted-org/deleted-repo',  // Will be null
+        'google/guava',
+      ];
+
+      // Mock response with some null entries
+      const mockRequest = jest.fn().mockResolvedValue({
+        repo0: { id: 'node_id_react' },
+        repo1: null,  // Private/inaccessible repository
+        repo2: { id: 'node_id_vscode' },
+        repo3: null,  // Deleted repository
+        repo4: { id: 'node_id_guava' },
+      });
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      const result = await client.resolveRepositoryIds(repos);
+
+      // Should only return the 3 accessible repositories
+      expect(result.size).toBe(3);
+      expect(result.get('facebook/react')).toBe('node_id_react');
+      expect(result.get('microsoft/vscode')).toBe('node_id_vscode');
+      expect(result.get('google/guava')).toBe('node_id_guava');
+
+      // Missing repositories should not be in the result
+      expect(result.has('private-org/private-repo')).toBe(false);
+      expect(result.has('deleted-org/deleted-repo')).toBe(false);
+    });
+
+    it('should use cache for previously resolved repository IDs', async () => {
+      const repos = ['facebook/react', 'microsoft/vscode'];
+
+      const mockRequest = jest.fn().mockResolvedValue({
+        repo0: { id: 'node_id_react' },
+        repo1: { id: 'node_id_vscode' },
+      });
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      // Clear cache to ensure clean state
+      client.clearRepositoryIdCache();
+
+      // First call should fetch from API
+      const result1 = await client.resolveRepositoryIds(repos);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      expect(result1.size).toBe(2);
+
+      // Second call should use cache and not call API again
+      mockRequest.mockClear();
+      const result2 = await client.resolveRepositoryIds(repos);
+      expect(mockRequest).toHaveBeenCalledTimes(0);
+      expect(result2.size).toBe(2);
+      expect(result2.get('facebook/react')).toBe('node_id_react');
+    });
+
+    it('should retry on transient failures up to 3 times', async () => {
+      const repos = ['facebook/react'];
+
+      // Mock to fail twice then succeed
+      const mockRequest = jest.fn()
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Timeout'))
+        .mockResolvedValueOnce({
+          repo0: { id: 'node_id_react' },
+        });
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      // Clear cache to ensure clean state
+      client.clearRepositoryIdCache();
+
+      const result = await client.resolveRepositoryIds(repos);
+
+      // Should have retried 3 times total (2 failures + 1 success)
+      expect(mockRequest).toHaveBeenCalledTimes(3);
+      expect(result.size).toBe(1);
+      expect(result.get('facebook/react')).toBe('node_id_react');
+    });
+
+    it('should throw error after 3 failed attempts', async () => {
+      const repos = ['facebook/react'];
+
+      // Mock to fail all 3 times
+      const mockRequest = jest.fn()
+        .mockRejectedValue(new Error('Persistent network error'));
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      // Clear cache to ensure clean state
+      client.clearRepositoryIdCache();
+
+      await expect(client.resolveRepositoryIds(repos)).rejects.toThrow(
+        'Failed to resolve repository IDs after 3 attempts'
+      );
+
+      expect(mockRequest).toHaveBeenCalledTimes(3);
+    });
+
+    it('should return empty map for empty input', async () => {
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      const result = await client.resolveRepositoryIds([]);
+
+      expect(result.size).toBe(0);
+    });
+
+    it('should skip repositories with invalid format', async () => {
+      const repos = [
+        'facebook/react',
+        'invalid-repo-name',  // Missing owner/name separator
+        'microsoft/vscode',
+        'too/many/slashes',   // Too many parts
+      ];
+
+      const mockRequest = jest.fn().mockResolvedValue({
+        repo0: { id: 'node_id_react' },
+        repo1: { id: 'node_id_vscode' },
+      });
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      const result = await client.resolveRepositoryIds(repos);
+
+      // Should only process the 2 valid repositories
+      expect(result.size).toBe(2);
+      expect(result.get('facebook/react')).toBe('node_id_react');
+      expect(result.get('microsoft/vscode')).toBe('node_id_vscode');
+    });
+  });
+
+  describe('clearRepositoryIdCache', () => {
+    it('should clear the repository ID cache', async () => {
+      const repos = ['facebook/react'];
+
+      const mockRequest = jest.fn().mockResolvedValue({
+        repo0: { id: 'node_id_react' },
+      });
+
+      (GraphQLClient as jest.Mock).mockImplementation(() => ({
+        request: mockRequest,
+      }));
+
+      const client = new GitHubGraphQLClient(mockAccessToken);
+      // Start with clean cache
+      client.clearRepositoryIdCache();
+
+      // First call should fetch from API
+      await client.resolveRepositoryIds(repos);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+
+      // Clear cache
+      client.clearRepositoryIdCache();
+
+      // Next call should fetch from API again (cache was cleared)
+      mockRequest.mockClear();
+      await client.resolveRepositoryIds(repos);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
     });
   });
 });
