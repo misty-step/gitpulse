@@ -31,12 +31,80 @@ import {
 
 const MODULE_NAME = "api:summary";
 
+/**
+ * POST handler for summary generation
+ * Accepts JSON body format from frontend
+ */
+export async function POST(request: NextRequest) {
+  logger.debug(MODULE_NAME, "POST /api/summary request received");
+
+  try {
+    // Parse JSON body
+    const body = await request.json();
+
+    // Transform POST body to query parameters for GET handler logic
+    const searchParams = new URLSearchParams();
+
+    // Required parameters
+    if (body.since) searchParams.set('since', body.since);
+    if (body.until) searchParams.set('until', body.until);
+
+    // Optional parameters
+    if (body.installationIds?.length > 0) {
+      searchParams.set('installation_ids', body.installationIds.join(','));
+    }
+    if (body.organizations?.length > 0) {
+      searchParams.set('organizations', body.organizations.join(','));
+    }
+    if (body.repositories?.length > 0) {
+      searchParams.set('repositories', body.repositories.join(','));
+    }
+    if (body.activityMode) {
+      searchParams.set('activity_mode', body.activityMode);
+    }
+    if (body.contributors?.length > 0) {
+      searchParams.set('contributors', body.contributors.join(','));
+    }
+
+    // Create a new request with the query parameters
+    const url = new URL(request.url);
+    url.search = searchParams.toString();
+    const getRequest = new NextRequest(url, {
+      headers: request.headers,
+      method: 'GET'
+    });
+
+    // Call the GET handler with transformed request
+    return GET(getRequest);
+
+  } catch (error) {
+    logger.error(MODULE_NAME, "Error processing POST request", { error });
+
+    if (error instanceof SyntaxError) {
+      return new NextResponse(JSON.stringify({
+        error: "Invalid JSON in request body"
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    return new NextResponse(JSON.stringify({
+      error: "Failed to process request",
+      details: error instanceof Error ? error.message : "Unknown error"
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+
 export async function GET(request: NextRequest) {
-  logger.debug(MODULE_NAME, "GET /api/summary request received", { 
+  logger.debug(MODULE_NAME, "GET /api/summary request received", {
     url: request.url,
     searchParams: Object.fromEntries(request.nextUrl.searchParams.entries())
   });
-  
+
   // 1. Authentication and Session Management
   const session = await getServerSession(createAuthOptions());
   
