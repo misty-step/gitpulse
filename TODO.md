@@ -98,11 +98,11 @@
 - [ ] Test data parity between both implementations
 
 ### Error Handling
-- [ ] Create custom `GraphQLError` class extending Error
-- [ ] Add error code detection for rate limits (RATE_LIMITED)
-- [ ] Add error code detection for node limits (NODE_LIMIT_EXCEEDED)
-- [ ] Implement fallback from GraphQL to REST on critical errors
-- [ ] Log all GraphQL errors with full context
+- [x] Create custom `GraphQLError` class extending Error
+- [x] Add error code detection for rate limits (RATE_LIMITED)
+- [x] Add error code detection for node limits (NODE_LIMIT_EXCEEDED)
+- [x] Implement fallback from GraphQL to REST on critical errors
+- [x] Log all GraphQL errors with full context
 - [ ] Add Sentry/error tracking integration points
 - [ ] Test rate limit error handling
 - [ ] Test malformed query error handling

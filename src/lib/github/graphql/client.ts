@@ -10,6 +10,7 @@ import { logger } from '../../logger';
 import { buildRepositoryNodeIdQuery, buildBatchCommitsQuery, buildAuthorFilter, formatGitHubDate, type CommitNode, type RepositoryNode } from './queries';
 import type { Commit } from '../types';
 import { transformGraphQLCommit } from './transformers';
+import { parseGraphQLError } from './errors';
 
 const MODULE_NAME = 'github:graphql:client';
 
@@ -79,21 +80,33 @@ export class GitHubGraphQLClient {
 
       return response;
     } catch (error: any) {
+      // Parse error into structured GraphQLError
+      const graphqlError = parseGraphQLError(error);
+
+      // Log error with full context
       logger.error(MODULE_NAME, 'GraphQL query failed', {
-        error: error.message,
-        statusCode: error.response?.status,
-        errors: error.response?.errors,
+        code: graphqlError.code,
+        message: graphqlError.message,
+        statusCode: graphqlError.statusCode,
+        rateLimit: graphqlError.rateLimit,
+        context: graphqlError.context,
+        isRecoverable: graphqlError.isRecoverable(),
       });
 
-      // Check for rate limit errors
-      if (error.response?.status === 403 || error.response?.status === 429) {
+      // Additional logging for specific error types
+      if (graphqlError.isRateLimitError()) {
         logger.warn(MODULE_NAME, 'Rate limit detected in GraphQL API', {
-          remaining: error.response?.headers?.['x-ratelimit-remaining'],
-          reset: error.response?.headers?.['x-ratelimit-reset'],
+          remaining: graphqlError.rateLimit?.remaining,
+          reset: graphqlError.rateLimit?.reset,
+          limit: graphqlError.rateLimit?.limit,
+        });
+      } else if (graphqlError.isNodeLimitError()) {
+        logger.warn(MODULE_NAME, 'Node limit exceeded in GraphQL query', {
+          context: graphqlError.context,
         });
       }
 
-      throw error;
+      throw graphqlError;
     }
   }
 
