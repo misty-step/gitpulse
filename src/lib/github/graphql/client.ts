@@ -7,7 +7,8 @@
 
 import { GraphQLClient } from 'graphql-request';
 import { logger } from '../../logger';
-import { buildRepositoryNodeIdQuery } from './queries';
+import { buildRepositoryNodeIdQuery, buildBatchCommitsQuery, buildAuthorFilter, formatGitHubDate, type CommitNode, type RepositoryNode } from './queries';
+import type { Commit } from '../types';
 
 const MODULE_NAME = 'github:graphql:client';
 
@@ -245,6 +246,232 @@ export class GitHubGraphQLClient {
 
     logger.info(MODULE_NAME, `Resolved ${results.size} repository IDs from ${repos.length} requested`);
     return results;
+  }
+
+  /**
+   * Fetch commits from multiple repositories using GraphQL
+   * @param nodeIds Array of repository node IDs
+   * @param since Start date in ISO 8601 format
+   * @param until End date in ISO 8601 format
+   * @param author Optional author filter (email or username)
+   * @returns Array of commits from all repositories
+   */
+  async fetchCommitsGraphQL(
+    nodeIds: string[],
+    since: string,
+    until: string,
+    author?: string
+  ): Promise<Commit[]> {
+    if (!nodeIds || nodeIds.length === 0) {
+      return [];
+    }
+
+    const startTime = Date.now();
+    logger.debug(MODULE_NAME, `Fetching commits from ${nodeIds.length} repositories`, {
+      since,
+      until,
+      author,
+    });
+
+    const allCommits: Commit[] = [];
+    const batchSize = 50;
+
+    // Format dates for GitHub GraphQL API
+    const formattedSince = formatGitHubDate(since);
+    const formattedUntil = formatGitHubDate(until);
+    const authorFilter = buildAuthorFilter(author);
+
+    // Process repositories in batches of 50
+    for (let i = 0; i < nodeIds.length; i += batchSize) {
+      const batch = nodeIds.slice(i, i + batchSize);
+      logger.debug(MODULE_NAME, `Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(nodeIds.length / batchSize)}`);
+
+      // Build query for this batch
+      const query = buildBatchCommitsQuery(batch.length);
+
+      // Build variables object
+      const variables: Record<string, any> = {
+        since: formattedSince,
+        until: formattedUntil,
+        first: 100,
+        author: authorFilter,
+      };
+
+      // Add node IDs
+      batch.forEach((nodeId, index) => {
+        variables[`nodeId${index}`] = nodeId;
+        variables[`after${index}`] = null; // Initial cursor
+      });
+
+      try {
+        const response = await this.query<any>(query, variables);
+
+        // Extract commits from response
+        for (let j = 0; j < batch.length; j++) {
+          const repoAlias = `repo${j}`;
+          const repoData: RepositoryNode | null = response[repoAlias];
+
+          if (!repoData || !repoData.defaultBranchRef) {
+            logger.warn(MODULE_NAME, `Repository ${batch[j]} has no default branch or no commits`);
+            continue;
+          }
+
+          const history = repoData.defaultBranchRef.target?.history;
+          if (!history || !history.nodes) {
+            continue;
+          }
+
+          // Transform commits to match existing Commit interface
+          const commits = history.nodes.map(node =>
+            this.transformCommitNode(node, repoData.nameWithOwner)
+          );
+
+          allCommits.push(...commits);
+
+          // Handle pagination if there are more commits
+          if (history.pageInfo.hasNextPage && history.pageInfo.endCursor) {
+            const paginatedCommits = await this.fetchPaginatedCommits(
+              batch[j],
+              formattedSince,
+              formattedUntil,
+              history.pageInfo.endCursor,
+              authorFilter
+            );
+            allCommits.push(...paginatedCommits);
+          }
+        }
+
+        // Log rate limit info from response
+        if (response.rateLimit) {
+          logger.debug(MODULE_NAME, 'Rate limit status', {
+            cost: response.rateLimit.cost,
+            remaining: response.rateLimit.remaining,
+            resetAt: response.rateLimit.resetAt,
+          });
+        }
+      } catch (error: any) {
+        logger.error(MODULE_NAME, `Failed to fetch commits for batch ${Math.floor(i / batchSize) + 1}`, {
+          error: error.message,
+          batch,
+        });
+        throw error;
+      }
+
+      // Add delay between batches to be respectful of rate limits
+      if (i + batchSize < nodeIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info(MODULE_NAME, `Fetched ${allCommits.length} commits from ${nodeIds.length} repositories in ${duration}ms`);
+
+    return allCommits;
+  }
+
+  /**
+   * Fetch paginated commits for a single repository
+   * @private
+   */
+  private async fetchPaginatedCommits(
+    nodeId: string,
+    since: string,
+    until: string,
+    cursor: string,
+    authorFilter?: { emails?: string[] }
+  ): Promise<Commit[]> {
+    const commits: Commit[] = [];
+    let currentCursor: string | null = cursor;
+    let pageCount = 0;
+
+    while (currentCursor && pageCount < 100) { // Safety limit of 100 pages
+      pageCount++;
+
+      const query = buildBatchCommitsQuery(1);
+      const variables: Record<string, any> = {
+        nodeId0: nodeId,
+        after0: currentCursor,
+        since,
+        until,
+        first: 100,
+        author: authorFilter,
+      };
+
+      try {
+        const response: any = await this.query<any>(query, variables);
+        const repoData: RepositoryNode | null = response.repo0;
+
+        if (!repoData || !repoData.defaultBranchRef) {
+          break;
+        }
+
+        const history: any = repoData.defaultBranchRef.target?.history;
+        if (!history || !history.nodes || history.nodes.length === 0) {
+          break;
+        }
+
+        // Transform and add commits
+        const pageCommits = history.nodes.map((node: CommitNode) =>
+          this.transformCommitNode(node, repoData.nameWithOwner)
+        );
+        commits.push(...pageCommits);
+
+        logger.debug(MODULE_NAME, `Fetched page ${pageCount} with ${pageCommits.length} commits for ${repoData.nameWithOwner}`);
+
+        // Check if there are more pages
+        if (history.pageInfo.hasNextPage && history.pageInfo.endCursor) {
+          currentCursor = history.pageInfo.endCursor;
+        } else {
+          break;
+        }
+      } catch (error: any) {
+        logger.error(MODULE_NAME, `Failed to fetch paginated commits at page ${pageCount}`, {
+          error: error.message,
+          nodeId,
+        });
+        break; // Stop pagination on error
+      }
+    }
+
+    logger.debug(MODULE_NAME, `Fetched ${commits.length} additional commits across ${pageCount} pages`);
+    return commits;
+  }
+
+  /**
+   * Transform GraphQL CommitNode to REST API Commit format
+   * @private
+   */
+  private transformCommitNode(node: CommitNode, repoFullName: string): Commit {
+    return {
+      sha: node.oid,
+      commit: {
+        author: {
+          name: node.author?.name || undefined,
+          email: node.author?.email || undefined,
+          date: node.committedDate,
+        },
+        committer: node.committer ? {
+          name: node.committer.name || undefined,
+          email: node.committer.email || undefined,
+          date: node.committedDate,
+        } : undefined,
+        message: node.message,
+      },
+      html_url: `https://github.com/${repoFullName}/commit/${node.oid}`,
+      author: node.author?.user ? {
+        login: node.author.user.login,
+        avatar_url: `https://github.com/${node.author.user.login}.png`,
+        type: 'User',
+      } : null,
+      committer: node.committer?.user ? {
+        login: node.committer.user.login,
+        avatar_url: `https://github.com/${node.committer.user.login}.png`,
+        type: 'User',
+      } : undefined,
+      repository: {
+        full_name: repoFullName,
+      },
+    };
   }
 
   /**
