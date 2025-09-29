@@ -54,15 +54,15 @@
 - [x] Write test for handling missing repositories gracefully
 
 ### Commit History Fetching
-- [ ] Create `fetchCommitsGraphQL(nodeIds: string[], since: string, until: string, author?: string): Promise<Commit[]>`
-- [ ] Implement query builder that chunks nodeIds into groups of 50 maximum
-- [ ] Add `first: 100` pagination parameter to commit history
-- [ ] Implement cursor-based pagination for repositories with >100 commits
-- [ ] Transform GraphQL response to match existing `Commit` type structure
-- [ ] Map `oid` → `sha`, `committedDate` → `commit.author.date`
-- [ ] Preserve `repository.full_name` in transformed commits
-- [ ] Handle null author.user gracefully (non-GitHub users)
-- [ ] Add performance timing with `console.time()` for development
+- [x] Create `fetchCommitsGraphQL(nodeIds: string[], since: string, until: string, author?: string): Promise<Commit[]>`
+- [x] Implement query builder that chunks nodeIds into groups of 50 maximum
+- [x] Add `first: 100` pagination parameter to commit history
+- [x] Implement cursor-based pagination for repositories with >100 commits
+- [x] Transform GraphQL response to match existing `Commit` type structure
+- [x] Map `oid` → `sha`, `committedDate` → `commit.author.date`
+- [x] Preserve `repository.full_name` in transformed commits
+- [x] Handle null author.user gracefully (non-GitHub users)
+- [x] Add performance timing with `console.time()` for development
 - [ ] Write test for single repository with 50 commits
 - [ ] Write test for pagination with 150 commits
 - [ ] Write test for author filtering
