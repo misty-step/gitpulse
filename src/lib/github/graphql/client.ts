@@ -7,8 +7,18 @@
 
 import { GraphQLClient } from 'graphql-request';
 import { logger } from '../../logger';
+import { buildRepositoryNodeIdQuery } from './queries';
 
 const MODULE_NAME = 'github:graphql:client';
+
+// Cache for repository IDs with TTL
+interface CacheEntry {
+  value: string;
+  expiresAt: number;
+}
+
+const repositoryIdCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 
 export class GitHubGraphQLClient {
   private client: GraphQLClient;
@@ -123,6 +133,126 @@ export class GitHubGraphQLClient {
     }>(query);
 
     return response.rateLimit;
+  }
+
+  /**
+   * Resolve repository names to GraphQL node IDs
+   * @param repos Array of repository names in "owner/name" format
+   * @returns Map of repository full name to node ID
+   */
+  async resolveRepositoryIds(repos: string[]): Promise<Map<string, string>> {
+    if (!repos || repos.length === 0) {
+      return new Map();
+    }
+
+    const results = new Map<string, string>();
+    const uncachedRepos: Array<{ owner: string; name: string; fullName: string }> = [];
+    const now = Date.now();
+
+    // Check cache first
+    for (const repo of repos) {
+      const cached = repositoryIdCache.get(repo);
+      if (cached && cached.expiresAt > now) {
+        results.set(repo, cached.value);
+        logger.debug(MODULE_NAME, `Repository ID cache hit for ${repo}`);
+      } else {
+        // Parse repository string
+        const parts = repo.split('/');
+        if (parts.length !== 2) {
+          logger.warn(MODULE_NAME, `Invalid repository format: ${repo}`);
+          continue;
+        }
+        const [owner, name] = parts;
+        uncachedRepos.push({ owner, name, fullName: repo });
+      }
+    }
+
+    // If all were cached, return early
+    if (uncachedRepos.length === 0) {
+      logger.debug(MODULE_NAME, `All ${repos.length} repository IDs found in cache`);
+      return results;
+    }
+
+    logger.debug(MODULE_NAME, `Fetching ${uncachedRepos.length} repository IDs from GitHub`);
+
+    // Batch repositories in groups of 50 (GitHub's limit)
+    const batchSize = 50;
+    for (let i = 0; i < uncachedRepos.length; i += batchSize) {
+      const batch = uncachedRepos.slice(i, i + batchSize);
+
+      // Build dynamic query for this batch
+      const query = buildRepositoryNodeIdQuery(batch);
+
+      let attempts = 0;
+      const maxAttempts = 3;
+      const retryDelay = 1000; // 1 second
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+          logger.debug(MODULE_NAME, `Fetching batch ${Math.floor(i / batchSize) + 1}, attempt ${attempts}`);
+
+          const response = await this.query<any>(query);
+
+          // Process response and extract repository IDs
+          for (let j = 0; j < batch.length; j++) {
+            const repoAlias = `repo${j}`;
+            const repoData = response[repoAlias];
+
+            if (repoData && repoData.id) {
+              const fullName = batch[j].fullName;
+              const nodeId = repoData.id;
+
+              // Add to results
+              results.set(fullName, nodeId);
+
+              // Add to cache
+              repositoryIdCache.set(fullName, {
+                value: nodeId,
+                expiresAt: Date.now() + CACHE_TTL,
+              });
+
+              logger.debug(MODULE_NAME, `Resolved ${fullName} to ${nodeId}`);
+            } else {
+              // Repository returned null (private, deleted, or doesn't exist)
+              logger.warn(MODULE_NAME, `Repository not accessible: ${batch[j].fullName}`);
+            }
+          }
+
+          // Success - break out of retry loop
+          break;
+        } catch (error: any) {
+          logger.error(MODULE_NAME, `Failed to fetch repository IDs (attempt ${attempts}/${maxAttempts})`, {
+            error: error.message,
+            batch: batch.map(r => r.fullName),
+          });
+
+          // If this was the last attempt, throw the error
+          if (attempts >= maxAttempts) {
+            throw new Error(`Failed to resolve repository IDs after ${maxAttempts} attempts: ${error.message}`);
+          }
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+
+      // Add a small delay between batches to be respectful of rate limits
+      if (i + batchSize < uncachedRepos.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    logger.info(MODULE_NAME, `Resolved ${results.size} repository IDs from ${repos.length} requested`);
+    return results;
+  }
+
+  /**
+   * Clear the repository ID cache
+   */
+  clearRepositoryIdCache(): void {
+    repositoryIdCache.clear();
+    logger.debug(MODULE_NAME, 'Repository ID cache cleared');
   }
 
   /**

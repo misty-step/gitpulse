@@ -42,14 +42,14 @@
 ## 🔧 Phase 2: Core Implementation (Days 3-5)
 
 ### Repository ID Resolution
-- [ ] In `src/lib/github/graphql/client.ts`, create `resolveRepositoryIds(repos: string[]): Promise<Map<string, string>>`
-- [ ] Implement batching logic to handle max 50 repositories per query
-- [ ] Parse repository strings (e.g., "facebook/react") into owner and name
-- [ ] Build dynamic GraphQL query with aliased repository fields
-- [ ] Execute query and map results to `Map<repoFullName, nodeId>`
-- [ ] Handle repositories that return null (private/deleted) by filtering from results
-- [ ] Add retry logic for transient failures with 1-second delay
-- [ ] Cache resolved IDs in memory with 1-hour TTL
+- [x] In `src/lib/github/graphql/client.ts`, create `resolveRepositoryIds(repos: string[]): Promise<Map<string, string>>`
+- [x] Implement batching logic to handle max 50 repositories per query
+- [x] Parse repository strings (e.g., "facebook/react") into owner and name
+- [x] Build dynamic GraphQL query with aliased repository fields
+- [x] Execute query and map results to `Map<repoFullName, nodeId>`
+- [x] Handle repositories that return null (private/deleted) by filtering from results
+- [x] Add retry logic for transient failures with 1-second delay
+- [x] Cache resolved IDs in memory with 1-hour TTL
 - [ ] Write test with mock data for 100 repositories
 - [ ] Write test for handling missing repositories gracefully
 
