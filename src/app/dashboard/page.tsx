@@ -92,9 +92,17 @@ function DashboardContent() {
 
   // Function to handle summary generation
   const handleGenerateSummary = useCallback(async () => {
+    // When no repos selected, use the 100 most recently updated repos (API limit)
     const repoIds = selectedRepos.length > 0
       ? selectedRepos
-      : repositories.map(r => r.full_name);
+      : [...repositories]
+          .sort((a, b) => {
+            const dateA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const dateB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+            return dateB - dateA;
+          })
+          .slice(0, 100)
+          .map(r => r.full_name);
 
     await generateSummaryAPI({
         activityMode,
