@@ -342,25 +342,28 @@ export async function fetchCommitsForRepositories(
       githubUsername = fallbackOwner;
       for (let i = 0; i < repositories.length; i += batchSize) {
         const batch = repositories.slice(i, i + batchSize);
-        const results = await Promise.all(
-          batch.map(async (repoFullName) => {
-            const [owner, repo] = repoFullName.split("/");
-            const commits = await fetchRepositoryCommits(
-              accessToken,
-              installationId,
-              owner,
-              repo,
-              since,
-              until,
-              githubUsername,
-            );
-            options.onRepositoryComplete?.({
-              repository: repoFullName,
-              phase: "retry-with-owner",
-            });
-            return commits;
-          }),
-        );
+        // Process repositories sequentially to avoid rate limits
+        const results: Commit[][] = [];
+        for (const repoFullName of batch) {
+          const [owner, repo] = repoFullName.split("/");
+          const commits = await fetchRepositoryCommits(
+            accessToken,
+            installationId,
+            owner,
+            repo,
+            since,
+            until,
+            githubUsername,
+          );
+          options.onRepositoryComplete?.({
+            repository: repoFullName,
+            phase: "retry-with-owner",
+          });
+          results.push(commits);
+
+          // Add delay to respect GitHub rate limits
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
         results.forEach((commits) => allCommits.push(...commits));
       }
     }
