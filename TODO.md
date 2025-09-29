@@ -31,11 +31,11 @@
 - [x] Write test to verify headers are set correctly
 
 ### GraphQL Query Templates
-- [ ] Create `src/lib/github/graphql/queries.ts` file
-- [ ] Define `REPOSITORY_NODE_ID_QUERY` to convert owner/name to node IDs
-- [ ] Define `COMMIT_HISTORY_FRAGMENT` with fields: oid, committedDate, message, author (name, email, user.login)
-- [ ] Define `BATCH_COMMITS_QUERY` that accepts array of node IDs and date range
-- [ ] Add `rateLimit { cost, remaining, resetAt }` to all queries for monitoring
+- [x] Create `src/lib/github/graphql/queries.ts` file
+- [x] Define `REPOSITORY_NODE_ID_QUERY` to convert owner/name to node IDs
+- [x] Define `COMMIT_HISTORY_FRAGMENT` with fields: oid, committedDate, message, author (name, email, user.login)
+- [x] Define `BATCH_COMMITS_QUERY` that accepts array of node IDs and date range
+- [x] Add `rateLimit { cost, remaining, resetAt }` to all queries for monitoring
 - [ ] Test queries in GitHub GraphQL Explorer (https://docs.github.com/en/graphql/overview/explorer)
 - [ ] Save working query examples in `src/lib/github/graphql/queries.examples.graphql`
 
