@@ -1,238 +1,330 @@
-# GitPulse - GitHub Commit Summary
+# GitPulse
 
-GitPulse is a web application that generates summaries of GitHub commits for individuals and teams. Built with Next.js and TypeScript, GitPulse provides easy visualization of coding activity across repositories.
+> **GitHub Activity Analytics with RAG** - AI-powered insights from your team's GitHub activity
 
-## Features
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
+[![Convex](https://img.shields.io/badge/Convex-1.28-orange)](https://www.convex.dev/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- **Individual Summaries**: Track your own GitHub activity across all accessible repositories
-- **Team Summaries**: Aggregate commit data for multiple team members
-- **Repository Selection**: Choose specific repositories or include all accessible repos
-- **Configurable Time Frames**: Set custom date ranges for your summary
-- **AI-Powered Analysis**: Gemini AI generates insights from your commit history
-- **No Local Storage**: All data is fetched on-demand from GitHub, ensuring data privacy
-- **Comprehensive Logging**: Detailed structured logging for debugging and monitoring
-- **Robust Error Handling**: Comprehensive error handling chain from API to UI with graceful degradation
-- **Responsive UI**: Clean, modern interface that works on both mobile and desktop
+Transform raw GitHub events into cited, trustworthy insights. Ask "What did the React team ship last quarter?" and get factual summaries with GitHub URL citations for every claim.
 
-## Tech Stack
+## ✨ Features
 
-- **Framework**: Next.js (v15+) with TypeScript
-- **Authentication**: next-auth with GitHub OAuth
-- **GitHub API Client**: octokit for interacting with the GitHub API
-- **AI Analysis**: Google's Gemini AI for commit analysis
-- **Data Fetching**: Custom progressive loading pattern for efficient data retrieval
-- **State Management**: React hooks with context for local state management
-- **Styling**: TailwindCSS for responsive design
-- **Component Development**: Storybook for UI component development and documentation
-- **Error Handling**: Structured error handling chain with fallbacks
-- **Logging**: Structured JSON logging with correlation IDs
-- **Deployment**: Vercel (recommended)
+- **📊 Repository Analytics** - Track PRs, commits, and reviews with interactive charts
+- **🤖 AI-Powered Reports** - Generate activity summaries with Gemini 2.5 Flash
+- **🔍 Semantic Search** - Vector similarity search with Convex's native vector index
+- **📎 Citation-Backed** - Every claim links to GitHub events (PRs, commits, reviews)
+- **⚡ Real-time Updates** - Reactive queries with Convex keep data fresh
+- **🔐 Secure Auth** - Clerk authentication with GitHub OAuth integration
 
-## Architecture
+## 🚀 Quick Start
 
-GitPulse follows a **Functional Core / Imperative Shell** architecture with emphasis on testability, reliability, and maintainability.
+### Prerequisites
 
-### Core Architecture Principles
+- **Node.js** >= 22.15.0 ([Download](https://nodejs.org/))
+- **pnpm** >= 9.0.0 (`npm install -g pnpm`)
 
-- **Functional Core**: Pure business logic with no side effects in `src/core/`
-- **Imperative Shell**: I/O and side effects isolated to React hooks and API routes  
-- **Pure Function Testing**: No mocks needed - test with input/output verification
-- **Effect-Based Services**: Deferred computation for composable and testable workflows
-- **TypeScript First**: Strong typing with readonly data structures throughout
-- **Immutable by Default**: All data transformations preserve original data
-- **Composable Logic**: Functions built using functional composition patterns
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/phrazzld/gitpulse.git
+cd gitpulse
+
+# Install dependencies
+pnpm install
+
+# Start development server (runs Next.js + Convex concurrently)
+pnpm dev
+```
+
+Visit **http://localhost:3000** and sign up with Clerk to get started!
+
+## 📋 Usage
+
+### 1. Add a Repository
+
+Navigate to **Repositories** → Click **"Add Repository"**
+
+- **Single repo**: Enter `facebook/react`, select start date
+- **Batch mode**: Enter GitHub username or org to add all their repos
+
+### 2. Watch Ingestion Progress
+
+Real-time progress banner shows:
+- Current progress percentage
+- Events ingested count
+- Estimated time remaining
+
+### 3. View Analytics
+
+Click **"View Details"** on any repo to see:
+- Activity charts (PRs, commits, reviews over time)
+- KPI cards (total counts, trends)
+- Event breakdown table
+
+### 4. Generate AI Reports
+
+Navigate to **Reports** → **"Generate Report"**
+
+1. Enter GitHub usernames (comma-separated)
+2. Select date range
+3. Optional: Add semantic search query
+4. Wait 30-60 seconds for AI generation
+
+Reports include:
+- Activity summary with key highlights
+- Citation-backed analysis
+- GitHub URL references for every claim
+- Download as markdown
+
+## 🏗️ Architecture
+
+### Tech Stack
+
+**Frontend**:
+- Next.js 16 with App Router + React 19
+- TypeScript 5.7
+- Tailwind CSS 4
+- Sonner for toast notifications
+
+**Backend**:
+- Convex (serverless functions + database + vector search)
+- Clerk (authentication + session management)
+
+**AI/ML**:
+- Voyage AI (1024-dim embeddings, $0.10/1M tokens)
+- Gemini 2.5 Flash (report generation, $0.15-0.60/1M tokens)
+- OpenAI GPT-5 Mini (fallback)
 
 ### Directory Structure
 
 ```
-src/
-├── core/                 # FUNCTIONAL CORE - Pure business logic
-│   ├── github/           # Commit data transformations (pure functions)
-│   ├── summary/          # Statistical calculations (pure functions)  
-│   ├── validation/       # Input validation (pure functions)
-│   └── types/            # Domain type definitions
-├── services/             # Service layer connecting core and shell
-│   ├── effects/          # Effect type system for deferred computation
-│   ├── workflows/        # Orchestration of pure functions with effects
-│   └── providers/        # Data provider interfaces and implementations
-├── app/                  # IMPERATIVE SHELL - Next.js App Router  
-│   ├── api/              # API endpoints (I/O operations)
-│   └── dashboard/        # Main application pages
-├── hooks/                # IMPERATIVE SHELL - React hooks (state management)
-│   └── dashboard/        # Dashboard-specific hooks with side effects
-├── components/           # UI components (presentation layer)
-│   ├── dashboard/        # Dashboard-specific components
-│   └── ui/               # Reusable UI primitives
-├── lib/                  # Utilities and framework integration
-│   ├── functional/       # Functional programming utilities (pipe, compose)
-│   ├── result/           # Result type system for error handling
-│   └── auth/             # Authentication utilities
-└── types/                # Legacy types (gradually moving to core/types/)
+gitpulse/
+├── app/                    # Next.js App Router
+│   ├── dashboard/          # Protected dashboard routes
+│   ├── sign-in/            # Clerk auth pages
+│   └── sign-up/
+├── components/             # React components
+│   └── ui/                 # ShadCN components
+├── convex/                 # Convex backend
+│   ├── schema.ts           # Database schema
+│   ├── queries/            # Read operations
+│   ├── mutations/          # Write operations
+│   ├── actions/            # External API calls
+│   └── lib/                # Shared utilities
+├── hooks/                  # Custom React hooks
+├── lib/                    # Utilities
+└── public/                 # Static assets
 ```
 
-### Error Handling Strategy
+## 🔧 Configuration
 
-GitPulse implements a comprehensive error handling strategy:
+### Environment Variables
 
-1. **API Level**: Structured error responses with appropriate status codes
-2. **Data Fetching**: Safe error handling in data fetcher functions
-3. **Data Processing**: Defensive coding with fallbacks for missing data
-4. **UI Components**: Graceful degradation with helpful error states
-5. **Logging**: Structured error logging with context for debugging
+#### Next.js (`.env.local`)
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20.0 or later
-- A GitHub account
-- GitHub OAuth application credentials
-- [pnpm](https://pnpm.io/) package manager (v9.0 or later)
-
-Install pnpm globally if you haven't already:
 ```bash
-npm install -g pnpm
+# Convex (auto-configured by `convex dev`)
+CONVEX_DEPLOYMENT=dev:your-deployment
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 ```
 
-### Setup GitHub OAuth
+#### Convex Environment (set via `convex env set`)
 
-1. Go to your GitHub account settings
-2. Navigate to "Developer settings" > "OAuth Apps" > "New OAuth App"
-3. Register a new application with the following settings:
-   - Application name: GitPulse (or your preferred name)
-   - Homepage URL: `http://localhost:3000`
-   - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
-4. After registration, note your Client ID and generate a Client Secret
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/phrazzld/gitpulse.git
-cd gitpulse
+# GitHub API
+GITHUB_TOKEN=ghp_...
+
+# AI Providers
+GOOGLE_API_KEY=AIza...              # Primary (Gemini)
+OPENAI_API_KEY=sk-...               # Fallback (GPT-5)
+VOYAGE_API_KEY=pa-...               # Embeddings (recommended)
+
+# Clerk (for JWT validation)
+CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
 ```
 
-2. Install dependencies:
+### Setting Up Services
+
+#### 1. Convex
+
 ```bash
+npx convex dev      # Creates deployment, pushes schema
+```
+
+#### 2. Clerk
+
+1. Create app at https://clerk.com
+2. Enable GitHub OAuth provider
+3. Copy keys to `.env.local`
+4. Set `CLERK_JWT_ISSUER_DOMAIN` in Convex env
+
+#### 3. API Keys
+
+Get API keys from:
+- **Voyage AI**: https://www.voyageai.com/
+- **Google AI Studio**: https://ai.google.dev/
+- **GitHub**: https://github.com/settings/tokens (needs `repo` scope)
+
+## 🧪 Development
+
+### Run Development Server
+
+```bash
+pnpm dev
+```
+
+This starts:
+- Next.js dev server (http://localhost:3000)
+- Convex dev watcher (syncs functions on file changes)
+
+### Type Checking
+
+```bash
+pnpm typecheck
+```
+
+### Build for Production
+
+```bash
+pnpm build
+```
+
+### Convex Dashboard
+
+View data, run functions, check logs:
+
+```bash
+npx convex dashboard
+```
+
+Or visit: https://dashboard.convex.dev/
+
+## 📊 Database Schema
+
+### Tables
+
+- **users** - GitHub user profiles (synced from Clerk)
+- **repos** - Repository metadata
+- **events** - GitHub activity (PRs, commits, reviews)
+- **embeddings** - Vector embeddings (1024-dim, Voyage)
+- **reports** - Generated AI reports
+- **ingestionJobs** - Background job tracking
+
+### Indexes
+
+- `by_clerkId`, `by_tokenIdentifier` on users
+- `by_fullName`, `by_owner` on repos
+- `by_type`, `by_actor`, `by_repo`, `by_timestamp` on events
+- Native vector index on embeddings (cosine similarity)
+
+See `convex/schema.ts` for full schema.
+
+## 🚀 Deployment
+
+### Deploy to Vercel
+
+1. Push code to GitHub
+2. Import project on [Vercel](https://vercel.com/new)
+3. Set environment variables:
+   - `CONVEX_DEPLOYMENT`
+   - `NEXT_PUBLIC_CONVEX_URL`
+   - Clerk keys
+4. Deploy
+
+### Deploy Convex
+
+```bash
+npx convex deploy
+```
+
+This creates a production Convex deployment. Update Vercel env vars with production URLs.
+
+## 🐛 Troubleshooting
+
+### Database Issues
+
+Check Convex dashboard for errors:
+
+```bash
+npx convex dashboard
+# Navigate to Logs tab
+```
+
+### API Rate Limits
+
+GitHub enforces 5000 requests/hour. GitPulse handles this with:
+- Exponential backoff (1s → 2s → 4s → 8s)
+- Automatic retry on 403/429 errors
+- Rate limit header parsing
+
+### Report Generation Fails
+
+1. Verify API keys in Convex dashboard (Settings → Environment Variables)
+2. Check Convex logs for LLM errors
+3. Ensure you have ingested data for the users/date range
+
+### Build Errors
+
+```bash
+# Clear caches
+rm -rf .next node_modules
 pnpm install
+pnpm build
 ```
 
-> **Note**: This project enforces the use of pnpm. Attempts to use npm or yarn will fail with a clear error message.
+## 🤝 Contributing
 
-3. Create a `.env.local` file in the project root (use `.env.local.example` as a template):
-```
-# GitHub OAuth
-GITHUB_OAUTH_CLIENT_ID=your_github_client_id
-GITHUB_OAUTH_CLIENT_SECRET=your_github_client_secret
+Contributions welcome! See [TODO.md](TODO.md) for current tasks.
 
-# NextAuth.js
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret_key_here
-
-# Gemini API
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-4. Run the development server:
-```bash
-# Standard development server
-pnpm run dev
-
-# Development with debug logging to file
-pnpm run dev:log
-```
-
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-### Storybook
-
-GitPulse uses Storybook for UI component development and documentation:
-
-```bash
-# Run Storybook development server
-pnpm run storybook
-
-# Build static Storybook site
-pnpm run build-storybook
-```
-
-Storybook provides an isolated environment for developing and testing UI components without needing to run the full application. It helps with:
-
-- Component development in isolation
-- Visual testing of component states
-- Documentation of component usage
-- Showcasing the component library
-
-After running `pnpm run storybook`, open the displayed URL in your browser (typically http://localhost:6006) to view the component library.
-
-## Usage
-
-1. Sign in with your GitHub account
-2. Select whether you want an individual or team summary
-3. For team summaries, enter comma-separated GitHub usernames
-4. Select a date range for your summary
-5. Optionally select specific repositories
-6. Click "Generate Summary" to view your commit statistics
-
-### Troubleshooting Authentication
-
-If you encounter GitHub authentication errors:
-
-1. Click the "Sign Out" button in the dashboard header
-2. Sign back in with your GitHub account to refresh your access token
-3. If problems persist, ensure your GitHub OAuth app still has the necessary permissions
-
-## Deployment
-
-The easiest way to deploy GitPulse is using Vercel:
-
-1. Push your code to a GitHub repository
-2. Import your repository on [Vercel](https://vercel.com/new)
-3. Set the environment variables in the Vercel project settings
-4. Deploy the application
-
-## Development Guidelines
-
-### Code Organization
-
-When adding new features or making changes, follow these guidelines:
-
-1. **Types First**: Always define types in dedicated type modules first
-2. **Hooks for Logic**: Extract business logic into custom hooks
-3. **Component Separation**: Keep components focused and single-responsibility
-4. **Defensive Programming**: Always handle error cases and edge conditions
-5. **Tests Required**: Write tests for all new functionality
-
-### Coding Standards
-
-- Use TypeScript with strict mode enabled
-- Follow ESLint and TypeScript guidelines (run `pnpm run lint` and `pnpm run typecheck`)
-- Keep files under 500 lines (warning threshold)
-- Use immutable patterns where possible (readonly modifiers, const, etc.)
-- Document the "why" not just the "how" in comments
-
-### Error Handling Principles
-
-When implementing error handling, follow this pattern:
-
-1. Use try/catch blocks around API calls and data transformations
-2. Log errors with context using the structured logger
-3. Transform errors into user-friendly messages
-4. Ensure UI components can handle and display error states gracefully
-5. Provide recovery paths when possible
-
-## Contributing
-
-Contributions are welcome! To contribute:
+### Development Workflow
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes following the development guidelines
-4. Run tests and linting (`pnpm run lint && pnpm run typecheck`)
-5. Commit your changes using [Conventional Commits](https://www.conventionalcommits.org/) format
-6. Push to your branch
-7. Submit a Pull Request
+2. Create feature branch: `git checkout -b feat/my-feature`
+3. Make changes
+4. Run checks: `pnpm typecheck && pnpm lint`
+5. Commit: `git commit -m "feat: add my feature"`
+6. Push and create PR
 
-## License
+### Commit Convention
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+- `feat:` new features
+- `fix:` bug fixes
+- `docs:` documentation
+- `refactor:` code refactoring
+- `test:` test changes
+- `chore:` maintenance
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [Next.js](https://nextjs.org/) - React framework
+- [Convex](https://www.convex.dev/) - Backend platform
+- [Clerk](https://clerk.com/) - Authentication
+- [Voyage AI](https://www.voyageai.com/) - Embeddings
+- [Google Gemini](https://ai.google.dev/) - LLM
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
+
+Inspired by John Ousterhout's *A Philosophy of Software Design* - fighting complexity through deep modules and information hiding.
+
+---
+
+**Questions?** Open an issue or discussion on GitHub.
+
+**Status**: Active development - SaaS MVP functional, automated features in progress.
