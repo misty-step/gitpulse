@@ -7,6 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+import { CoverageMeter } from "@/components/CoverageMeter";
+import { CitationDrawer } from "@/components/CitationDrawer";
 
 export default function ReportViewerPage() {
   const params = useParams();
@@ -194,6 +196,26 @@ export default function ReportViewerPage() {
         </div>
       </div>
 
+      {/* Coverage */}
+      <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
+          Coverage
+        </h2>
+        <CoverageMeter score={report.coverageScore} />
+        {report.coverageBreakdown && report.coverageBreakdown.length > 0 && (
+          <div className="space-y-2 text-sm text-gray-600 dark:text-slate-300">
+            {report.coverageBreakdown.map((entry) => (
+              <div key={entry.scopeKey} className="flex justify-between">
+                <span className="truncate pr-2">{entry.scopeKey}</span>
+                <span className="tabular-nums text-gray-500">
+                  {entry.used}/{entry.total}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Report Content (HTML) */}
       <div className="prose prose-slate max-w-none rounded-lg border border-gray-200 bg-white p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:prose-invert">
         <div
@@ -202,31 +224,7 @@ export default function ReportViewerPage() {
         />
       </div>
 
-      {/* Citations */}
-      {report.citations.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-slate-100">
-            Citations ({report.citations.length})
-          </h2>
-          <div className="space-y-2">
-            {report.citations.map((citation, idx) => (
-              <div key={idx} className="flex items-start gap-3">
-                <span className="font-mono text-sm text-gray-500 dark:text-slate-400">
-                  [{idx + 1}]
-                </span>
-                <a
-                  href={citation}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="break-all text-sm text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  {citation}
-                </a>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <CitationDrawer citations={report.citations} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+import { CoverageMeter } from "@/components/CoverageMeter";
 
 export default function ReportsPage() {
   const { clerkUser, convexUser, isLoading: isAuthLoading } = useAuthenticatedConvexUser();
@@ -179,6 +180,11 @@ export default function ReportsPage() {
                     <span>{new Date(report.generatedAt).toLocaleDateString()}</span>
                     <span className="hidden sm:inline">•</span>
                     <span>{report.citations.length} citations</span>
+                  </div>
+
+                  {/* Coverage */}
+                  <div className="mt-3">
+                    <CoverageMeter score={report.coverageScore} />
                   </div>
 
                   {/* Delete button */}

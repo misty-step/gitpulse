@@ -138,7 +138,7 @@
   Dependencies: canonical facts, embeddings, schema.
   Estimate: 2.5h
   ```
-- [ ] Expose coverage + report queries to UI
+- [~] Expose coverage + report queries to UI
   ```
   Files: convex/queries/reports.ts (new methods), app/dashboard/reports/page.tsx, components/CoverageMeter.tsx, components/CitationDrawer.tsx, hooks/useReportGeneration.ts
   Goal: show coverage meter, citations drawer, manual generation flow listening to job status.
