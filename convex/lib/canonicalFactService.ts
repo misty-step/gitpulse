@@ -89,7 +89,7 @@ export async function persistCanonicalEvent(
     contentScope: canonical.contentScope,
   });
 
-  await enqueueEmbedding(ctx, eventId);
+  await enqueueEmbedding(ctx, eventId, contentHash);
 
   return { status: "inserted", eventId };
 }
@@ -169,10 +169,19 @@ function toMillis(value?: string | null): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-async function enqueueEmbedding(ctx: ActionCtx, eventId: Id<"events">) {
+async function enqueueEmbedding(
+  ctx: ActionCtx,
+  eventId: Id<"events">,
+  contentHash: string
+) {
+  await ctx.runMutation(internal.embeddingQueue.enqueue, {
+    eventId,
+    contentHash,
+  });
+
   await ctx.scheduler.runAfter(
     0,
-    internal.actions.generateEmbeddings.generateInternal,
-    { eventId }
+    internal.actions.embeddings.ensureBatch.ensureBatch,
+    {}
   );
 }

@@ -109,7 +109,7 @@
   Dependencies: canonicalizeEvent helper.
   Estimate: 1h
   ```
-- [ ] Build Embedding & Cache service
+- [x] Build Embedding & Cache service
   ```
   Files: convex/actions/embeddings/ensureBatch.ts, convex/lib/embeddingQueue.ts, convex/embeddings.ts
   Goal: batch Voyage/OpenAI calls for pending hashes, store vectors + cost metadata.

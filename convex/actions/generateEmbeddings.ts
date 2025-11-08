@@ -12,6 +12,7 @@ import { action, internalAction, type ActionCtx } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { Doc, Id } from "../_generated/dataModel";
 import { embedText, embedBatch } from "../lib/embeddings";
+import { computeContentHash } from "../lib/contentHash";
 
 /**
  * Convert event to searchable text representation
@@ -217,6 +218,11 @@ async function runGenerateEmbedding(
 
   const text = eventToText(event);
   const result = await embedText(text, voyageApiKey, openaiApiKey);
+  const contentHash = computeContentHash({
+    canonicalText: event.canonicalText ?? text,
+    sourceUrl: event.sourceUrl ?? "",
+    metrics: event.metrics ?? undefined,
+  });
 
   return ctx.runMutation(internal.embeddings.create, {
     scope: "event",
@@ -225,6 +231,7 @@ async function runGenerateEmbedding(
     provider: result.provider,
     model: result.model,
     dimensions: result.dimensions,
+    contentHash,
     metadata: {
       type: event.type,
       ts: event.ts,

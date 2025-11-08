@@ -182,6 +182,7 @@ export default defineSchema({
     // Embedding metadata
     scope: v.string(), // Scope type (event, pr_thread, commit, issue)
     refId: v.string(), // Reference ID (Event._id, etc.)
+    contentHash: v.optional(v.string()),
 
     // Vector embedding (OpenAI ada-002: 1536 dims, Voyage-3-large: 1024 dims)
     vector: v.array(v.float64()),
@@ -200,6 +201,7 @@ export default defineSchema({
   })
     .index("by_scope", ["scope"])
     .index("by_refId", ["refId"])
+    .index("by_contentHash", ["contentHash"])
     .vectorIndex("by_vector", {
       vectorField: "vector",
       dimensions: 1024, // Default to Voyage-3-large dimensions
@@ -281,19 +283,27 @@ export default defineSchema({
     // Job owner
     userId: v.string(), // Clerk user ID
 
+    // GitHub App linkage
+    installationId: v.optional(v.number()),
+
     // Job configuration
     repoFullName: v.string(), // "owner/repo"
     since: v.optional(v.number()), // Start timestamp for incremental ingestion
     until: v.optional(v.number()), // End timestamp
+    cursor: v.optional(v.string()), // pagination cursor (page token)
+    reposRemaining: v.optional(v.array(v.string())), // queued repos still to sync
 
     // Job status
     status: v.string(), // "pending", "running", "completed", "failed"
     progress: v.optional(v.number()), // Percentage (0-100)
+    blockedUntil: v.optional(v.number()), // timestamp when job may resume
 
     // Results
     eventsIngested: v.optional(v.number()),
     embeddingsCreated: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
 
     // Timestamps
     startedAt: v.optional(v.number()),
@@ -303,7 +313,8 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_status", ["status"])
     .index("by_repo", ["repoFullName"])
-    .index("by_userId_and_createdAt", ["userId", "createdAt"]),
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_installationId", ["installationId"]),
 
   /**
    * Installations table - GitHub App installations metadata
@@ -359,4 +370,19 @@ export default defineSchema({
   })
     .index("by_fact", ["factId"])
     .index("by_scope_and_window", ["scopeKey", "windowStart", "windowEnd"]),
+
+  /**
+   * EmbeddingQueue table - pending embedding jobs keyed by content hash
+   */
+  embeddingQueue: defineTable({
+    eventId: v.id("events"),
+    contentHash: v.string(),
+    status: v.string(), // pending, processing, failed
+    attempts: v.number(),
+    lastAttemptAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_contentHash", ["contentHash"]),
 });

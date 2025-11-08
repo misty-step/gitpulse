@@ -42,6 +42,7 @@ export const create = internalMutation({
   args: {
     scope: v.string(),
     refId: v.string(),
+    contentHash: v.optional(v.string()),
     vector: v.array(v.float64()),
     provider: v.string(),
     model: v.string(),
@@ -64,6 +65,7 @@ export const create = internalMutation({
         model: args.model,
         dimensions: args.dimensions,
         metadata: args.metadata,
+        contentHash: args.contentHash ?? existing.contentHash,
       });
       return existing._id;
     }
