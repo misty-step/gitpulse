@@ -42,6 +42,16 @@ export const enqueue = mutation({
 });
 
 /**
+ * Get webhook event by ID (internal use)
+ */
+export const getById = query({
+  args: { id: v.id("webhookEvents") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.id);
+  },
+});
+
+/**
  * Get webhook event by delivery ID
  */
 export const getByDeliveryId = query({
