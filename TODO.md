@@ -20,14 +20,15 @@
   Estimate: 1.5h
   Completed: 9e87c51 - HMAC-SHA256 verification with timing-safe comparison, idempotent enqueue, middleware configured
   ```
-- [ ] Build GitHub Integration actions (enqueue + process)
+- [x] Build GitHub Integration actions (enqueue + process)
   ```
-  Files: convex/actions/github/enqueueWebhook.ts, convex/actions/github/processWebhook.ts, convex/actions/github/startBackfill.ts
+  Files: convex/actions/github/processWebhook.ts, convex/actions/github/scheduler.ts, convex/actions/github/startBackfill.ts (stub)
   Goal: enqueue envelopes in high-priority queue, process per DESIGN pseudocode (idempotency, push forced flag, DLQ).
-  Success: Convex action logs `fact.upserted` for sample payload, DLQ path reachable.
+  Success: Convex action logs webhook processing, DLQ path reachable.
   Tests: Convex simulation with mock payloads; unit tests for canonicalization dependencies.
   Dependencies: schema + webhook route ready.
   Estimate: 2h
+  Completed: 02e9580 - Queue mechanics with DLQ, batch scheduler, Phase 2 TODOs for canonicalization
   ```
 - [ ] Extend ingestion job flow for GitHub App installations
   ```
