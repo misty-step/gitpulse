@@ -120,7 +120,7 @@
   ```
 
 ## Phase 3 – Report Orchestrator & Coverage
-- [~] Add report cache fields + coverage tables
+- [x] Add report cache fields + coverage tables
   ```
   Files: convex/schema.ts, convex/reports.ts, convex/lib/coverage.ts (new)
   Goal: store `cacheKey`, `coverageScore`, coverage breakdown structure per DESIGN.
@@ -129,7 +129,7 @@
   Dependencies: ingestion schema updates.
   Estimate: 1h
   ```
-- [ ] Refactor report generation actions into orchestrator
+- [x] Refactor report generation actions into orchestrator
   ```
   Files: convex/actions/reports/generateDaily.ts, generateWeekly.ts, generateAdhoc.ts, convex/lib/reportOrchestrator.ts (new)
   Goal: implement Stage C/D flow, cache lookup, coverage calculation, fallback handling.
