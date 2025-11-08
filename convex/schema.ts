@@ -385,4 +385,21 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_contentHash", ["contentHash"]),
+
+  /**
+   * ReportJobHistory table - audit log for scheduler runs
+   */
+  reportJobHistory: defineTable({
+    type: v.union(v.literal("daily"), v.literal("weekly")),
+    hourUTC: v.number(),
+    dayUTC: v.optional(v.number()),
+    usersAttempted: v.number(),
+    reportsGenerated: v.number(),
+    errors: v.number(),
+    durationMs: v.number(),
+    startedAt: v.number(),
+    completedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_type_and_createdAt", ["type", "createdAt"]);
 });

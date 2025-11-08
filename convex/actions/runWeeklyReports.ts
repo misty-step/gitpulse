@@ -42,6 +42,17 @@ export const run = internalAction({
       console.log(
         `[Weekly Reports] No users scheduled for ${dayName} UTC hour ${args.hourUTC}`
       );
+      await ctx.runMutation(internal.reportJobHistory.logRun, {
+        type: "weekly",
+        hourUTC: args.hourUTC,
+        dayUTC: args.dayUTC,
+        usersAttempted: 0,
+        reportsGenerated: 0,
+        errors: 0,
+        durationMs: Date.now() - startTime,
+        startedAt: startTime,
+        completedAt: Date.now(),
+      });
       return { usersProcessed: 0, reportsGenerated: 0, errors: 0, durationMs: 0 };
     }
 
@@ -78,6 +89,18 @@ export const run = internalAction({
       `[Weekly Reports] Completed for ${dayName} UTC hour ${args.hourUTC}: ` +
         `${reportsGenerated} generated, ${errors} errors, ${duration}ms`
     );
+
+    await ctx.runMutation(internal.reportJobHistory.logRun, {
+      type: "weekly",
+      hourUTC: args.hourUTC,
+      dayUTC: args.dayUTC,
+      usersAttempted: users.length,
+      reportsGenerated,
+      errors,
+      durationMs: duration,
+      startedAt: startTime,
+      completedAt: Date.now(),
+    });
 
     return {
       usersProcessed: users.length,
