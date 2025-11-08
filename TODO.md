@@ -120,7 +120,7 @@
   ```
 
 ## Phase 3 – Report Orchestrator & Coverage
-- [ ] Add report cache fields + coverage tables
+- [~] Add report cache fields + coverage tables
   ```
   Files: convex/schema.ts, convex/reports.ts, convex/lib/coverage.ts (new)
   Goal: store `cacheKey`, `coverageScore`, coverage breakdown structure per DESIGN.
