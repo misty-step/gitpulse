@@ -8,7 +8,7 @@
  */
 
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { action, internalAction, type ActionCtx } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { Doc, Id } from "../_generated/dataModel";
 import { embedText, embedBatch } from "../lib/embeddings";
@@ -69,47 +69,16 @@ export const generate = action({
     eventId: v.id("events"),
   },
   handler: async (ctx, args): Promise<Id<"embeddings">> => {
-    // Fetch event from database
-    const event: Doc<"events"> | null = await ctx.runQuery(internal.events.getById, {
-      id: args.eventId,
-    });
+    return runGenerateEmbedding(ctx, args.eventId);
+  },
+});
 
-    if (!event) {
-      throw new Error(`Event not found: ${args.eventId}`);
-    }
-
-    // Get API keys from environment
-    const voyageApiKey = process.env.VOYAGE_API_KEY;
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-
-    if (!voyageApiKey && !openaiApiKey) {
-      throw new Error("No embedding API keys configured (VOYAGE_API_KEY or OPENAI_API_KEY)");
-    }
-
-    // Convert event to text
-    const text = eventToText(event);
-
-    // Generate embedding
-    const result = await embedText(text, voyageApiKey, openaiApiKey);
-
-    // Store in database
-    const embeddingId: Id<"embeddings"> = await ctx.runMutation(internal.embeddings.create, {
-      scope: "event",
-      refId: args.eventId,
-      vector: result.vector,
-      provider: result.provider,
-      model: result.model,
-      dimensions: result.dimensions,
-      metadata: {
-        type: event.type,
-        ts: event.ts,
-        // Store minimal metadata for filtering
-        actorId: event.actorId,
-        repoId: event.repoId,
-      },
-    });
-
-    return embeddingId;
+export const generateInternal = internalAction({
+  args: {
+    eventId: v.id("events"),
+  },
+  handler: async (ctx, args): Promise<Id<"embeddings">> => {
+    return runGenerateEmbedding(ctx, args.eventId);
   },
 });
 
@@ -226,3 +195,41 @@ export const processUnembedded = action({
     return eventIds.length;
   },
 });
+
+async function runGenerateEmbedding(
+  ctx: ActionCtx,
+  eventId: Id<"events">
+): Promise<Id<"embeddings">> {
+  const event: Doc<"events"> | null = await ctx.runQuery(internal.events.getById, {
+    id: eventId,
+  });
+
+  if (!event) {
+    throw new Error(`Event not found: ${eventId}`);
+  }
+
+  const voyageApiKey = process.env.VOYAGE_API_KEY;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+
+  if (!voyageApiKey && !openaiApiKey) {
+    throw new Error("No embedding API keys configured (VOYAGE_API_KEY or OPENAI_API_KEY)");
+  }
+
+  const text = eventToText(event);
+  const result = await embedText(text, voyageApiKey, openaiApiKey);
+
+  return ctx.runMutation(internal.embeddings.create, {
+    scope: "event",
+    refId: eventId,
+    vector: result.vector,
+    provider: result.provider,
+    model: result.model,
+    dimensions: result.dimensions,
+    metadata: {
+      type: event.type,
+      ts: event.ts,
+      actorId: event.actorId,
+      repoId: event.repoId,
+    },
+  });
+}

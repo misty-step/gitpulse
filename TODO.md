@@ -100,7 +100,7 @@
   Edge cases: PR closed events where `pull_request.merged` is true (emit `pr_merged` with `merged_at` timestamp), push commits lacking `author.id` (skip or return null), issue comments on PRs (classify as `issue_comment` but include `isPullRequest: true` in metadata), timeline nodes missing `html_url` (fallback to `url`), overly long titles/bodies (truncate canonical text to 512 chars without breaking multi-byte chars). Treat missing `repository.full_name` or actor login/id as invalid -> `null`.
   Dependencies: relies on schema fields already landed (events.contentHash + indexes) and the GitHub timeline types returned by `convex/lib/githubApp.ts`.
   ```
-- [ ] Wire Canonical Fact Service into actions
+- [x] Wire Canonical Fact Service into actions
   ```
   Files: convex/actions/github/processWebhook.ts, convex/actions/github/startBackfill.ts
   Goal: reuse canonicalizer for both paths, write facts, enqueue embeddings for new hashes.

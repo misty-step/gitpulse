@@ -510,7 +510,7 @@ interface GitHubRepository {
   owner?: GitHubUser;
 }
 
-interface PullRequestWebhookEvent {
+export interface PullRequestWebhookEvent {
   action: string;
   pull_request: {
     id?: number;
@@ -537,7 +537,7 @@ interface PullRequestWebhookEvent {
   sender?: GitHubUser | null;
 }
 
-interface PullRequestReviewWebhookEvent {
+export interface PullRequestReviewWebhookEvent {
   action: string;
   review: {
     id?: number;
@@ -558,7 +558,7 @@ interface PullRequestReviewWebhookEvent {
   repository?: GitHubRepository | null;
 }
 
-interface IssuesWebhookEvent {
+export interface IssuesWebhookEvent {
   action: string;
   issue: {
     id?: number;
@@ -579,7 +579,7 @@ interface IssuesWebhookEvent {
   sender?: GitHubUser | null;
 }
 
-interface IssueCommentWebhookEvent {
+export interface IssueCommentWebhookEvent {
   action: string;
   comment: {
     id?: number;
@@ -621,4 +621,7 @@ interface CommitLike {
   stats?: CommitStats;
 }
 
-export type { GitHubRepository, CommitLike };
+export type {
+  GitHubRepository,
+  CommitLike,
+};

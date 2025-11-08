@@ -3,6 +3,15 @@
 import { v } from "convex/values";
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import {
+  canonicalizeEvent,
+  type CanonicalizeInput,
+  type PullRequestWebhookEvent,
+  type PullRequestReviewWebhookEvent,
+  type IssuesWebhookEvent,
+  type IssueCommentWebhookEvent,
+} from "../../lib/canonicalizeEvent";
+import { persistCanonicalEvent } from "../../lib/canonicalFactService";
 
 /**
  * Process GitHub webhook event asynchronously
@@ -27,7 +36,6 @@ export const processWebhook = internalAction({
     const startTime = Date.now();
 
     try {
-      // Load webhook envelope
       const webhookEvent = await ctx.runQuery(
         internal.webhookEvents.getById,
         { id: args.webhookEventId }
@@ -40,53 +48,56 @@ export const processWebhook = internalAction({
 
       const { deliveryId, event, payload } = webhookEvent;
 
-      // Update status to processing
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
         status: "processing",
       });
 
-      console.log("Processing webhook", { deliveryId, event });
+      const canonicalInputs = buildCanonicalInputs(event, payload);
+      if (canonicalInputs.length === 0) {
+        console.warn("Unsupported webhook event", { event, deliveryId });
+        await ctx.runMutation(internal.webhookEvents.updateStatus, {
+          id: args.webhookEventId,
+          status: "completed",
+        });
+        return;
+      }
 
-      // Parse payload to detect event-specific data
-      const webhookPayload = payload as {
-        action?: string;
-        forced?: boolean;
-        repository?: { id: number; full_name: string; node_id: string };
-        sender?: { id: number; login: string; node_id: string };
-        installation?: { id: number };
-      };
+      const repoPayload = (payload as any)?.repository ?? null;
+      const installationId = (payload as any)?.installation?.id;
 
-      // TODO: Implement canonical fact extraction (Phase 2)
-      // For now, log the event type and structure
-      console.log("Webhook payload structure", {
-        event,
-        action: webhookPayload.action,
-        forced: webhookPayload.forced,
-        hasRepository: !!webhookPayload.repository,
-        hasSender: !!webhookPayload.sender,
-        installationId: webhookPayload.installation?.id,
-      });
+      let inserted = 0;
+      let duplicates = 0;
 
-      // TODO: Phase 2 - Call CanonicalFactService.upsertFromWebhook
-      // This will:
-      // - Normalize GitHub payload into EventFact
-      // - Compute contentHash
-      // - Upsert to events table (idempotent via contentHash)
-      // - Enqueue embeddings for new hashes
+      for (const input of canonicalInputs) {
+        const canonical = canonicalizeEvent(input);
+        if (!canonical) {
+          continue;
+        }
 
-      // TODO: Phase 2 - Handle push forced flag
-      // If event === "push" && webhookPayload.forced === true:
-      //   - Mark affected repo windows dirty
-      //   - Invalidate cached reports
+        const result = await persistCanonicalEvent(ctx, canonical, {
+          installationId,
+          repoPayload,
+        });
 
-      // Mark as completed
+        if (result.status === "inserted") {
+          inserted++;
+        } else if (result.status === "duplicate") {
+          duplicates++;
+        }
+      }
+
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
         status: "completed",
       });
 
-      console.log("Webhook processed successfully", { deliveryId });
+      console.log("Webhook processed", {
+        deliveryId,
+        event,
+        inserted,
+        duplicates,
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
@@ -95,19 +106,56 @@ export const processWebhook = internalAction({
         error: errorMessage,
       });
 
-      // Move to DLQ (dead-letter queue)
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
         status: "failed",
         errorMessage,
-        retryCount: 0, // TODO: Implement retry logic with exponential backoff
+        retryCount: 0,
       });
     } finally {
       const elapsed = Date.now() - startTime;
       console.log("Webhook processing finished", {
         webhookEventId: args.webhookEventId,
-        elapsed
+        elapsed,
       });
     }
   },
 });
+
+function buildCanonicalInputs(
+  event: string,
+  payload: unknown
+): CanonicalizeInput[] {
+  switch (event) {
+    case "pull_request":
+      return [
+        {
+          kind: "pull_request",
+          payload: payload as PullRequestWebhookEvent,
+        },
+      ];
+    case "pull_request_review":
+      return [
+        {
+          kind: "pull_request_review",
+          payload: payload as PullRequestReviewWebhookEvent,
+        },
+      ];
+    case "issues":
+      return [
+        {
+          kind: "issues",
+          payload: payload as IssuesWebhookEvent,
+        },
+      ];
+    case "issue_comment":
+      return [
+        {
+          kind: "issue_comment",
+          payload: payload as IssueCommentWebhookEvent,
+        },
+      ];
+    default:
+      return [];
+  }
+}
