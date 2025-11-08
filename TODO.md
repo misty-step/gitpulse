@@ -30,25 +30,75 @@
   Estimate: 2h
   Completed: 02e9580 - Queue mechanics with DLQ, batch scheduler, Phase 2 TODOs for canonicalization
   ```
-- [ ] Extend ingestion job flow for GitHub App installations
+- [x] Extend ingestion job flow for GitHub App installations
   ```
-  Files: convex/actions/github/startBackfill.ts, convex/lib/githubApp.ts, convex/ingestionJobs.ts
-  Goal: support BackfillRequest structure, rate-limit-aware loop with etag/cursor storage.
-  Success: Ingestion job records progress, pauses when rate limit low, resume works.
-  Tests: Unit tests for githubApp helper (token mint, etag headers), integration mock hitting GitHub fixture.
-  Dependencies: GitHub actions scaffolding.
-  Estimate: 2h
+  Files: convex/actions/github/startBackfill.ts:1-43, convex/lib/githubApp.ts (new), convex/ingestionJobs.ts:110-183, convex/schema.ts:280-333, convex/installations.ts:7-95, convex/webhookEvents.ts:1-70
+  Pattern: Follow the deep-module encapsulation used in convex/lib/GitHubClient.ts:1-147 for token minting/fetch retries and reuse the status/progress mutation style already present in convex/ingestionJobs.ts:110-183.
+
+  Approach:
+  1. Helper module — Add convex/lib/githubApp.ts exporting:
+     - `buildAppJwt(appId, privateKey)` that signs RS256 JWTs (replacing literal "\n" with newlines) and caches for ≤8 minutes.
+     - `mintInstallationToken(installationId)` that POSTs to `https://api.github.com/app/installations/{id}/access_tokens`, returns `{ token, expiresAt }`, and throws when `GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` envs missing.
+     - `fetchRepoTimeline({ token, repoFullName, sinceISO, cursor, etag })` that hits GitHub GraphQL Search API with query `repo:{fullName} (is:pr OR is:issue) updated:>=${since}` plus optional commits request (`FEATURE_GRAPHQL_COMMITS` flag). Include `If-None-Match` header when caller passes `etag`, and return `{ nodes, endCursor, hasNextPage, etag, rateLimit }`.
+     - `parseRateLimit(headers)` + `shouldPause(remaining: number)` (threshold constant `MIN_BACKFILL_BUDGET = 200`).
+     Write Jest unit tests (`convex/lib/githubApp.test.ts`) that mock `global.fetch` to assert headers/body shape for token mint + timeline fetch.
+  2. Persistence + bookkeeping — Extend Convex schema/mutations so jobs can resume mid-stream:
+     - `convex/schema.ts:280-333`: add `installationId`, `cursor`, `reposRemaining` (string array), `blockedUntil`, `rateLimitRemaining`, `rateLimitReset` fields to `ingestionJobs`.
+     - Update `internal.ingestionJobs.create/updateProgress/complete/fail` plus a new `markBlocked` mutation in convex/ingestionJobs.ts: create must accept the new fields, `updateProgress` should optionally persist `cursor` + `reposRemaining`, and `markBlocked` sets `status: "blocked"` + `blockedUntil`.
+     - Add `installations.updateSyncState` mutation in convex/installations.ts: patches `lastCursor`, `etag`, `rateLimitRemaining`, `rateLimitReset`, and `status` so future backfills share the same metadata (reuse existing index logic at lines 48-90).
+  3. Action implementation — Replace the stub in convex/actions/github/startBackfill.ts with real logic:
+     - Validate auth (`ctx.auth.getUserIdentity`) and ensure the requesting Clerk user matches the installation’s `clerkUserId`; bail with a typed error if not.
+     - Resolve repo list: use `args.repositories`, falling back to `installation.repositories`; clamp to ≤10 repos per invocation to respect GitHub budgets.
+     - For each repo: create an ingestion job via `ctx.runMutation(internal.ingestionJobs.create, { userId, repoFullName, installationId, since, status: "running", progress: 0, reposRemaining })`, then loop:
+       a. Mint/refresh installation token via the helper when missing or expiring within 60s.
+       b. Call `fetchRepoTimeline` with the repo, `sinceISO = new Date(args.since).toISOString()`, `cursor` from job/installation, and `etag` from installation metadata.
+       c. If response is 304, record `updateProgress` (progress unchanged) and break.
+       d. For each node (PR, Issue, Review, Commit) create a deterministic `deliveryId` (`backfill:${repo}:${node.__typename}:${node.id}`), enqueue it through `ctx.runMutation(internal.webhookEvents.enqueue, { deliveryId, event: node.__typename, installationId, payload: node })`, and immediately schedule `ctx.scheduler.runAfter(0, internal.actions.github.processWebhook.processWebhook, { webhookEventId })` so canonicalization stays centralized.
+       e. After each page, update job progress (`processedCount / totalEstimated`) plus `cursor`, `eventsIngested`, and write `installations.updateSyncState` with the new cursor + etag. When `hasNextPage` is false, mark job complete.
+       f. Inspect `rateLimit.remaining`: if below `MIN_BACKFILL_BUDGET`, call `internal.ingestionJobs.markBlocked` (status `blocked`, `blockedUntil = rateLimit.reset * 1000`), persist the cursor, and schedule a resume via `ctx.scheduler.runAt(rateLimit.reset * 1000, internal.actions.github.startBackfill.startBackfill, {...args, repositories: [repo], since: cursorTs })`.
+     - Wrap the whole action in try/catch; on error, invoke `internal.ingestionJobs.fail` with the message and bubble a sanitized error to the caller.
+
+  Success criteria:
+  - Running `pnpm typecheck` + `pnpm exec jest convex/lib/githubApp.test.ts` passes; GitHub App env vars missing throws `"GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be configured"` before any fetch call.
+  - Calling `startBackfill` on a seeded installation writes/updates an `ingestionJobs` document with `status` transitions (`pending → running → blocked|completed`), persists `cursor`/`rateLimit*`/`etag`, and schedules resume work when remaining calls < `MIN_BACKFILL_BUDGET`.
+  - Every timeline node enqueued for backfill results in a corresponding record in `webhookEvents` plus a scheduled `processWebhook`, proving that backfills reuse the same canonicalization path as live webhooks.
+
+  Edge cases: missing/unauthorized installation, repo arrays containing repositories not granted to the installation, `since >= until`, GitHub returning 304 (no new data), rate-limit 403/429 responses, installation tokens expiring mid-loop, and Convex action timeouts (split work across multiple scheduler invocations when `hasNextPage` is still true after ~200 nodes).
+  Dependencies: requires GitHub App credentials in Convex env, installations table populated via the install webhook, and the webhook processing action (Task 3) already deployed; canonicalization wiring (Phase 2) will consume the enqueued envelopes next.
   ```
 
 ## Phase 2 – Canonical Facts & Embeddings
-- [ ] Implement `canonicalizeEvent` helper + contentHash utilities
+- [x] Implement `canonicalizeEvent` helper + contentHash utilities
   ```
-  Files: convex/lib/canonicalizeEvent.ts, convex/lib/contentHash.ts, convex/events.ts (index additions)
-  Goal: convert webhook/backfill payloads into EventFact per DESIGN; compute deterministic hashes.
-  Success: Unit tests confirm consistent output for commits/PRs/reviews/issues; duplicates skipped.
-  Tests: `pnpm exec jest convex/lib/canonicalizeEvent.test.ts` (new file).
-  Dependencies: schema ready.
-  Estimate: 1.5h
+  Files: convex/lib/canonicalizeEvent.ts (new), convex/lib/canonicalizeEvent.test.ts (new), convex/lib/contentHash.ts (new), convex/events.ts:1-210
+  Pattern: Follow the deep-module style and defensiveness used in convex/lib/githubApp.ts:1-250 (pure helpers, cached values, typed inputs) and reuse the querying style from convex/events.ts:120-210 for new internal helpers.
+
+  Approach:
+  1. Canonical data contracts
+     - Define `EventType` union + `CanonicalActor`, `CanonicalRepo`, and `CanonicalEvent` interfaces inside `canonicalizeEvent.ts`, mirroring the EventFact structure in TASK.md §3 and reusing repo/user fields from `convex/actions/ingestRepo.ts:35-125`.
+     - Export discriminated input shapes for each GitHub source we support now: `pull_request`, `pull_request_review`, `issues`, `issue_comment`, `commit` (from push/backfill), and `timeline` items (search API result shaped like `RepoTimelineNode` in DESIGN.md §Module Allocation).
+  2. Canonicalization helpers
+     - Implement `canonicalizeEvent(input)` that dispatches to specialized helpers (PR, review, commit, issue, issue_comment, timeline). Each helper must:
+       a. Validate required fields (`repository.full_name`, actor login/id, timestamps). Return `null` if anything essential is missing so callers can DLQ the payload later.
+       b. Build a ≤512-character `canonicalText` string per type (e.g., `PR #123 opened by devin: Add feature – 3 files changed`) and a `metrics` object populated from GitHub payload stats (additions/deletions/filesChanged when available).
+       c. Derive the `EventType` (`pr_opened`, `pr_closed`, `pr_merged`, `review_submitted`, `commit`, `issue_opened`, `issue_closed`, `issue_comment`), `ts` (pick `merged_at`/`closed_at`/`created_at`/commit author date as appropriate), `sourceUrl`, and a trimmed metadata object (PR number, issue number, commit SHA, review state, etc.).
+       d. For push payloads iterate per commit outside later; here we accept a normalized commit input (`{ type: "commit", commit, repository }`) to produce a single `CanonicalEvent`.
+       e. For timeline backfills accept `RepoTimelineNode` (constructed in previous task) and map PR vs Issue nodes to the same canonical schema.
+     - Add tiny utilities for string truncation and html/url fallbacks, and ensure actor/login casing is preserved.
+  3. Content hash utility
+     - Create `convex/lib/contentHash.ts` exporting `computeContentHash({ canonicalText, sourceUrl, metrics })` that SHA-256 hashes a deterministic string: `${canonicalText}::${sourceUrl}::${stableMetrics}` where `stableMetrics` comes from a helper that JSON-stringifies metric objects with sorted keys. Use Node’s `crypto.createHash("sha256")` and return lowercase hex.
+     - Provide `stableStringify(value)` that sorts object keys recursively so `metrics` order never impacts the hash; include unit tests within `canonicalizeEvent.test.ts` verifying identical inputs produce identical hashes regardless of property ordering.
+  4. Event queries for dedupe
+     - In `convex/events.ts`, add `internalQuery getByContentHash` leveraging the existing `by_contentHash` index (line ~150). Also expose `internalMutation upsertCanonical` that writes a fully-canonical EventFact (type, ghId/nodeId optional, actorId, repoId, ts, canonicalText, sourceUrl, metrics, contentHash, metadata, createdAt) so Task 2 can call it after looking up/creating user + repo docs.
+
+  Success criteria:
+  - Running `pnpm exec jest convex/lib/canonicalizeEvent.test.ts` passes; tests cover at least PR opened, PR merged, review submitted, issue comment, and commit inputs plus hash determinism + 512-char truncation.
+  - `canonicalizeEvent` returns `null` on malformed payloads (missing repo, actor, or timestamp) instead of throwing, and provides enough metadata (number/state/url) for downstream coverage/citation logic.
+  - `computeContentHash` yields identical hashes for logically-equal events regardless of metric key ordering or whitespace, ensuring duplicates are detectable via `events.by_contentHash`.
+  - `convex/events.ts` exposes `internal.events.getByContentHash` and `internal.events.upsertCanonical` for later tasks, and lint/typecheck succeed for the new helpers.
+
+  Edge cases: PR closed events where `pull_request.merged` is true (emit `pr_merged` with `merged_at` timestamp), push commits lacking `author.id` (skip or return null), issue comments on PRs (classify as `issue_comment` but include `isPullRequest: true` in metadata), timeline nodes missing `html_url` (fallback to `url`), overly long titles/bodies (truncate canonical text to 512 chars without breaking multi-byte chars). Treat missing `repository.full_name` or actor login/id as invalid -> `null`.
+  Dependencies: relies on schema fields already landed (events.contentHash + indexes) and the GitHub timeline types returned by `convex/lib/githubApp.ts`.
   ```
 - [ ] Wire Canonical Fact Service into actions
   ```

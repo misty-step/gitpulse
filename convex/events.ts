@@ -3,7 +3,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalQuery } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 
 /**
  * List events by actor (user) with time range filter
@@ -175,6 +175,61 @@ export const getById = internalQuery({
   args: { id: v.id("events") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+/**
+ * Internal: Lookup event by content hash for idempotent writes
+ */
+export const getByContentHash = internalQuery({
+  args: { contentHash: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("events")
+      .withIndex("by_contentHash", (q) => q.eq("contentHash", args.contentHash))
+      .first();
+  },
+});
+
+/**
+ * Internal: Upsert canonical EventFact (deduplicated via content hash)
+ */
+export const upsertCanonical = internalMutation({
+  args: {
+    type: v.string(),
+    ghId: v.optional(v.string()),
+    ghNodeId: v.optional(v.string()),
+    actorId: v.id("users"),
+    repoId: v.id("repos"),
+    ts: v.number(),
+    canonicalText: v.string(),
+    sourceUrl: v.string(),
+    metrics: v.optional(
+      v.object({
+        additions: v.optional(v.number()),
+        deletions: v.optional(v.number()),
+        filesChanged: v.optional(v.number()),
+      })
+    ),
+    contentHash: v.string(),
+    metadata: v.optional(v.any()),
+    contentScope: v.optional(v.literal("event")),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("events")
+      .withIndex("by_contentHash", (q) => q.eq("contentHash", args.contentHash))
+      .first();
+
+    if (existing) {
+      return existing._id;
+    }
+
+    return await ctx.db.insert("events", {
+      ...args,
+      contentScope: args.contentScope ?? "event",
+      createdAt: Date.now(),
+    });
   },
 });
 
