@@ -1,77 +1,142 @@
-# GitPulse TODO - Active Work Items
+# TODO
 
-> Focus: Implementation tasks only. Testing happens in tests/, documentation in DoD, deployment in runbooks.
+## Phase 1 – Ingestion Foundation
+- [x] Scaffold Convex schema updates for installations + webhook envelopes
+  ```
+  Files: convex/schema.ts, convex/installations.ts (new helpers)
+  Goal: add `installations`, `webhookEvents`, `coverageCandidates`, new indexes on `events.contentHash`/`reports.cacheKey` per DESIGN §Module boundaries.
+  Success: Convex schema compiles (`pnpm convex typecheck`), new tables accessible via generated API.
+  Tests: `pnpm typecheck`, ad-hoc Convex query smoke via dashboard.
+  Estimate: 1h
+  Completed: b359f76 - 9 new indexes added, TypeScript + Convex validation passed
+  ```
+- [ ] Implement `/api/webhooks/github` route with dual-secret verification
+  ```
+  Files: app/api/webhooks/github/route.ts, lib/github/verifySignature.ts (new)
+  Goal: accept GitHub App webhooks, verify signature using current+prior secret, store envelope via Convex mutation `webhookEvents.enqueue`.
+  Success: Sending sample webhook returns 200 <200ms; invalid signature 401.
+  Tests: Unit for `verifySignature`, integration via mocked Next.js request handler.
+  Dependencies: Convex schema from previous task.
+  Estimate: 1.5h
+  ```
+- [ ] Build GitHub Integration actions (enqueue + process)
+  ```
+  Files: convex/actions/github/enqueueWebhook.ts, convex/actions/github/processWebhook.ts, convex/actions/github/startBackfill.ts
+  Goal: enqueue envelopes in high-priority queue, process per DESIGN pseudocode (idempotency, push forced flag, DLQ).
+  Success: Convex action logs `fact.upserted` for sample payload, DLQ path reachable.
+  Tests: Convex simulation with mock payloads; unit tests for canonicalization dependencies.
+  Dependencies: schema + webhook route ready.
+  Estimate: 2h
+  ```
+- [ ] Extend ingestion job flow for GitHub App installations
+  ```
+  Files: convex/actions/github/startBackfill.ts, convex/lib/githubApp.ts, convex/ingestionJobs.ts
+  Goal: support BackfillRequest structure, rate-limit-aware loop with etag/cursor storage.
+  Success: Ingestion job records progress, pauses when rate limit low, resume works.
+  Tests: Unit tests for githubApp helper (token mint, etag headers), integration mock hitting GitHub fixture.
+  Dependencies: GitHub actions scaffolding.
+  Estimate: 2h
+  ```
 
-## Rate Limiting
+## Phase 2 – Canonical Facts & Embeddings
+- [ ] Implement `canonicalizeEvent` helper + contentHash utilities
+  ```
+  Files: convex/lib/canonicalizeEvent.ts, convex/lib/contentHash.ts, convex/events.ts (index additions)
+  Goal: convert webhook/backfill payloads into EventFact per DESIGN; compute deterministic hashes.
+  Success: Unit tests confirm consistent output for commits/PRs/reviews/issues; duplicates skipped.
+  Tests: `pnpm exec jest convex/lib/canonicalizeEvent.test.ts` (new file).
+  Dependencies: schema ready.
+  Estimate: 1.5h
+  ```
+- [ ] Wire Canonical Fact Service into actions
+  ```
+  Files: convex/actions/github/processWebhook.ts, convex/actions/github/startBackfill.ts
+  Goal: reuse canonicalizer for both paths, write facts, enqueue embeddings for new hashes.
+  Success: Running action on fixture writes EventFact with `contentHash` + triggers embedding queue entry.
+  Tests: Convex integration test using mock payloads.
+  Dependencies: canonicalizeEvent helper.
+  Estimate: 1h
+  ```
+- [ ] Build Embedding & Cache service
+  ```
+  Files: convex/actions/embeddings/ensureBatch.ts, convex/lib/embeddingQueue.ts, convex/embeddings.ts
+  Goal: batch Voyage/OpenAI calls for pending hashes, store vectors + cost metadata.
+  Success: ensureBatch processes queued hashes, handles 429 retry.
+  Tests: Unit tests mocking Voyage API, integration verifying batching + Convex writes.
+  Dependencies: canonical facts producing queue entries.
+  Estimate: 2h
+  ```
 
-### Adaptive Rate Limiter
-- [x] Create `src/lib/rateLimit/adaptiveRateLimiter.ts`
-- [x] Initialize with TokenBucket(10 capacity, 2/second refill)
-- [x] Implement `execute<T>(fn: () => Promise<T>): Promise<T>` wrapper
-- [x] Detect 403/429 responses as rate limit errors
-- [x] Extract `retry-after` header when present
-- [x] Implement exponential backoff starting at 1 minute
-- [x] Cap backoff multiplier at 8x (8 minutes max)
-- [x] Add jitter ±10% to prevent thundering herd
-- [x] Reset multiplier on successful request
-- [x] Add metrics collection for rate limit hits
+## Phase 3 – Report Orchestrator & Coverage
+- [ ] Add report cache fields + coverage tables
+  ```
+  Files: convex/schema.ts, convex/reports.ts, convex/lib/coverage.ts (new)
+  Goal: store `cacheKey`, `coverageScore`, coverage breakdown structure per DESIGN.
+  Success: existing report writes compile, new fields default safely.
+  Tests: Typecheck, unit tests for coverage math.
+  Dependencies: ingestion schema updates.
+  Estimate: 1h
+  ```
+- [ ] Refactor report generation actions into orchestrator
+  ```
+  Files: convex/actions/reports/generateDaily.ts, generateWeekly.ts, generateAdhoc.ts, convex/lib/reportOrchestrator.ts (new)
+  Goal: implement Stage C/D flow, cache lookup, coverage calculation, fallback handling.
+  Success: Generating report for seeded data yields coverage >=70% and cache hits bypass LLM.
+  Tests: Unit for cache key builder, integration with mocked LLM client.
+  Dependencies: canonical facts, embeddings, schema.
+  Estimate: 2.5h
+  ```
+- [ ] Expose coverage + report queries to UI
+  ```
+  Files: convex/queries/reports.ts (new methods), app/dashboard/reports/page.tsx, components/CoverageMeter.tsx, components/CitationDrawer.tsx, hooks/useReportGeneration.ts
+  Goal: show coverage meter, citations drawer, manual generation flow listening to job status.
+  Success: UI displays coverage %, warnings <70%, citations list clickable.
+  Tests: React component unit tests, Playwright smoke for report page.
+  Dependencies: report orchestrator writes coverage data.
+  Estimate: 2h
+  ```
 
-### GraphQL Client Integration
-- [x] Wrap GraphQL client execute method with rate limiter
-- [x] Configure initial tokens based on GitHub App vs OAuth
-- [x] Adjust refill rate based on remaining quota from responses
-- [x] Add circuit breaker that pauses all requests for 60s after 5 consecutive rate limits
-- [x] Log rate limiter state changes
+## Phase 4 – Scheduler, Automation, Observability
+- [ ] Update scheduler actions + cron wiring
+  ```
+  Files: convex/actions/runDailyReports.ts, runWeeklyReports.ts, convex/crons.ts, convex/lib/queues.ts
+  Goal: use new orchestrator, track job history, add reconciliation/secret rotation cron placeholders.
+  Success: Cron dry-run triggers orchestrator and records metrics/logs.
+  Tests: Convex test harness verifying hourly scheduling, job status updates.
+  Dependencies: orchestrator finished.
+  Estimate: 1.5h
+  ```
+- [ ] Implement metrics & logging helpers
+  ```
+  Files: lib/metrics.ts, convex/lib/metrics.ts
+  Goal: structured logging for events_ingested, report_latency_ms, llm_cost_usd.
+  Success: actions emit metrics, viewable via Convex logs / console.
+  Tests: Unit tests ensuring formatter outputs JSON, integration verifying logs.
+  Dependencies: ingestion/report modules instrumentation points.
+  Estimate: 1h
+  ```
 
-## Caching Layer
+## Phase 5 – Validation & QA
+- [ ] Add automated test suites per module
+  ```
+  Files: tests/ (new) or existing structure per repo convention
+  Goal: ensure canonicalization, coverage, embedding batching, report cache, webhook verifier all have unit/integration coverage per DESIGN.
+  Success: `pnpm exec jest --runInBand` passes with new suites; coverage target documented.
+  Dependencies: feature code implemented.
+  Estimate: 2h
+  ```
+- [ ] Run end-to-end smoke & document release checklist
+  ```
+  Files: scripts/e2e.sh (optional), README.md (update with webhook/GitHub App setup), TODO reference cleanup
+  Goal: ingest sample repos, generate reports, verify coverage meter, citations, cache hits; document steps for QA + deployment.
+  Success: QA log attached, README instructions updated, all commands passing.
+  Tests: manual + automated e2e run, capture artifacts.
+  Dependencies: all prior tasks.
+  Estimate: 1.5h
+  ```
 
-### Core Cache Implementation
-- [x] Create `src/lib/cache/githubCache.ts`
-- [x] Use `Map<string, CacheEntry>` for in-memory storage
-- [x] Define `CacheEntry` type with data, etag, timestamp, ttl fields
-- [x] Implement `get(key, fetcher, options)` method
-- [x] Add stale check based on timestamp + ttl
-- [x] Implement `set(key, data, options)` method
-- [x] Add `clear()` and `delete(key)` methods
-- [x] Add max size limit (1000 entries) with LRU eviction
-
-### Cache Key Generation
-- [x] Create `generateCommitCacheKey(repos: string[], since: string, until: string, author?: string): string`
-- [x] Sort repositories array for consistent keys
-- [x] Normalize date formats to ISO strings
-- [x] Include author or "all" in key
-- [x] Use SHA-256 hash for key (keep under 250 chars)
-
-### ETag Support
-- [x] Store ETag from GraphQL response headers
-- [x] Add `If-None-Match` header to requests with cached ETag
-- [x] Handle 304 Not Modified responses
-- [x] Update cache timestamp without refetching data
-- [x] Track ETag cache hits in metrics
-
-## Monitoring & Instrumentation
-
-### Performance Metrics
-- [x] Create `src/lib/metrics/index.ts`
-- [x] Add counter for GraphQL queries: `graphql_queries_total`
-- [x] Add counter for REST fallbacks: `rest_fallback_total`
-- [x] Add histogram for query duration: `query_duration_seconds`
-- [x] Add gauge for rate limit remaining: `github_rate_limit_remaining`
-- [x] Add counter for cache hits/misses: `cache_hits_total`, `cache_misses_total`
-- [x] Export metrics in Prometheus format if configured
-- [x] Add performance marks for critical paths
-
-### Structured Logging
-- [x] Add structured logging for all GraphQL queries
-- [x] Log query cost from rateLimit response field
-- [x] Log number of repositories per batch
-- [x] Log pagination cursor advancement
-- [x] Add correlation IDs to trace request flow
-- [x] Log cache key and hit/miss status
-- [x] Create debug mode that logs full queries (dev only)
-- [x] Add log sampling for high-volume paths
-
-### Error Tracking
-- [x] Instrument all try-catch blocks with error context
-- [x] Add breadcrumbs for debugging: last 10 operations before error
-- [x] Track error rates by error type
+## Questions / Follow-ups
+- ? Pilot tenant scale still unknown; placeholder tasks assume medium load. Need confirmation before final queue sizing (Owner: Product, due Nov 12).
+- ? Non-GitHub sources scope (Jira/Slack) deferred; confirm to avoid over-building ingestion adapters (Owner: Product, Nov 12).
+- ? Delivery channels (Slack/Email) not in MVP; revisit once comms decision made (Owner: Design, Nov 10).
+```
