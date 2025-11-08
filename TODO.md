@@ -10,7 +10,7 @@
   Estimate: 1h
   Completed: b359f76 - 9 new indexes added, TypeScript + Convex validation passed
   ```
-- [ ] Implement `/api/webhooks/github` route with dual-secret verification
+- [x] Implement `/api/webhooks/github` route with dual-secret verification
   ```
   Files: app/api/webhooks/github/route.ts, lib/github/verifySignature.ts (new)
   Goal: accept GitHub App webhooks, verify signature using current+prior secret, store envelope via Convex mutation `webhookEvents.enqueue`.
@@ -18,6 +18,7 @@
   Tests: Unit for `verifySignature`, integration via mocked Next.js request handler.
   Dependencies: Convex schema from previous task.
   Estimate: 1.5h
+  Completed: 9e87c51 - HMAC-SHA256 verification with timing-safe comparison, idempotent enqueue, middleware configured
   ```
 - [ ] Build GitHub Integration actions (enqueue + process)
   ```
