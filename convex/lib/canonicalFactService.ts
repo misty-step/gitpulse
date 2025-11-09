@@ -3,6 +3,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { CanonicalEvent } from "./canonicalizeEvent";
 import { computeContentHash } from "./contentHash";
+import { emitMetric } from "./metrics";
 
 interface GitHubRepositoryPayload {
   id?: number;
@@ -90,6 +91,14 @@ export async function persistCanonicalEvent(
   });
 
   await enqueueEmbedding(ctx, eventId, contentHash);
+
+  emitMetric("events_ingested", {
+    eventId,
+    type: canonical.type,
+    repoId,
+    actorId,
+    installationId: options.installationId,
+  });
 
   return { status: "inserted", eventId };
 }

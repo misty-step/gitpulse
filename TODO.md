@@ -149,7 +149,7 @@
   ```
 
 ## Phase 4 – Scheduler, Automation, Observability
-- [ ] Update scheduler actions + cron wiring
+- [x] Update scheduler actions + cron wiring
   ```
   Files: convex/actions/runDailyReports.ts, runWeeklyReports.ts, convex/crons.ts, convex/lib/queues.ts
   Goal: use new orchestrator, track job history, add reconciliation/secret rotation cron placeholders.
@@ -158,7 +158,7 @@
   Dependencies: orchestrator finished.
   Estimate: 1.5h
   ```
-- [ ] Implement metrics & logging helpers
+- [x] Implement metrics & logging helpers
   ```
   Files: lib/metrics.ts, convex/lib/metrics.ts
   Goal: structured logging for events_ingested, report_latency_ms, llm_cost_usd.

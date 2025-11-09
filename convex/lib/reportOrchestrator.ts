@@ -11,6 +11,7 @@ import {
 } from "./reportGenerator";
 import { getPromptVersion } from "./prompts";
 import { computeCoverageSummary } from "./coverage";
+import { emitMetric } from "./metrics";
 
 interface GenerateReportParams {
   userId: string; // Clerk user ID used in reports table
@@ -60,11 +61,13 @@ export async function generateReportForUser(
       ? generateDailyReportFromContext
       : generateWeeklyReportFromContext;
 
+  const llmStart = Date.now();
   const generated = await generator(
     user.githubUsername,
     context,
     allowedUrls
   );
+  const latencyMs = Date.now() - llmStart;
 
   const citationSet = new Set(
     generated.citations.map(normalizeUrl).filter((value): value is string =>
@@ -110,6 +113,21 @@ export async function generateReportForUser(
     cacheKey,
     coverageScore: coverage.coverageScore,
     coverageBreakdown: coverage.breakdown,
+  });
+
+  emitMetric("report_latency_ms", {
+    userId: params.userId,
+    kind,
+    latencyMs,
+    eventsConsidered: events.length,
+  });
+
+  emitMetric("llm_cost_usd", {
+    userId: params.userId,
+    kind,
+    provider: generated.provider,
+    model: generated.model,
+    costUsd: estimateCost(generated.provider, generated.model, events.length),
   });
 }
 
@@ -173,4 +191,10 @@ function resolveScopeKey(
     return `repo:${repo.fullName}`;
   }
   return `repoId:${event.repoId}`;
+}
+
+function estimateCost(provider: string, model: string, eventCount: number): number {
+  // Rough placeholder: cost scales with event count to keep visibility in logs
+  const base = provider === "google" ? 0.0005 : 0.0008;
+  return Number((base * Math.max(eventCount, 1)).toFixed(6));
 }

@@ -401,5 +401,5 @@ export default defineSchema({
     completedAt: v.number(),
     createdAt: v.number(),
   })
-    .index("by_type_and_createdAt", ["type", "createdAt"]);
+    .index("by_type_and_createdAt", ["type", "createdAt"]),
 });
