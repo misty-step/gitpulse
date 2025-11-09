@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 export const upsert = mutation({
@@ -87,5 +87,40 @@ export const updateRateLimitBudget = mutation({
         updatedAt: Date.now(),
       });
     }
+  },
+});
+
+export const updateSyncState = internalMutation({
+  args: {
+    installationId: v.number(),
+    lastCursor: v.optional(v.string()),
+    etag: v.optional(v.string()),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
+    lastSyncedAt: v.optional(v.number()),
+    status: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const installation = await ctx.db
+      .query("installations")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId)
+      )
+      .unique();
+
+    if (!installation) {
+      return;
+    }
+
+    const update: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    };
+
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "installationId" || value === undefined) continue;
+      update[key] = value;
+    }
+
+    await ctx.db.patch(installation._id, update);
   },
 });

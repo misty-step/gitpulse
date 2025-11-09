@@ -169,13 +169,23 @@
   ```
 
 ## Phase 5 – Validation & QA
-- [ ] Add automated test suites per module
+- [x] Add automated test suites per module
   ```
-  Files: tests/ (new) or existing structure per repo convention
-  Goal: ensure canonicalization, coverage, embedding batching, report cache, webhook verifier all have unit/integration coverage per DESIGN.
-  Success: `pnpm exec jest --runInBand` passes with new suites; coverage target documented.
-  Dependencies: feature code implemented.
-  Estimate: 2h
+  Files: jest.config.cjs:1, convex/__tests__/helpers/mockActionCtx.ts (new), convex/lib/canonicalFactService.ts:42-195, convex/actions/embeddings/ensureBatch.ts:8-63, convex/embeddingQueue.ts:7-107, convex/lib/reportOrchestrator.ts:24-200, convex/lib/coverage.ts:17-48, lib/github/verifySignature.ts:18-66, convex/lib/contentHash.test.ts:1 (pattern reference)
+  Pattern: Mirror jest-style unit tests already in convex/lib/contentHash.test.ts:1-35 (ESM ts-jest, pure functions) and reuse deterministic module boundaries from DESIGN §“Module: Canonical Fact Service”.
+
+  Approach:
+  1. Test harness setup — Expand jest.config.cjs roots to cover `<rootDir>/lib`, `<rootDir>/convex`, and new `<rootDir>/tests`; add `setupFilesAfterEnv` pointing to `tests/jest.setup.ts` (new) that polyfills `fetch`, `Headers`, and `console` spies for Convex modules. Add `tests/__mocks__/convexCtx.ts` exporting `createMockActionCtx` / `createMockInternalActionCtx` with typed stubs for `runQuery`, `runMutation`, `runAction`, `scheduler.runAfter`, and `db` access so action/lib tests can inject expectations without touching real Convex runtime.
+  2. Canonical fact + embedding queue coverage — Under `convex/lib/__tests__/canonicalFactService.test.ts`, simulate: (a) happy path inserts event, enqueues embedding (asserts `internal.embeddingQueue.enqueue` called once and `emitMetric` mocked) and returns `{status:"inserted"}`; (b) duplicate content hash short-circuits (mock `internal.events.getByContentHash`) and never calls embed queue; (c) missing repo metadata returns `skipped`. Add `convex/actions/embeddings/__tests__/ensureBatch.test.ts` covering: empty queue returns `{processed:0}`; successful batch marks processing, calls `api.actions.generateEmbeddings.generateBatch`, then completes jobs; failure bubbles error and marks jobs via `internal.embeddingQueue.fail`. Use helper to fake Convex ctx + job docs from `convex/embeddingQueue.ts`.
+  3. Report cache + coverage + webhook verification — Add `convex/lib/__tests__/reportOrchestrator.test.ts` to unit-test `buildCacheKey`, `isEventCited`, `normalizeUrl`, and integration stub ensuring `generateReportForUser` persists with computed cache key + coverage (mock `ctx.runQuery` responses and `ctx.runMutation` capture payload). Create `convex/lib/__tests__/coverage.test.ts` asserting breakdown ordering + zero-candidate edge cases. Add `lib/github/__tests__/verifySignature.test.ts` verifying dual-secret success, rejection of bad prefixes, and timingSafeEqual mismatch handling. Where GitHub App helpers need coverage (e.g., `parseRateLimit`, `shouldPause`, `mintInstallationToken` caching), add `convex/lib/__tests__/githubApp.test.ts` mocking `global.fetch` to assert headers/body + cache invalidation.
+
+  Success criteria:
+  - `pnpm exec jest --runInBand` completes with new suites; each module described above has at least one focused describe block with ≥2 assertions that cover success + failure paths.
+  - Tests mock external services (Convex ctx, fetch, crypto) without hitting network; verifying no unhandled promise rejections in CI.
+  - Code coverage for `convex/lib/canonicalFactService.ts`, `convex/actions/embeddings/ensureBatch.ts`, `lib/github/verifySignature.ts`, and `convex/lib/reportOrchestrator.ts` shows the newly exercised branches (`duplicate`, `missing repo`, `304 not modified`, etc.) in Jest output.
+
+  Edge cases: duplicate content hashes, missing repo metadata, embedding job failures, cache key stability when events missing `contentHash`, webhook signature missing prefix, GitHub 304 responses (etag passthrough).
+  Dependencies: resolve outstanding TS errors in convex/actions/github/scheduler.ts + install `clsx` types so `pnpm typecheck` stays green before running Jest; fetch/polyfill helpers rely on Node 22 global Web APIs (already available).
   ```
 - [ ] Run end-to-end smoke & document release checklist
   ```

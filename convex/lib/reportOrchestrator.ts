@@ -131,7 +131,7 @@ export async function generateReportForUser(
   });
 }
 
-function buildCacheKey(
+export function buildCacheKey(
   kind: string,
   userId: string,
   startDate: number,
@@ -148,7 +148,7 @@ function buildCacheKey(
     .digest("hex");
 }
 
-function isEventCited(
+export function isEventCited(
   event: Doc<"events">,
   citationSet: Set<string>
 ): boolean {
@@ -164,14 +164,14 @@ function isEventCited(
   return citationSet.has(eventUrl);
 }
 
-function normalizeUrl(url?: string | null): string | undefined {
+export function normalizeUrl(url?: string | null): string | undefined {
   if (!url) {
     return undefined;
   }
   return url.replace(/\/$/, "").trim();
 }
 
-function extractEventUrl(event: Doc<"events">): string | undefined {
+export function extractEventUrl(event: Doc<"events">): string | undefined {
   const metadata = (event.metadata ?? {}) as Record<string, any>;
   return (
     metadata?.url ??
@@ -183,7 +183,7 @@ function extractEventUrl(event: Doc<"events">): string | undefined {
   );
 }
 
-function resolveScopeKey(
+export function resolveScopeKey(
   event: Doc<"events">,
   repo: Doc<"repos"> | null
 ): string {
@@ -193,7 +193,7 @@ function resolveScopeKey(
   return `repoId:${event.repoId}`;
 }
 
-function estimateCost(provider: string, model: string, eventCount: number): number {
+export function estimateCost(provider: string, model: string, eventCount: number): number {
   // Rough placeholder: cost scales with event count to keep visibility in logs
   const base = provider === "google" ? 0.0005 : 0.0008;
   return Number((base * Math.max(eventCount, 1)).toFixed(6));

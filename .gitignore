@@ -70,3 +70,6 @@ thinktank_*/
 tsconfig.*.tsbuildinfo
 
 /docs/leyline
+
+# clerk configuration (can include secrets)
+/.clerk/

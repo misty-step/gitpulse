@@ -1,30 +1,19 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Domain modules live in `src/core`; service effects and workflows sit in `src/services`, while the Next.js shell is split between `src/app` (routes) and `src/components` (presentation).
-- Shared hooks and utilities belong in `src/hooks` and `src/lib`. Define new types in `src/core/types` before exposing them elsewhere.
-- Static assets stay in `public/`. Storybook docs live in `docs/`. The `e2e/` folder holds the Playwright-ready scaffolding for future end-to-end helpers and config.
+Next's App Router lives in `app/` (e.g., `app/dashboard`, `app/sign-in`). Presentation components belong to `components/` with shared ShadCN bits in `components/ui/`; hooks stay in `hooks/` and pure utilities in `lib/`. Convex backend logic sits in `convex/` (`schema.ts`, `queries/`, `mutations/`, `actions/`, `lib/`), and static assets live under `public/`. Keep data fetching inside Convex, UI inside `components`, and pass only the props that expose intent.
 
 ## Build, Test, and Development Commands
-- `pnpm install` is enforced by the `preinstall` hook; start the app with `pnpm dev` or `pnpm dev:log` for verbose logging (rotate logs via `pnpm logs:rotate`).
-- `pnpm build` and `pnpm start` prepare and serve the production bundle.
-- `pnpm lint`, `pnpm typecheck`, and `pnpm exec jest` form the quality baseline. Use `pnpm storybook` / `pnpm build-storybook` for component work and visual QA.
+Install deps with `pnpm install`. `pnpm dev` starts Next.js + Convex; add `:log` for verbose tracing and prune with `pnpm logs:rotate`. Ship-ready bundles come from `pnpm build` plus `pnpm start`. Quality gates: `pnpm lint`, `pnpm typecheck`, `pnpm exec jest`, and `pnpm storybook` / `pnpm build-storybook`. Run `scripts/doctor.sh` (once committed) before sweeping refactors to ensure a clean tree.
 
 ## Coding Style & Naming Conventions
-- Write strict TypeScript with functional leanings: keep pure calculations in `core` and wrap effects in `services` or hooks.
-- Use two-space indentation and the repo’s Prettier/ESLint defaults to manage formatting and import order.
-- Components adopt `PascalCase`, hooks and utilities use `camelCase`, and directories stay kebab- or lower-case (`logged-summary`, `dashboard`). Tailwind utility classes remain the primary styling method.
+We write strict TypeScript with two-space indentation and the repo’s Prettier + ESLint rules. Components use PascalCase files, hooks/utilities prefer camelCase, and directories stay lowercase or kebab-case. Keep pure calculations in `lib/` or Convex helpers, expose only the intention through hooks/services, and lean on Tailwind utility classes for layout. Avoid leaking Convex or Clerk details across layers.
 
 ## Testing Guidelines
-- Jest picks up `*.test.ts` files co-located with source; cover fresh logic in `core` before layering service or UI tests.
-- Rely on `src/lib/github/__mocks__` to isolate Octokit behavior. Extend mocks instead of calling live APIs.
-- Run `pnpm exec jest --coverage` before merging and snapshot expected results in Storybook while the Playwright suite is scaffolded.
+Author `*.test.ts`/`*.test.tsx` files next to the code they verify so interfaces stay tiny. Run `pnpm exec jest --coverage` before every push, and extend local Jest mocks (create a sibling `__mocks__/` directory when touching networked modules) instead of exercising live GitHub or Convex APIs. Snapshot UI states in Storybook when behavior is visual and capture invariants directly in test names.
 
 ## Commit & Pull Request Guidelines
-- Follow Conventional Commits (`feat:`, `fix:`, `chore:`); scope subjects when touching focused areas (`feat(core): aggregate trends`).
-- PRs must state intent, list the checks you ran (`lint`, `typecheck`, `jest`), link issues, and attach screenshots or Storybook URLs for UI updates.
-- Capture environment adjustments in `.env.local.example` or `docs/`, and request reviewers closest to the touched layer.
+Use Conventional Commits with scoped subjects (`feat(app): add report panel`, `fix(convex): guard empty payload`). PRs must state intent, list the checks you ran (`lint`, `typecheck`, `jest`, coverage, Storybook`), link the relevant issue, and attach screenshots or recordings for UI changes. Flag temporary shortcuts or debt so it can be tracked, and request reviewers closest to the layer you touched.
 
-## Environment & Security Notes
-- Populate `.env.local` from the template with GitHub OAuth, NextAuth, and Gemini keys; never commit secrets.
-- Rotate `NEXTAUTH_SECRET` in shared deployments and prune sensitive traces with `pnpm logs:clean`. Prefer least-privilege GitHub App scopes and document new permissions.
+## Security & Configuration Tips
+Copy `.env.local.example` before `pnpm dev`; populate Convex, Clerk, GitHub, and AI provider keys but keep them out of git. Rotate shared secrets (`NEXTAUTH_SECRET`, Clerk keys, Convex tokens) and scrub traces with `pnpm logs:clean`. Prefer least-privilege GitHub App scopes, document new permissions in repo docs, and keep secrets out of Storybook stories or test fixtures.

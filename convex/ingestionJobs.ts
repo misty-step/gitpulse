@@ -111,10 +111,15 @@ export const create = internalMutation({
   args: {
     userId: v.string(),
     repoFullName: v.string(),
+    installationId: v.optional(v.number()),
     since: v.optional(v.number()),
     until: v.optional(v.number()),
     status: v.string(),
     progress: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+    reposRemaining: v.optional(v.array(v.string())),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const jobId = await ctx.db.insert("ingestionJobs", {
@@ -136,6 +141,10 @@ export const updateProgress = internalMutation({
     progress: v.number(),
     eventsIngested: v.optional(v.number()),
     embeddingsCreated: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+    reposRemaining: v.optional(v.array(v.string())),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { jobId, ...updates } = args;
@@ -152,6 +161,8 @@ export const complete = internalMutation({
     jobId: v.id("ingestionJobs"),
     eventsIngested: v.optional(v.number()),
     embeddingsCreated: v.optional(v.number()),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { jobId, ...stats } = args;
@@ -161,6 +172,7 @@ export const complete = internalMutation({
       progress: 100,
       completedAt: Date.now(),
       ...stats,
+      blockedUntil: undefined,
     });
   },
 });
@@ -172,12 +184,38 @@ export const fail = internalMutation({
   args: {
     jobId: v.id("ingestionJobs"),
     errorMessage: v.string(),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.jobId, {
       status: "failed",
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
+      rateLimitRemaining: args.rateLimitRemaining,
+      rateLimitReset: args.rateLimitReset,
+      blockedUntil: undefined,
+    });
+  },
+});
+
+/**
+ * Mark a job as blocked due to rate limits
+ */
+export const markBlocked = internalMutation({
+  args: {
+    jobId: v.id("ingestionJobs"),
+    blockedUntil: v.number(),
+    cursor: v.optional(v.string()),
+    rateLimitRemaining: v.optional(v.number()),
+    rateLimitReset: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { jobId, ...rest } = args;
+
+    await ctx.db.patch(jobId, {
+      status: "blocked",
+      ...rest,
     });
   },
 });

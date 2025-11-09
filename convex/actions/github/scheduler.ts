@@ -14,11 +14,11 @@ import { internal } from "../../_generated/api";
  */
 export const processPendingWebhooks = internalAction({
   args: {},
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<{ processed: number }> => {
     const batchSize = 10;
 
     // Fetch pending webhooks
-    const pending = await ctx.runQuery(internal.webhookEvents.listPending, {
+    const pending: Array<{ _id: string }> = await ctx.runQuery(internal.webhookEvents.listPending, {
       limit: batchSize,
     });
 
