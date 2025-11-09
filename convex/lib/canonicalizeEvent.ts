@@ -1,4 +1,4 @@
-import type { RepoTimelineNode } from "./githubApp";
+import type { RepoTimelineNode } from "./githubTypes";
 
 export type EventType =
   | "pr_opened"

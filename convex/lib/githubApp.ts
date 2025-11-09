@@ -1,11 +1,21 @@
-import jwt from "jsonwebtoken";
+"use node";
+
+import { signJwt } from "../actions/_nodeUtils";
+
+// Re-export types from githubTypes.ts to maintain backwards compatibility
+export type {
+  InstallationToken,
+  RepoTimelineNode,
+  RateLimitInfo,
+  RepoTimelineResult,
+  FetchRepoTimelineArgs,
+} from "./githubTypes";
+export { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET } from "./githubTypes";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const INSTALLATIONS_ENDPOINT = `${GITHUB_API_BASE}/app/installations`;
 const APP_JWT_TTL_MS = 8 * 60 * 1000; // 8 minutes to stay under GitHub's 10 min limit
 const APP_JWT_SKEW_SECONDS = 30;
-export const TOKEN_REFRESH_BUFFER_MS = 60 * 1000; // refresh installation token 60s before expiry
-export const MIN_BACKFILL_BUDGET = 200; // pause when fewer than 200 calls remain
 const SEARCH_PER_PAGE = 50;
 const SEARCH_MAX_RESULTS = 1000;
 
@@ -20,51 +30,6 @@ const appJwtCache: TokenCache = {
 };
 
 const installationTokenCache = new Map<number, TokenCache>();
-
-export interface InstallationToken {
-  token: string;
-  expiresAt: number;
-}
-
-export interface RepoTimelineNode {
-  __typename: "PullRequest" | "Issue";
-  id: string;
-  number?: number;
-  title?: string;
-  body?: string | null;
-  state?: string;
-  url?: string;
-  updatedAt?: string;
-  actor?: {
-    id?: number;
-    login?: string;
-    nodeId?: string;
-  } | null;
-}
-
-export interface RateLimitInfo {
-  remaining?: number;
-  reset?: number;
-}
-
-export interface RepoTimelineResult {
-  nodes: RepoTimelineNode[];
-  endCursor?: string;
-  hasNextPage: boolean;
-  etag?: string | null;
-  totalCount: number;
-  rateLimit: RateLimitInfo;
-  notModified?: boolean;
-}
-
-export interface FetchRepoTimelineArgs {
-  token: string;
-  repoFullName: string;
-  sinceISO: string;
-  untilISO?: string;
-  cursor?: string;
-  etag?: string;
-}
 
 /**
  * Replace literal \n sequences with actual newlines so Convex env vars work.
@@ -103,7 +68,7 @@ function buildAppJwt(): string {
   const iat = Math.floor(now / 1000) - APP_JWT_SKEW_SECONDS;
   const exp = Math.floor((now + APP_JWT_TTL_MS) / 1000);
 
-  const token = jwt.sign(
+  const token = signJwt(
     {
       iat,
       exp,
