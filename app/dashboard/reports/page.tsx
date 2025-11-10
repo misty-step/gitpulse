@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { CoverageMeter } from "@/components/CoverageMeter";
@@ -43,11 +43,15 @@ export default function ReportsPage() {
   // 2. Otherwise, use GitHub login query (fallback for test data)
   // 3. If any relevant query is loading, show skeleton
   // 4. If all queries loaded but empty, show empty state
-  const reports = isLoading
-    ? undefined
-    : reportsByClerkId && reportsByClerkId.length > 0
-    ? reportsByClerkId
-    : reportsByGhLogin || [];
+  const reports = useMemo(
+    () =>
+      isLoading
+        ? undefined
+        : reportsByClerkId && reportsByClerkId.length > 0
+        ? reportsByClerkId
+        : reportsByGhLogin || [],
+    [isLoading, reportsByClerkId, reportsByGhLogin]
+  );
 
   // Infinite scroll with intersection observer
   useEffect(() => {

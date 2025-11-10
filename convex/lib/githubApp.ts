@@ -1,16 +1,24 @@
 "use node";
 
 import { signJwt } from "../actions/_nodeUtils";
-
-// Re-export types from githubTypes.ts to maintain backwards compatibility
-export type {
+import type {
   InstallationToken,
   RepoTimelineNode,
   RateLimitInfo,
   RepoTimelineResult,
   FetchRepoTimelineArgs,
 } from "./githubTypes";
-export { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET } from "./githubTypes";
+import { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET } from "./githubTypes";
+
+// Re-export types for backwards compatibility
+export type {
+  InstallationToken,
+  RepoTimelineNode,
+  RateLimitInfo,
+  RepoTimelineResult,
+  FetchRepoTimelineArgs,
+};
+export { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET };
 
 const GITHUB_API_BASE = "https://api.github.com";
 const INSTALLATIONS_ENDPOINT = `${GITHUB_API_BASE}/app/installations`;

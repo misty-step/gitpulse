@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, ActionCtx } from "../../_generated/server";
+import { internalAction, ActionCtx } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import {
@@ -23,7 +23,7 @@ interface BackfillResult {
   blockedUntil?: number;
 }
 
-export const startBackfill = action({
+export const startBackfill = internalAction({
   args: {
     installationId: v.number(),
     repositories: v.array(v.string()),

@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import type { Doc, Id } from "../../../_generated/dataModel";
 import { ensureBatchHandler } from "../ensureBatch";
 import { createMockActionCtx } from "../../../../tests/__mocks__/convexCtx";
+import { createAsyncMock } from "../../../../tests/utils/jestMocks";
 import { api, internal } from "../../../_generated/api";
 
 jest.mock("../../../_generated/server", () => ({
@@ -26,9 +27,10 @@ jest.mock("../../../_generated/api", () => ({
 
 describe("ensureBatchHandler", () => {
   it("returns zero when no jobs are pending", async () => {
-    const ctx = createMockActionCtx({
-      runQuery: jest.fn().mockResolvedValueOnce([]),
-    });
+    const runQuery = createAsyncMock<Array<Doc<"embeddingQueue">>>();
+    runQuery.mockResolvedValueOnce([]);
+
+    const ctx = createMockActionCtx({ runQuery });
 
     const result = await ensureBatchHandler(ctx, {});
 
@@ -59,9 +61,12 @@ describe("ensureBatchHandler", () => {
       },
     ];
 
-    const runQuery = jest.fn().mockResolvedValueOnce(jobs);
-    const runMutation = jest.fn().mockResolvedValue(undefined);
-    const runAction = jest.fn().mockResolvedValue(undefined);
+    const runQuery = createAsyncMock<Array<Doc<"embeddingQueue">>>();
+    runQuery.mockResolvedValueOnce(jobs);
+    const runMutation = createAsyncMock<void>();
+    runMutation.mockResolvedValue(undefined);
+    const runAction = createAsyncMock<void>();
+    runAction.mockResolvedValue(undefined);
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
@@ -95,9 +100,12 @@ describe("ensureBatchHandler", () => {
       },
     ];
 
-    const runQuery = jest.fn().mockResolvedValueOnce(jobs);
-    const runMutation = jest.fn().mockResolvedValue(undefined);
-    const runAction = jest.fn().mockRejectedValue(new Error("boom"));
+    const runQuery = createAsyncMock<Array<Doc<"embeddingQueue">>>();
+    runQuery.mockResolvedValueOnce(jobs);
+    const runMutation = createAsyncMock<void>();
+    runMutation.mockResolvedValue(undefined);
+    const runAction = createAsyncMock<void>();
+    runAction.mockRejectedValue(new Error("boom"));
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 

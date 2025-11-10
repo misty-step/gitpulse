@@ -18,7 +18,7 @@ export const processPendingWebhooks = internalAction({
     const batchSize = 10;
 
     // Fetch pending webhooks
-    const pending: Array<{ _id: string }> = await ctx.runQuery(internal.webhookEvents.listPending, {
+    const pending = await ctx.runQuery(internal.webhookEvents.listPending, {
       limit: batchSize,
     });
 

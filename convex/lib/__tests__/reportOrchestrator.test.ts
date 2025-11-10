@@ -7,6 +7,7 @@ import {
   normalizeUrl,
 } from "../reportOrchestrator";
 import { createMockActionCtx } from "../../../tests/__mocks__/convexCtx";
+import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import { api, internal } from "../../_generated/api";
 
 jest.mock("../../_generated/api", () => ({
@@ -46,8 +47,15 @@ jest.mock("../metrics", () => ({
   emitMetric: jest.fn(),
 }));
 
-const { buildReportContext } = jest.requireMock("../reportContext");
-const { generateDailyReportFromContext } = jest.requireMock("../reportGenerator");
+const reportContextModule = jest.requireMock(
+  "../reportContext"
+) as jest.Mocked<typeof import("../reportContext")>;
+const reportGeneratorModule = jest.requireMock(
+  "../reportGenerator"
+) as jest.Mocked<typeof import("../reportGenerator")>;
+
+const { buildReportContext } = reportContextModule;
+const { generateDailyReportFromContext } = reportGeneratorModule;
 
 describe("reportOrchestrator helpers", () => {
   it("buildCacheKey stays stable regardless of event ordering", () => {
@@ -143,8 +151,8 @@ describe("generateReportForUser", () => {
       },
     ];
 
-    const runQuery = jest
-      .fn()
+    const runQuery = createAsyncMock<Doc<"events">[] | Doc<"repos">>();
+    runQuery
       .mockResolvedValueOnce(events)
       .mockResolvedValueOnce({
         _id: repoId,
@@ -152,9 +160,8 @@ describe("generateReportForUser", () => {
         fullName: "acme/gitpulse",
       } as unknown as Doc<"repos">);
 
-    const runMutation = jest
-      .fn()
-      .mockResolvedValueOnce("report1" as Id<"reports">);
+    const runMutation = createAsyncMock<Id<"reports">>();
+    runMutation.mockResolvedValueOnce("report1" as Id<"reports">);
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 

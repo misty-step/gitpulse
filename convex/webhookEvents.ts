@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 /**
@@ -44,7 +44,7 @@ export const enqueue = mutation({
 /**
  * Get webhook event by ID (internal use)
  */
-export const getById = query({
+export const getById = internalQuery({
   args: { id: v.id("webhookEvents") },
   handler: async (ctx, args) => {
     return ctx.db.get(args.id);
@@ -67,7 +67,7 @@ export const getByDeliveryId = query({
 /**
  * List pending webhook events for processing
  */
-export const listPending = query({
+export const listPending = internalQuery({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     return ctx.db
@@ -81,7 +81,7 @@ export const listPending = query({
 /**
  * Update webhook event status
  */
-export const updateStatus = mutation({
+export const updateStatus = internalMutation({
   args: {
     id: v.id("webhookEvents"),
     status: v.string(),

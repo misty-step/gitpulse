@@ -2,22 +2,22 @@ import { jest } from "@jest/globals";
 import type { ActionCtx } from "../../convex/_generated/server";
 
 export interface MockActionCtx {
-  runQuery: jest.Mock;
-  runMutation: jest.Mock;
-  runAction: jest.Mock;
-  scheduler: { runAfter: jest.Mock };
-  auth: { getUserIdentity: jest.Mock };
+  runQuery: jest.Mock<any>;
+  runMutation: jest.Mock<any>;
+  runAction: jest.Mock<any>;
+  scheduler: { runAfter: jest.Mock<any> };
+  auth: { getUserIdentity: jest.Mock<any> };
 }
 
 export function createMockActionCtx(
   overrides: Partial<MockActionCtx> = {}
 ): ActionCtx {
   const base: MockActionCtx = {
-    runQuery: jest.fn(),
-    runMutation: jest.fn(),
-    runAction: jest.fn(),
-    scheduler: { runAfter: jest.fn() },
-    auth: { getUserIdentity: jest.fn() },
+    runQuery: jest.fn() as any,
+    runMutation: jest.fn() as any,
+    runAction: jest.fn() as any,
+    scheduler: { runAfter: jest.fn() as any },
+    auth: { getUserIdentity: jest.fn() as any },
   };
 
   const merged: MockActionCtx = {

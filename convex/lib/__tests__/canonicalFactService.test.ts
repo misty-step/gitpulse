@@ -1,8 +1,9 @@
 import { describe, expect, it, jest } from "@jest/globals";
-import type { Id } from "../../_generated/dataModel";
+import type { Doc, Id } from "../../_generated/dataModel";
 import type { CanonicalEvent } from "../canonicalizeEvent";
 import { persistCanonicalEvent } from "../canonicalFactService";
 import { createMockActionCtx } from "../../../tests/__mocks__/convexCtx";
+import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import { internal } from "../../_generated/api";
 
 jest.mock("../../_generated/api", () => ({
@@ -78,15 +79,17 @@ describe("persistCanonicalEvent", () => {
     const canonical = buildCanonicalEvent();
     const newEventId = "evt1" as Id<"events">;
 
-    const runQuery = jest.fn().mockResolvedValueOnce(null);
-    const runMutation = jest
-      .fn()
+    const runQuery = createAsyncMock<Doc<"events"> | null>();
+    runQuery.mockResolvedValueOnce(null);
+    const runMutation = createAsyncMock<string | Id<"events">>();
+    runMutation
       .mockResolvedValueOnce("user_1")
       .mockResolvedValueOnce("repo_1")
       .mockResolvedValueOnce(newEventId)
       .mockResolvedValueOnce("embedding_job");
 
-    const schedulerRunAfter = jest.fn().mockResolvedValue(undefined);
+    const schedulerRunAfter = createAsyncMock<void>();
+    schedulerRunAfter.mockResolvedValue(undefined);
 
     const ctx = createMockActionCtx({
       runQuery,
@@ -121,9 +124,10 @@ describe("persistCanonicalEvent", () => {
     const canonical = buildCanonicalEvent();
     const existingId = "evt_existing" as Id<"events">;
 
-    const runQuery = jest.fn().mockResolvedValueOnce({ _id: existingId });
-    const runMutation = jest
-      .fn()
+    const runQuery = createAsyncMock<{ _id: Id<"events"> }>();
+    runQuery.mockResolvedValueOnce({ _id: existingId });
+    const runMutation = createAsyncMock<string>();
+    runMutation
       .mockResolvedValueOnce("user_1")
       .mockResolvedValueOnce("repo_1");
 
@@ -142,7 +146,8 @@ describe("persistCanonicalEvent", () => {
   it("skips when repo metadata is missing", async () => {
     const canonical = buildCanonicalEvent();
     const runQuery = jest.fn();
-    const runMutation = jest.fn().mockResolvedValueOnce("user_1");
+    const runMutation = createAsyncMock<string>();
+    runMutation.mockResolvedValueOnce("user_1");
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 

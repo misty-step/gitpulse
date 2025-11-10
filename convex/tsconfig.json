@@ -5,7 +5,7 @@
     "moduleResolution": "Bundler",
     "target": "ESNext",
     "lib": ["ESNext", "DOM"],
-    "types": ["node"],
+    "types": ["jest", "node"],
     "jsx": "preserve",
     "skipLibCheck": true,
     "strict": true,

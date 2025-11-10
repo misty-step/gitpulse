@@ -7,7 +7,7 @@
     "dev": "concurrently \"next dev\" \"npx convex dev\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint app convex components hooks lib tests --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

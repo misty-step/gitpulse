@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, jest } from "@jest/globals";
+import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import {
   MIN_BACKFILL_BUDGET,
   __resetGithubAppInternalState,
@@ -32,13 +33,15 @@ beforeEach(() => {
 describe("mintInstallationToken", () => {
   it("caches installation tokens until near expiry", async () => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    global.fetch = jest.fn().mockResolvedValue({
+    const fetchMock = createAsyncMock<unknown, Parameters<typeof fetch>>();
+    fetchMock.mockResolvedValue({
       ok: true,
       status: 201,
       headers: new Headers(),
       json: async () => ({ token: "token-1", expires_at: expiresAt }),
       text: async () => "",
     });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     const first = await mintInstallationToken(42);
     const second = await mintInstallationToken(42);
@@ -47,8 +50,8 @@ describe("mintInstallationToken", () => {
     expect(second.token).toBe("token-1");
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const mockFetch = global.fetch as jest.Mock;
-    const [, requestInit] = mockFetch.mock.calls[0];
-    expect(requestInit?.headers?.Authorization).toBe("Bearer signed-jwt");
+    const [, requestInit] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((requestInit?.headers as any)?.Authorization).toBe("Bearer signed-jwt");
   });
 });
 
@@ -60,13 +63,15 @@ describe("fetchRepoTimeline", () => {
       "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 1000),
     });
 
-    global.fetch = jest.fn().mockResolvedValue({
+    const fetchMock = createAsyncMock<unknown, Parameters<typeof fetch>>();
+    fetchMock.mockResolvedValue({
       status: 304,
       ok: false,
       headers,
       text: async () => "",
       json: async () => ({}),
     });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchRepoTimeline({
       token: "token",
@@ -79,8 +84,8 @@ describe("fetchRepoTimeline", () => {
     expect(result.notModified).toBe(true);
     expect(result.etag).toBe('"etag-123"');
     const mockFetch = global.fetch as jest.Mock;
-    const [, init] = mockFetch.mock.calls[0];
-    expect(init?.headers?.["If-None-Match"]).toBe('"etag-123"');
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((init?.headers as any)?.["If-None-Match"]).toBe('"etag-123"');
   });
 
   it("returns nodes and pagination metadata", async () => {
@@ -89,7 +94,8 @@ describe("fetchRepoTimeline", () => {
       "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 60),
     });
 
-    global.fetch = jest.fn().mockResolvedValue({
+    const fetchMock = createAsyncMock<unknown, Parameters<typeof fetch>>();
+    fetchMock.mockResolvedValue({
       status: 200,
       ok: true,
       headers,
@@ -107,6 +113,7 @@ describe("fetchRepoTimeline", () => {
         ],
       }),
     });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchRepoTimeline({
       token: "token",
