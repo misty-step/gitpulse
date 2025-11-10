@@ -29,7 +29,7 @@ Transform raw GitHub events into cited, trustworthy insights. Ask "What did the 
 
 ```bash
 # Clone repository
-git clone https://github.com/phrazzld/gitpulse.git
+git clone https://github.com/misty-step/gitpulse.git
 cd gitpulse
 
 # Install dependencies
