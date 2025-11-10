@@ -79,6 +79,30 @@ Reports include:
 - GitHub URL references for every claim
 - Download as markdown
 
+### 🧪 Regenerate Reports During Development
+
+Need to inspect new prompt changes or re-run a noisy report window? Use the Convex action wrapper:
+
+```bash
+# Daily report ending "now" for a GitHub login
+pnpm reports:generate -- --ghLogin=octocat --kind=daily
+
+# Weekly retro for a specific range (timestamps are epoch ms)
+pnpm reports:generate -- \
+  --clerkId=user_123 \
+  --kind=weekly \
+  --endDate=$(node -e "console.log(Date.parse('2025-11-10T00:00:00Z'))") \
+  --startDate=$(node -e "console.log(Date.parse('2025-11-03T00:00:00Z'))")
+```
+
+Arguments:
+- `--ghLogin` or `--clerkId` (required – pick one)
+- `--kind` (`daily` | `weekly`)
+- `--endDate` (optional, defaults to now)
+- `--startDate` (optional; defaults to 24h or 7d before `endDate`)
+
+The command calls `actions/reports/regenerate` under the hood, persists the new report, and prints the Convex document ID so you can open it immediately in the app UI.
+
 ## 🏗️ Architecture
 
 ### Tech Stack

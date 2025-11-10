@@ -1,9 +1,10 @@
 import { Doc, Id } from "../_generated/dataModel";
+import { normalizeUrl } from "./url";
 
 type EventDoc = Doc<"events">;
 type RepoDoc = Doc<"repos">;
 
-const MAX_TIMELINE_EVENTS = 40;
+const DEFAULT_MAX_TIMELINE_EVENTS = 40;
 
 export interface ContextEvent {
   id: string;
@@ -14,6 +15,7 @@ export interface ContextEvent {
   title: string;
   summary: string;
   url?: string;
+  canonicalText?: string;
   metrics?: {
     additions?: number;
     deletions?: number;
@@ -51,6 +53,7 @@ interface BuildContextParams {
   reposById: Map<Id<"repos">, RepoDoc | null>;
   startDate: number;
   endDate: number;
+  maxTimelineEvents?: number;
 }
 
 export function buildReportContext({
@@ -58,6 +61,7 @@ export function buildReportContext({
   reposById,
   startDate,
   endDate,
+  maxTimelineEvents,
 }: BuildContextParams): {
   context: ReportContext;
   timeline: ContextEvent[];
@@ -65,7 +69,7 @@ export function buildReportContext({
 } {
   const sorted = [...events].sort((a, b) => b.ts - a.ts);
   const timeline = sorted
-    .slice(0, MAX_TIMELINE_EVENTS)
+    .slice(0, maxTimelineEvents ?? DEFAULT_MAX_TIMELINE_EVENTS)
     .map((event) => normalizeEvent(event, reposById.get(event.repoId) ?? null));
 
   const byType = sorted.reduce<Record<string, number>>((acc, event) => {
@@ -126,9 +130,13 @@ export function buildReportContext({
     timeline,
   };
 
-  const allowedUrls = timeline
-    .map((event) => event.url)
-    .filter((url): url is string => Boolean(url));
+  const allowedUrls = Array.from(
+    new Set(
+      timeline
+        .map((event) => event.url)
+        .filter((url): url is string => Boolean(url))
+    )
+  );
 
   return { context, timeline, allowedUrls };
 }
@@ -138,9 +146,11 @@ function normalizeEvent(event: EventDoc, repo: RepoDoc | null): ContextEvent {
   const repoName = repo?.fullName ?? `repo:${event.repoId}`;
 
   const { title, summary } = deriveDescriptions(event.type, metadata);
+  const canonicalText = event.canonicalText ?? undefined;
 
   const metrics =
-    metadata.additions !== undefined ||
+    event.metrics ??
+    (metadata.additions !== undefined ||
     metadata.deletions !== undefined ||
     metadata.changedFiles !== undefined
       ? {
@@ -148,7 +158,9 @@ function normalizeEvent(event: EventDoc, repo: RepoDoc | null): ContextEvent {
           deletions: safeNumber(metadata.deletions),
           filesChanged: safeNumber(metadata.changedFiles),
         }
-      : undefined;
+      : undefined);
+
+  const resolvedUrl = normalizeUrl(event.sourceUrl ?? resolveMetadataUrl(metadata));
 
   return {
     id: event._id,
@@ -158,7 +170,8 @@ function normalizeEvent(event: EventDoc, repo: RepoDoc | null): ContextEvent {
     timestamp: new Date(event.ts).toISOString(),
     title,
     summary,
-    url: resolveUrl(metadata),
+    url: resolvedUrl,
+    canonicalText,
     metrics,
   };
 }
@@ -251,7 +264,7 @@ function deriveDescriptions(
   };
 }
 
-function resolveUrl(metadata: Record<string, unknown>): string | undefined {
+function resolveMetadataUrl(metadata: Record<string, unknown>): string | undefined {
   if (typeof metadata.url === "string") {
     return metadata.url;
   }

@@ -12,6 +12,7 @@ import {
 import { getPromptVersion } from "./prompts";
 import { computeCoverageSummary } from "./coverage";
 import { emitMetric } from "./metrics";
+import { normalizeUrl } from "./url";
 
 interface GenerateReportParams {
   userId: string; // Clerk user ID used in reports table
@@ -20,6 +21,9 @@ interface GenerateReportParams {
   startDate: number;
   endDate: number;
 }
+
+export const DAILY_TIMELINE_LIMIT = 80;
+export const WEEKLY_TIMELINE_LIMIT = 140;
 
 export async function generateReportForUser(
   ctx: ActionCtx,
@@ -49,11 +53,15 @@ export async function generateReportForUser(
     repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
   );
 
+  const maxTimelineEvents =
+    kind === "weekly" ? WEEKLY_TIMELINE_LIMIT : DAILY_TIMELINE_LIMIT;
+
   const { context, allowedUrls } = buildReportContext({
     events,
     reposById,
     startDate,
     endDate,
+    maxTimelineEvents,
   });
 
   const generator =
@@ -164,23 +172,24 @@ export function isEventCited(
   return citationSet.has(eventUrl);
 }
 
-export function normalizeUrl(url?: string | null): string | undefined {
-  if (!url) {
-    return undefined;
-  }
-  return url.replace(/\/$/, "").trim();
-}
-
 export function extractEventUrl(event: Doc<"events">): string | undefined {
   const metadata = (event.metadata ?? {}) as Record<string, any>;
-  return (
-    metadata?.url ??
-    metadata?.html_url ??
-    metadata?.htmlUrl ??
-    metadata?.sourceUrl ??
-    metadata?.commit?.html_url ??
-    undefined
-  );
+  const candidates = [
+    event.sourceUrl,
+    metadata?.url,
+    metadata?.html_url,
+    metadata?.htmlUrl,
+    metadata?.sourceUrl,
+    metadata?.commit?.html_url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+
+  return undefined;
 }
 
 export function resolveScopeKey(
@@ -198,3 +207,5 @@ export function estimateCost(provider: string, model: string, eventCount: number
   const base = provider === "google" ? 0.0005 : 0.0008;
   return Number((base * Math.max(eventCount, 1)).toFixed(6));
 }
+
+export { normalizeUrl };

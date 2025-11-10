@@ -12,7 +12,8 @@
     "test": "jest",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "convex": "npx convex dev",
-    "convex:deploy": "npx convex deploy"
+    "convex:deploy": "npx convex deploy",
+    "reports:generate": "npx convex run actions/reports/regenerate:regenerate"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.34.1",
