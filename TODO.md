@@ -83,7 +83,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Write tests for exhaustive retrieval**
+- [x] **Write tests for exhaustive retrieval**
   ```
   File: convex/lib/__tests__/eventQueries.test.ts (new file)
 
