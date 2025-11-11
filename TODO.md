@@ -166,7 +166,7 @@
   Time: 4 hours
   ```
 
-- [ ] **Define ReportSchema for structured outputs**
+- [x] **Define ReportSchema for structured outputs**
   ```
   File: convex/lib/reportSchemas.ts (new file)
 
