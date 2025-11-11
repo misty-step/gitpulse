@@ -3,7 +3,14 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalQuery,
+  internalMutation,
+  type QueryCtx,
+} from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 
 /**
  * List events by actor (user) with time range filter
@@ -43,6 +50,46 @@ export const listByActor = query({
     return events.slice(0, limit);
   },
 });
+
+const LIST_BY_ACTOR_BATCH_SIZE = 100;
+
+export async function* listByActorComplete(
+  ctx: QueryCtx,
+  actorId: Id<"users">,
+  startDate?: number,
+  endDate?: number
+): AsyncGenerator<Doc<"events">[]> {
+  let actorQuery = ctx.db
+    .query("events")
+    .withIndex("by_actor_and_ts", (q) => q.eq("actorId", actorId));
+
+  if (startDate !== undefined) {
+    actorQuery = actorQuery.filter((q) => q.gte(q.field("ts"), startDate));
+  }
+
+  if (endDate !== undefined) {
+    actorQuery = actorQuery.filter((q) => q.lte(q.field("ts"), endDate));
+  }
+
+  let cursor: string | null = null;
+
+  while (true) {
+    const batch = await actorQuery.order("desc").paginate({
+      cursor: cursor ?? null,
+      numItems: LIST_BY_ACTOR_BATCH_SIZE,
+    });
+
+    if (batch.page.length > 0) {
+      yield batch.page;
+    }
+
+    if (batch.isDone) {
+      break;
+    }
+
+    cursor = batch.continueCursor ?? null;
+  }
+}
 
 /**
  * List events by repository with time range filter
