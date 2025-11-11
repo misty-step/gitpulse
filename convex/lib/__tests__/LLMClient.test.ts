@@ -23,6 +23,44 @@ function getInternalConfig(client: unknown) {
   return (client as { config: { temperature: number } }).config;
 }
 
+describe("LLMClient deterministic generation", () => {
+  const payload = { systemPrompt: "sys", userPrompt: "user" };
+  const originalKey = process.env.GOOGLE_API_KEY;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    process.env.GOOGLE_API_KEY = "test-key";
+    let counter = 0;
+    (global as any).fetch = jest.fn(async (_url, init) => {
+      counter += 1;
+      const requestInit = (init ?? {}) as RequestInit;
+      const body = JSON.parse((requestInit.body as string | undefined) ?? "{}");
+      const temperature = body?.generationConfig?.temperature ?? 0.3;
+      const text =
+        temperature === 0
+          ? "stable-output"
+          : `variant-${counter}`;
+      return makeGeminiResponse(text);
+    });
+  });
+
+  afterAll(() => {
+    process.env.GOOGLE_API_KEY = originalKey;
+    (global as any).fetch = originalFetch;
+  });
+
+  it("returns identical output across repeated calls when temperature is zero", async () => {
+    const client = createLLMClient("daily");
+    const outputs = [
+      await client.generate(payload),
+      await client.generate(payload),
+      await client.generate(payload),
+    ];
+
+    expect(new Set(outputs).size).toBe(1);
+  });
+});
+
 describe("LLMClient structured generation", () => {
   const payload = { systemPrompt: "sys", userPrompt: "user" };
   const schema = z.object({ sections: z.array(z.string()) });

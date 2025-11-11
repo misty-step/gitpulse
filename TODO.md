@@ -181,7 +181,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Write tests for deterministic generation**
+- [x] **Write tests for deterministic generation**
   ```
   File: convex/lib/__tests__/LLMClient.test.ts (extend existing or create)
 
