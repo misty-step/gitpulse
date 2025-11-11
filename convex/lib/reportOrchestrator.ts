@@ -10,7 +10,7 @@ import {
   generateWeeklyReportFromContext,
 } from "./reportGenerator";
 import { getPromptVersion } from "./prompts";
-import { computeCoverageSummary } from "./coverage";
+import { computeCoverageSummary, isEventCited } from "./coverage";
 import { emitMetric } from "./metrics";
 import { normalizeUrl } from "./url";
 
@@ -174,42 +174,6 @@ export function buildCacheKey(
   return createHash("sha256")
     .update([kind, userId, startDate, endDate, contentHashes].join("|"))
     .digest("hex");
-}
-
-export function isEventCited(
-  event: Doc<"events">,
-  citationSet: Set<string>
-): boolean {
-  if (!citationSet.size) {
-    return false;
-  }
-
-  const eventUrl = normalizeUrl(extractEventUrl(event));
-  if (!eventUrl) {
-    return false;
-  }
-
-  return citationSet.has(eventUrl);
-}
-
-export function extractEventUrl(event: Doc<"events">): string | undefined {
-  const metadata = (event.metadata ?? {}) as Record<string, any>;
-  const candidates = [
-    event.sourceUrl,
-    metadata?.url,
-    metadata?.html_url,
-    metadata?.htmlUrl,
-    metadata?.sourceUrl,
-    metadata?.commit?.html_url,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate;
-    }
-  }
-
-  return undefined;
 }
 
 export function resolveScopeKey(

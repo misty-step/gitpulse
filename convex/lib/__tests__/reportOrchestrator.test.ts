@@ -3,9 +3,9 @@ import type { Doc, Id } from "../../_generated/dataModel";
 import {
   buildCacheKey,
   generateReportForUser,
-  isEventCited,
   normalizeUrl,
 } from "../reportOrchestrator";
+import { isEventCited } from "../coverage";
 import { createMockActionCtx } from "../../../tests/__mocks__/convexCtx";
 import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import { api, internal } from "../../_generated/api";
