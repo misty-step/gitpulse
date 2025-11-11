@@ -1,3 +1,7 @@
+import { ZodError } from "zod";
+import type { ZodTypeAny, infer as ZodInfer } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
+
 /**
  * LLM Provider Abstraction - Deep Module (October 2025)
  *
@@ -127,6 +131,47 @@ export class LLMClient {
     );
   }
 
+  async generateStructured<T extends ZodTypeAny>(
+    payload: LLMRequestPayload,
+    schema: T,
+    options?: GenerateOptions
+  ): Promise<ZodInfer<T>> {
+    if (this.config.provider !== "google") {
+      throw new Error(
+        "Structured generation is only supported for the Google provider"
+      );
+    }
+
+    const temperature = options?.temperature ?? this.config.temperature;
+    const maxTokens = options?.maxTokens ?? this.config.maxTokens;
+    const jsonSchema = zodToJsonSchema(schema, "LLMStructuredResponse");
+
+    const raw = await this.generateGoogleContent(payload, temperature, maxTokens, {
+      responseMimeType: "application/json",
+      responseSchema: jsonSchema,
+    });
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(
+        `Structured response was not valid JSON: ${(error as Error).message}`
+      );
+    }
+
+    try {
+      return schema.parse(parsed) as ZodInfer<T>;
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new Error(
+          `Structured response failed validation: ${error.message}`
+        );
+      }
+      throw error;
+    }
+  }
+
   /**
    * Generate using Google Gemini API
    */
@@ -134,6 +179,18 @@ export class LLMClient {
     payload: LLMRequestPayload,
     temperature: number,
     maxTokens: number
+  ): Promise<string> {
+    return this.generateGoogleContent(payload, temperature, maxTokens);
+  }
+
+  private async generateGoogleContent(
+    payload: LLMRequestPayload,
+    temperature: number,
+    maxTokens: number,
+    structured?: {
+      responseMimeType?: string;
+      responseSchema?: Record<string, unknown>;
+    }
   ): Promise<string> {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -151,6 +208,21 @@ export class LLMClient {
 
     // Use stable v1 endpoint, not v1beta
     const url = `https://generativelanguage.googleapis.com/v1/models/${modelId}:generateContent`;
+
+    const generationConfig: Record<string, unknown> = {
+      temperature,
+      maxOutputTokens: maxTokens,
+      topK: 40,
+      topP: 0.95,
+    };
+
+    if (structured?.responseMimeType) {
+      generationConfig["response_mime_type"] = structured.responseMimeType;
+    }
+
+    if (structured?.responseSchema) {
+      generationConfig["response_schema"] = structured.responseSchema;
+    }
 
     const response = await fetch(`${url}?key=${apiKey}`, {
       method: "POST",
@@ -172,12 +244,7 @@ export class LLMClient {
             ],
           },
         ],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-          topK: 40,
-          topP: 0.95,
-        },
+        generationConfig,
       }),
     });
 

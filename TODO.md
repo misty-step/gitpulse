@@ -137,7 +137,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Add Gemini JSON Schema support**
+- [x] **Add Gemini JSON Schema support**
   ```
   File: convex/lib/LLMClient.ts (new method)
 
