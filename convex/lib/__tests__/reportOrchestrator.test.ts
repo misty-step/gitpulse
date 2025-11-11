@@ -18,6 +18,7 @@ jest.mock("../../_generated/api", () => ({
   internal: {
     reports: {
       create: "internal.reports.create",
+      getByCacheKey: "internal.reports.getByCacheKey",
     },
   },
 }));
@@ -56,6 +57,10 @@ const reportGeneratorModule = jest.requireMock(
 
 const { buildReportContext } = reportContextModule;
 const { generateDailyReportFromContext } = reportGeneratorModule;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe("reportOrchestrator helpers", () => {
   it("buildCacheKey stays stable regardless of event ordering", () => {
@@ -151,9 +156,10 @@ describe("generateReportForUser", () => {
       },
     ];
 
-    const runQuery = createAsyncMock<Doc<"events">[] | Doc<"repos">>();
+    const runQuery = createAsyncMock<unknown>();
     runQuery
       .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         _id: repoId,
         _creationTime: 0,
@@ -204,5 +210,39 @@ describe("generateReportForUser", () => {
         ],
       })
     );
+  });
+
+  it("returns cached report when cache key hits", async () => {
+    const events: Array<Doc<"events">> = [];
+    const cachedId = "cached-report" as Id<"reports">;
+    const cachedDoc = {
+      _id: cachedId,
+    } as Doc<"reports">;
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(cachedDoc);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+
+    const userDoc = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    const result = await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user: userDoc,
+      kind: "daily",
+      startDate: 0,
+      endDate: 100,
+    });
+
+    expect(result).toBe(cachedId);
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(generateDailyReportFromContext).not.toHaveBeenCalled();
+    expect(buildReportContext).not.toHaveBeenCalled();
   });
 });

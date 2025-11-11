@@ -45,6 +45,15 @@ export async function generateReportForUser(
     limit: 2000,
   });
 
+  const cacheKey = buildCacheKey(kind, params.userId, startDate, endDate, events);
+  const cachedReport = await ctx.runQuery(internal.reports.getByCacheKey, {
+    cacheKey,
+  });
+
+  if (cachedReport) {
+    return cachedReport._id;
+  }
+
   const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
   const repoDocs = await Promise.all(
     repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
@@ -90,7 +99,6 @@ export async function generateReportForUser(
     }))
   );
 
-  const cacheKey = buildCacheKey(kind, params.userId, startDate, endDate, events);
   const now = Date.now();
 
   const title =

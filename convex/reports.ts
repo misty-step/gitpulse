@@ -3,7 +3,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 
 /**
  * Get report by ID
@@ -182,5 +182,17 @@ export const create = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+  },
+});
+
+export const getByCacheKey = internalQuery({
+  args: {
+    cacheKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("reports")
+      .withIndex("by_cacheKey", (q) => q.eq("cacheKey", args.cacheKey))
+      .first();
   },
 });
