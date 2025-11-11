@@ -91,6 +91,29 @@ export async function* listByActorComplete(
   }
 }
 
+export async function countByActor(
+  ctx: QueryCtx,
+  actorId: Id<"users">,
+  startDate?: number,
+  endDate?: number
+): Promise<number> {
+  let actorQuery = ctx.db
+    .query("events")
+    .withIndex("by_actor_and_ts", (q) => q.eq("actorId", actorId));
+
+  if (startDate !== undefined) {
+    actorQuery = actorQuery.filter((q) => q.gte(q.field("ts"), startDate));
+  }
+
+  if (endDate !== undefined) {
+    actorQuery = actorQuery.filter((q) => q.lte(q.field("ts"), endDate));
+  }
+
+  const events = await actorQuery.collect();
+
+  return events.length;
+}
+
 /**
  * List events by repository with time range filter
  */

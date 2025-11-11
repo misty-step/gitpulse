@@ -57,7 +57,7 @@
   Time: 1 day (6 hours impl + 2 hours testing)
   ```
 
-- [ ] **Add `countByActor()` pre-count query**
+- [x] **Add `countByActor()` pre-count query**
   ```
   File: convex/events.ts (add after listByActorComplete)
 
