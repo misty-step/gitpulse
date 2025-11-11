@@ -51,8 +51,20 @@ export async function generateReportForUser(
   });
 
   if (cachedReport) {
+    emitMetric("report.cache_hit", {
+      userId: params.userId,
+      kind,
+      cacheKey,
+      latencyMs: 0,
+    });
     return cachedReport._id;
   }
+
+  emitMetric("report.cache_miss", {
+    userId: params.userId,
+    kind,
+    cacheKey,
+  });
 
   const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
   const repoDocs = await Promise.all(

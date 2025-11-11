@@ -241,7 +241,7 @@
   Time: 4 hours
   ```
 
-- [ ] **Add cache hit metrics**
+- [x] **Add cache hit metrics**
   ```
   File: convex/lib/reportOrchestrator.ts
 

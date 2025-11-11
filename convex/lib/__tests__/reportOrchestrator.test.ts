@@ -54,6 +54,9 @@ const reportContextModule = jest.requireMock(
 const reportGeneratorModule = jest.requireMock(
   "../reportGenerator"
 ) as jest.Mocked<typeof import("../reportGenerator")>;
+const metricsModule = jest.requireMock("../metrics") as jest.Mocked<
+  typeof import("../metrics")
+>;
 
 const { buildReportContext } = reportContextModule;
 const { generateDailyReportFromContext } = reportGeneratorModule;
@@ -210,6 +213,10 @@ describe("generateReportForUser", () => {
         ],
       })
     );
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.cache_miss",
+      expect.objectContaining({ cacheKey })
+    );
   });
 
   it("returns cached report when cache key hits", async () => {
@@ -244,5 +251,9 @@ describe("generateReportForUser", () => {
     expect(runMutation).not.toHaveBeenCalled();
     expect(generateDailyReportFromContext).not.toHaveBeenCalled();
     expect(buildReportContext).not.toHaveBeenCalled();
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.cache_hit",
+      expect.objectContaining({ cacheKey: expect.any(String) })
+    );
   });
 });
