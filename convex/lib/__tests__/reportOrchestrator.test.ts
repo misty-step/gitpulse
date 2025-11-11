@@ -256,4 +256,90 @@ describe("generateReportForUser", () => {
       expect.objectContaining({ cacheKey: expect.any(String) })
     );
   });
+
+  it("generates new report when event hashes change", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const firstEvents: Array<Doc<"events">> = [
+      {
+        _id: "evt1" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "pr_opened",
+        ts: 1,
+        canonicalText: "a",
+        sourceUrl: "https://github.com/acme/gitpulse/pull/1",
+        metadata: { url: "https://github.com/acme/gitpulse/pull/1" },
+        contentScope: "event",
+        contentHash: "hash-a",
+        createdAt: 0,
+      },
+    ];
+
+    const secondEvents = [
+      {
+        ...firstEvents[0],
+        contentHash: "hash-b",
+        _id: "evt2" as Id<"events">,
+      },
+    ];
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(firstEvents)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">)
+      .mockResolvedValueOnce(secondEvents)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    runMutation
+      .mockResolvedValueOnce("report-first" as Id<"reports">)
+      .mockResolvedValueOnce("report-second" as Id<"reports">);
+
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const userDoc = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    const firstKey = buildCacheKey("daily", "clerk_user", 0, 10, firstEvents);
+    const secondKey = buildCacheKey("daily", "clerk_user", 0, 10, secondEvents);
+
+    await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user: userDoc,
+      kind: "daily",
+      startDate: 0,
+      endDate: 10,
+    });
+
+    await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user: userDoc,
+      kind: "daily",
+      startDate: 0,
+      endDate: 10,
+    });
+
+    expect(runMutation).toHaveBeenNthCalledWith(
+      1,
+      internal.reports.create,
+      expect.objectContaining({ cacheKey: firstKey })
+    );
+    expect(runMutation).toHaveBeenNthCalledWith(
+      2,
+      internal.reports.create,
+      expect.objectContaining({ cacheKey: secondKey })
+    );
+  });
 });

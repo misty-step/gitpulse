@@ -255,7 +255,7 @@
   Time: 1 hour
   ```
 
-- [ ] **Write cache activation tests**
+- [x] **Write cache activation tests**
   ```
   File: convex/lib/__tests__/reportOrchestrator.test.ts (extend)
 
