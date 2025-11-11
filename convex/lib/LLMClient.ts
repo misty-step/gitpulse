@@ -75,6 +75,13 @@ export class LLMClient {
     }
   }
 
+  setDeterministic(): void {
+    this.config = {
+      ...this.config,
+      temperature: 0,
+    };
+  }
+
   /**
    * Generate text from prompt
    *
@@ -321,7 +328,7 @@ export function createLLMClient(taskType: "daily" | "weekly" | "complex"): LLMCl
       return new LLMClient({
         provider: "google",
         model: "gemini-2.5-flash",
-        temperature: 0.3,
+        temperature: 0,
         maxTokens: 1024,
       });
 
@@ -329,7 +336,7 @@ export function createLLMClient(taskType: "daily" | "weekly" | "complex"): LLMCl
       return new LLMClient({
         provider: "google",
         model: "gemini-2.5-pro",
-        temperature: 0.4,
+        temperature: 0,
         maxTokens: 2048,
       });
 

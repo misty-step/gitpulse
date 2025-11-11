@@ -104,7 +104,7 @@
 
 ### Phase 2: Deterministic LLM Generation (1 day)
 
-- [ ] **Add deterministic config to LLMClient**
+- [x] **Add deterministic config to LLMClient**
   ```
   File: convex/lib/LLMClient.ts (modify lines 60-76)
 
