@@ -303,7 +303,7 @@
   Time: 4 hours
   ```
 
-- [ ] **Integrate validation into generateReportForUser()**
+- [x] **Integrate validation into generateReportForUser()**
   ```
   File: convex/lib/reportOrchestrator.ts (modify after LLM generation)
 
@@ -335,7 +335,7 @@
   Time: 4 hours
   ```
 
-- [ ] **Add N_seen validation**
+- [x] **Add N_seen validation**
   ```
   File: convex/lib/reportOrchestrator.ts (add after Phase 1 pagination)
 

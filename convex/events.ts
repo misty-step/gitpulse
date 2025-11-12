@@ -114,6 +114,22 @@ export async function countByActor(
   return events.length;
 }
 
+export const countByActorInternal = internalQuery({
+  args: {
+    actorId: v.id("users"),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await countByActor(
+      ctx,
+      args.actorId,
+      args.startDate,
+      args.endDate
+    );
+  },
+});
+
 /**
  * List events by repository with time range filter
  */

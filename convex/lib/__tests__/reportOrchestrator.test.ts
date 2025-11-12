@@ -5,7 +5,7 @@ import {
   generateReportForUser,
   normalizeUrl,
 } from "../reportOrchestrator";
-import { isEventCited } from "../coverage";
+import { isEventCited, CoverageValidationError } from "../coverage";
 import { createMockActionCtx } from "../../../tests/__mocks__/convexCtx";
 import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import { api, internal } from "../../_generated/api";
@@ -16,6 +16,9 @@ jest.mock("../../_generated/api", () => ({
     repos: { getById: "api.repos.getById" },
   },
   internal: {
+    events: {
+      countByActorInternal: "internal.events.countByActorInternal",
+    },
     reports: {
       create: "internal.reports.create",
       getByCacheKey: "internal.reports.getByCacheKey",
@@ -162,6 +165,7 @@ describe("generateReportForUser", () => {
     const runQuery = createAsyncMock<unknown>();
     runQuery
       .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         _id: repoId,
@@ -229,6 +233,7 @@ describe("generateReportForUser", () => {
     const runQuery = createAsyncMock<unknown>();
     runQuery
       .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
       .mockResolvedValueOnce(cachedDoc);
 
     const runMutation = createAsyncMock<Id<"reports">>();
@@ -287,6 +292,7 @@ describe("generateReportForUser", () => {
     const runQuery = createAsyncMock<unknown>();
     runQuery
       .mockResolvedValueOnce(firstEvents)
+      .mockResolvedValueOnce(firstEvents.length)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         _id: repoId,
@@ -294,6 +300,7 @@ describe("generateReportForUser", () => {
         fullName: "acme/gitpulse",
       } as unknown as Doc<"repos">)
       .mockResolvedValueOnce(secondEvents)
+      .mockResolvedValueOnce(secondEvents.length)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         _id: repoId,
@@ -340,6 +347,115 @@ describe("generateReportForUser", () => {
       2,
       internal.reports.create,
       expect.objectContaining({ cacheKey: secondKey })
+    );
+  });
+
+  it("fails closed when the number of retrieved events differs from expected count", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events: Array<Doc<"events">> = [
+      {
+        _id: "evt1" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "pr_opened",
+        ts: 1,
+        canonicalText: "a",
+        sourceUrl: "https://github.com/acme/gitpulse/pull/1",
+        metadata: { url: "https://github.com/acme/gitpulse/pull/1" },
+        contentScope: "event",
+        contentHash: "hash-a",
+        createdAt: 0,
+      },
+    ];
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery.mockResolvedValueOnce(events).mockResolvedValueOnce(events.length + 5);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+
+    await expect(
+      generateReportForUser(ctx, {
+        userId: "clerk_user",
+        user: {
+          _id: "user-doc" as Id<"users">,
+          githubUsername: "octocat",
+        } as Doc<"users">,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      })
+    ).rejects.toThrow("Event count mismatch");
+
+    expect(generateDailyReportFromContext).not.toHaveBeenCalled();
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.event_count_mismatch",
+      expect.objectContaining({
+        expected: events.length + 5,
+        seen: events.length,
+      })
+    );
+  });
+
+  it("throws when coverage validation fails", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events: Array<Doc<"events">> = [
+      {
+        _id: "evt1" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "pr_opened",
+        ts: 1,
+        canonicalText: "a",
+        sourceUrl: "https://github.com/acme/gitpulse/pull/1",
+        metadata: { url: "https://github.com/acme/gitpulse/pull/1" },
+        contentScope: "event",
+        contentHash: "hash-a",
+        createdAt: 0,
+      },
+    ];
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+
+    generateDailyReportFromContext.mockResolvedValueOnce({
+      markdown: "## Report",
+      html: "<h2>Report</h2>",
+      citations: [],
+      provider: "google",
+      model: "gemini-2.5-flash",
+    });
+
+    await expect(
+      generateReportForUser(ctx, {
+        userId: "clerk_user",
+        user: {
+          _id: "user-doc" as Id<"users">,
+          githubUsername: "octocat",
+        } as Doc<"users">,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      })
+    ).rejects.toThrow(CoverageValidationError);
+
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.coverage_failed",
+      expect.objectContaining({ userId: "clerk_user", kind: "daily" })
     );
   });
 });

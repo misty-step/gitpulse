@@ -10,7 +10,11 @@ import {
   generateWeeklyReportFromContext,
 } from "./reportGenerator";
 import { getPromptVersion } from "./prompts";
-import { computeCoverageSummary, isEventCited } from "./coverage";
+import {
+  computeCoverageSummary,
+  isEventCited,
+  validateCoverage,
+} from "./coverage";
 import { emitMetric } from "./metrics";
 import { normalizeUrl } from "./url";
 
@@ -44,6 +48,30 @@ export async function generateReportForUser(
     endDate,
     limit: 2000,
   });
+
+  const expectedEventCount = await ctx.runQuery(
+    internal.events.countByActorInternal,
+    {
+      actorId: user._id,
+      startDate,
+      endDate,
+    }
+  );
+
+  if (events.length !== expectedEventCount) {
+    emitMetric("report.event_count_mismatch", {
+      userId: params.userId,
+      kind,
+      expected: expectedEventCount,
+      seen: events.length,
+      startDate,
+      endDate,
+    });
+
+    throw new Error(
+      `[Reports] Event count mismatch for ${user.githubUsername}: expected ${expectedEventCount}, saw ${events.length}`
+    );
+  }
 
   const cacheKey = buildCacheKey(kind, params.userId, startDate, endDate, events);
   const cachedReport = await ctx.runQuery(internal.reports.getByCacheKey, {
@@ -98,6 +126,23 @@ export async function generateReportForUser(
   );
   const latencyMs = Date.now() - llmStart;
 
+  try {
+    validateCoverage(
+      events,
+      {
+        markdown: generated.markdown,
+        citations: generated.citations,
+      },
+      0.95
+    );
+  } catch (error) {
+    emitMetric("report.coverage_failed", {
+      userId: params.userId,
+      kind,
+    });
+    throw error;
+  }
+
   const citationSet = new Set(
     generated.citations.map(normalizeUrl).filter((value): value is string =>
       Boolean(value)
@@ -122,7 +167,7 @@ export async function generateReportForUser(
       ? `Automated daily standup for ${user.githubUsername}`
       : `Automated weekly retrospective for ${user.githubUsername}`;
 
-  return await ctx.runMutation(internal.reports.create, {
+  const reportId = await ctx.runMutation(internal.reports.create, {
     userId: params.userId,
     title,
     description,
@@ -157,6 +202,8 @@ export async function generateReportForUser(
     model: generated.model,
     costUsd: estimateCost(generated.provider, generated.model, events.length),
   });
+
+  return reportId;
 }
 
 export function buildCacheKey(
