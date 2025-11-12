@@ -89,4 +89,60 @@ describe("validateCoverage", () => {
     expect(result.pass).toBe(true);
     expect(result.coverageScore).toBe(1);
   });
+
+  it("passes when coverage meets a 95% threshold (e.g., 24/25 cited)", () => {
+    const eventCount = 25;
+    const citedCount = 24;
+    const events = Array.from({ length: eventCount }, (_, index) =>
+      baseEvent(
+        `evt-${index}`,
+        index % 2 === 0 ? "repo1" : "repo2",
+        `https://example.com/${index}`
+      )
+    );
+    const citations = events.slice(0, citedCount).map((event) => event.sourceUrl!);
+
+    const result = validateCoverage(
+      events,
+      { markdown: "", citations },
+      0.95
+    );
+
+    expect(result.pass).toBe(true);
+    expect(result.coverageScore).toBeCloseTo(citedCount / eventCount);
+    expect(result.breakdown).toHaveLength(2);
+  });
+
+  it("throws with diagnostics when coverage falls to 94%", () => {
+    const eventCount = 50;
+    const citedCount = 47; // 94%
+    const events = Array.from({ length: eventCount }, (_, index) =>
+      baseEvent(
+        `evt-${index}`,
+        index % 3 === 0 ? "repo-alpha" : "repo-beta",
+        `https://example.org/${index}`
+      )
+    );
+    const citations = events.slice(0, citedCount).map((event) => event.sourceUrl!);
+
+    expect.assertions(5);
+    try {
+      validateCoverage(
+        events,
+        { markdown: "", citations },
+        0.95
+      );
+    } catch (error) {
+      expect(error).toBeInstanceOf(CoverageValidationError);
+      const coverageError = error as CoverageValidationError;
+      expect(coverageError.summary.coverageScore).toBeCloseTo(
+        citedCount / eventCount
+      );
+      expect(coverageError.summary.breakdown.length).toBeGreaterThan(0);
+      expect(coverageError.threshold).toBe(0.95);
+      expect(coverageError.message).toContain("94.00%");
+      return;
+    }
+    throw new Error("Expected CoverageValidationError to be thrown");
+  });
 });

@@ -362,7 +362,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Write coverage validation tests**
+- [x] **Write coverage validation tests**
   ```
   File: convex/lib/__tests__/coverage.test.ts (extend)
 
