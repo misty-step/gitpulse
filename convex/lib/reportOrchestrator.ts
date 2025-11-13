@@ -18,6 +18,10 @@ import {
 import { emitMetric } from "./metrics";
 import { normalizeUrl } from "./url";
 
+const TOKENS_PER_EVENT_ESTIMATE = 50;
+const TOKEN_WARNING_THRESHOLD = 400_000;
+const TOKEN_HARD_LIMIT = 475_000;
+
 interface GenerateReportParams {
   userId: string; // Clerk user ID used in reports table
   user: Doc<"users">;
@@ -73,6 +77,13 @@ export async function generateReportForUser(
   const cacheKey = buildCacheKey(kind, params.userId, startDate, endDate, events);
   const cachedReport = await ctx.runQuery(internal.reports.getByCacheKey, {
     cacheKey,
+  });
+
+  enforceTokenBudget(events.length, {
+    userId: params.userId,
+    kind,
+    startDate,
+    endDate,
   });
 
   if (cachedReport) {
@@ -230,6 +241,39 @@ export function estimateCost(provider: string, model: string, eventCount: number
   // Rough placeholder: cost scales with event count to keep visibility in logs
   const base = provider === "google" ? 0.0005 : 0.0008;
   return Number((base * Math.max(eventCount, 1)).toFixed(6));
+}
+
+function enforceTokenBudget(
+  eventCount: number,
+  meta: { userId: string; kind: string; startDate: number; endDate: number }
+): void {
+  const estimatedTokens = eventCount * TOKENS_PER_EVENT_ESTIMATE;
+
+  if (estimatedTokens > TOKEN_HARD_LIMIT) {
+    emitMetric("report.token_budget_exceeded", {
+      ...meta,
+      estimatedTokens,
+      eventCount,
+    });
+
+    throw new Error(
+      `[Reports] Estimated token usage ${estimatedTokens.toLocaleString()} exceeds safety limit (${TOKEN_HARD_LIMIT.toLocaleString()} tokens). ` +
+        "Please narrow the date range or scope before regenerating."
+    );
+  }
+
+  if (estimatedTokens > TOKEN_WARNING_THRESHOLD) {
+    emitMetric("report.token_budget_warning", {
+      ...meta,
+      estimatedTokens,
+      eventCount,
+    });
+
+    console.warn(
+      `[Reports] Estimated token usage ${estimatedTokens.toLocaleString()} tokens for ${meta.kind} report ` +
+        `is nearing the safety limit (${TOKEN_HARD_LIMIT.toLocaleString()} tokens). Consider narrowing the window.`
+    );
+  }
 }
 
 export { normalizeUrl };

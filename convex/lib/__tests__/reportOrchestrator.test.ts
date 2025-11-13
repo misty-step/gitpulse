@@ -399,6 +399,98 @@ describe("generateReportForUser", () => {
     );
   });
 
+  it("warns when estimated tokens exceed the soft threshold", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events = createBulkEvents(8200, repoId);
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    runMutation.mockResolvedValueOnce("report1" as Id<"reports">);
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const user = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    generateDailyReportFromContext.mockResolvedValueOnce({
+      markdown: "## Report",
+      html: "<h2>Report</h2>",
+      citations: events.map((event) => event.sourceUrl!),
+      provider: "google",
+      model: "gemini-2.5-flash",
+    });
+
+    await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user,
+      kind: "daily",
+      startDate: 0,
+      endDate: 10,
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Estimated token usage")
+    );
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.token_budget_warning",
+      expect.objectContaining({ estimatedTokens: expect.any(Number) })
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("throws when estimated tokens exceed the hard limit", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events = createBulkEvents(9600, repoId);
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const user = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    await expect(
+      generateReportForUser(ctx, {
+        userId: "clerk_user",
+        user,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      })
+    ).rejects.toThrow("Estimated token usage");
+
+    expect(generateDailyReportFromContext).not.toHaveBeenCalled();
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.token_budget_exceeded",
+      expect.objectContaining({ estimatedTokens: expect.any(Number) })
+    );
+  });
+
   it("throws when coverage validation fails", async () => {
     const repoId = "repo1" as Id<"repos">;
     const events: Array<Doc<"events">> = [
@@ -459,3 +551,23 @@ describe("generateReportForUser", () => {
     );
   });
 });
+
+function createBulkEvents(
+  count: number,
+  repoId: Id<"repos">
+): Array<Doc<"events">> {
+  return Array.from({ length: count }, (_, index) => ({
+    _id: `evt-bulk-${index}` as Id<"events">,
+    _creationTime: 0,
+    repoId,
+    actorId: "actor1" as Id<"users">,
+    type: "commit",
+    ts: index,
+    canonicalText: `Event ${index}`,
+    sourceUrl: `https://example.com/${index}`,
+    metadata: { url: `https://example.com/${index}` },
+    contentScope: "event",
+    contentHash: `hash-${index}`,
+    createdAt: 0,
+  }));
+}

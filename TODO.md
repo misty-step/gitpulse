@@ -443,7 +443,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Add token budget warning**
+- [x] **Add token budget warning**
   ```
   File: convex/lib/reportOrchestrator.ts (add before LLM call)
 
