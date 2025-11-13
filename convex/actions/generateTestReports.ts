@@ -23,10 +23,6 @@ import {
   buildSyntheticDailyReport,
   buildSyntheticWeeklyReport,
 } from "../lib/reportGenerator";
-import {
-  DAILY_TIMELINE_LIMIT,
-  WEEKLY_TIMELINE_LIMIT,
-} from "../lib/reportOrchestrator";
 
 export const generate = action({
   args: {
@@ -99,7 +95,6 @@ export const generate = action({
           reposById,
           startDate,
           endDate,
-          maxTimelineEvents: DAILY_TIMELINE_LIMIT,
         });
 
         let report;
@@ -180,7 +175,6 @@ export const generate = action({
           reposById,
           startDate,
           endDate,
-          maxTimelineEvents: WEEKLY_TIMELINE_LIMIT,
         });
 
         let report;

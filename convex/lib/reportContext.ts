@@ -4,8 +4,6 @@ import { normalizeUrl } from "./url";
 type EventDoc = Doc<"events">;
 type RepoDoc = Doc<"repos">;
 
-const DEFAULT_MAX_TIMELINE_EVENTS = 40;
-
 export interface ContextEvent {
   id: string;
   type: string;
@@ -53,7 +51,6 @@ interface BuildContextParams {
   reposById: Map<Id<"repos">, RepoDoc | null>;
   startDate: number;
   endDate: number;
-  maxTimelineEvents?: number;
 }
 
 export function buildReportContext({
@@ -61,16 +58,15 @@ export function buildReportContext({
   reposById,
   startDate,
   endDate,
-  maxTimelineEvents,
 }: BuildContextParams): {
   context: ReportContext;
   timeline: ContextEvent[];
   allowedUrls: string[];
 } {
   const sorted = [...events].sort((a, b) => b.ts - a.ts);
-  const timeline = sorted
-    .slice(0, maxTimelineEvents ?? DEFAULT_MAX_TIMELINE_EVENTS)
-    .map((event) => normalizeEvent(event, reposById.get(event.repoId) ?? null));
+  const timeline = sorted.map((event) =>
+    normalizeEvent(event, reposById.get(event.repoId) ?? null)
+  );
 
   const byType = sorted.reduce<Record<string, number>>((acc, event) => {
     acc[event.type] = (acc[event.type] ?? 0) + 1;

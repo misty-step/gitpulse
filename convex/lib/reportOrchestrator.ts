@@ -26,9 +26,6 @@ interface GenerateReportParams {
   endDate: number;
 }
 
-export const DAILY_TIMELINE_LIMIT = 80;
-export const WEEKLY_TIMELINE_LIMIT = 140;
-
 export async function generateReportForUser(
   ctx: ActionCtx,
   params: GenerateReportParams
@@ -102,15 +99,11 @@ export async function generateReportForUser(
     repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
   );
 
-  const maxTimelineEvents =
-    kind === "weekly" ? WEEKLY_TIMELINE_LIMIT : DAILY_TIMELINE_LIMIT;
-
   const { context, allowedUrls } = buildReportContext({
     events,
     reposById,
     startDate,
     endDate,
-    maxTimelineEvents,
   });
 
   const generator =

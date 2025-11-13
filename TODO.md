@@ -381,7 +381,7 @@
 
 ### Phase 5: Remove Timeline Limits (1 day)
 
-- [ ] **Remove maxTimelineEvents from buildReportContext()**
+- [x] **Remove maxTimelineEvents from buildReportContext()**
   ```
   File: convex/lib/reportContext.ts (modify function signature + logic)
 
@@ -408,7 +408,7 @@
   Time: 2 hours
   ```
 
-- [ ] **Update reportOrchestrator to pass all events**
+- [x] **Update reportOrchestrator to pass all events**
   ```
   File: convex/lib/reportOrchestrator.ts (modify buildReportContext call)
 
@@ -430,7 +430,7 @@
   Time: 1 hour
   ```
 
-- [ ] **Update tests to reflect no limits**
+- [x] **Update tests to reflect no limits**
   ```
   File: convex/lib/__tests__/reportContext.test.ts (update expectations)
 
