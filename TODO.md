@@ -506,7 +506,7 @@
 
 - [x] 10k-event test case: all events included, coverage ≥ 0.95
 - [x] Deterministic cache: same input → same output, cache hit <5s
-- [ ] Fail-closed: N_seen ≠ N_expected → error thrown
+- [x] Fail-closed: N_seen ≠ N_expected → error thrown
 - [ ] No breaking changes: existing reports still work (backward compat)
 - [ ] Cost < $0.05/report for 10k events (monitor via metrics)
 - [ ] All tests pass: `pnpm test`

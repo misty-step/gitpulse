@@ -477,6 +477,71 @@ describe("generateReportForUser", () => {
     );
   });
 
+  it("fails closed when more events are retrieved than expected", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events: Array<Doc<"events">> = [
+      {
+        _id: "evt1" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "commit",
+        ts: 1,
+        canonicalText: "commit",
+        sourceUrl: "https://github.com/acme/gitpulse/commit/1",
+        metadata: { url: "https://github.com/acme/gitpulse/commit/1" },
+        contentScope: "event",
+        contentHash: "hash-commit",
+        createdAt: 0,
+      },
+      {
+        _id: "evt2" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "commit",
+        ts: 2,
+        canonicalText: "commit 2",
+        sourceUrl: "https://github.com/acme/gitpulse/commit/2",
+        metadata: { url: "https://github.com/acme/gitpulse/commit/2" },
+        contentScope: "event",
+        contentHash: "hash-commit-2",
+        createdAt: 0,
+      },
+    ];
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length - 1);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+
+    await expect(
+      generateReportForUser(ctx, {
+        userId: "clerk_user",
+        user: {
+          _id: "user-doc" as Id<"users">,
+          githubUsername: "octocat",
+        } as Doc<"users">,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      })
+    ).rejects.toThrow("Event count mismatch");
+
+    expect(generateDailyReportFromContext).not.toHaveBeenCalled();
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.event_count_mismatch",
+      expect.objectContaining({
+        expected: events.length - 1,
+        seen: events.length,
+      })
+    );
+  });
+
   it("processes 10k events with >=95% coverage when the token estimate stays within budget", async () => {
     const repoId = "repo1" as Id<"repos">;
     const events = createBulkEvents(10_000, repoId);
