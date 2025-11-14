@@ -15,6 +15,7 @@
 import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
+import type { Doc, Id } from "../_generated/dataModel";
 import { getPromptVersion } from "../lib/prompts";
 import { buildReportContext } from "../lib/reportContext";
 import {
@@ -75,7 +76,7 @@ export const generate = action({
         const startDate = endDate - 24 * 60 * 60 * 1000;
 
         // Fetch events for this date range
-        const events = await ctx.runQuery(api.events.listByActor, {
+        const events: Doc<"events">[] = await ctx.runQuery(api.events.listByActor, {
           actorId: user._id,
           startDate,
           endDate,
@@ -83,10 +84,10 @@ export const generate = action({
         });
 
         const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
-        const repoDocs = await Promise.all(
+        const repoDocs: Array<Doc<"repos"> | null> = await Promise.all(
           repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
         );
-        const reposById = new Map(
+        const reposById = new Map<Id<"repos">, Doc<"repos"> | null>(
           repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
         );
 
@@ -155,7 +156,7 @@ export const generate = action({
         const startDate = endDate - 7 * 24 * 60 * 60 * 1000;
 
         // Fetch events for this date range
-        const events = await ctx.runQuery(api.events.listByActor, {
+        const events: Doc<"events">[] = await ctx.runQuery(api.events.listByActor, {
           actorId: user._id,
           startDate,
           endDate,
@@ -163,10 +164,10 @@ export const generate = action({
         });
 
         const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
-        const repoDocs = await Promise.all(
+        const repoDocs: Array<Doc<"repos"> | null> = await Promise.all(
           repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
         );
-        const reposById = new Map(
+        const reposById = new Map<Id<"repos">, Doc<"repos"> | null>(
           repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
         );
 

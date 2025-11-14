@@ -3,9 +3,19 @@
 import { v } from "convex/values";
 import { action } from "../../_generated/server";
 import { api } from "../../_generated/api";
+import type { Doc, Id } from "../../_generated/dataModel";
 import { generateReportForUser } from "../../lib/reportOrchestrator";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+interface RegenerateResult {
+  reportId: Id<"reports"> | null;
+  ghLogin: string;
+  clerkId: string | null;
+  startDate: number;
+  endDate: number;
+  kind: "daily" | "weekly";
+}
 
 export const regenerate = action({
   args: {
@@ -15,7 +25,7 @@ export const regenerate = action({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<RegenerateResult> => {
     if (!args.clerkId && !args.ghLogin) {
       throw new Error("Provide either clerkId or ghLogin");
     }
@@ -24,7 +34,7 @@ export const regenerate = action({
       ? ({ type: "clerkId", value: args.clerkId } as const)
       : ({ type: "ghLogin", value: args.ghLogin! } as const);
 
-    const user =
+    const user: Doc<"users"> | null =
       identifier.type === "clerkId"
         ? await ctx.runQuery(api.users.getByClerkId, {
             clerkId: identifier.value,
