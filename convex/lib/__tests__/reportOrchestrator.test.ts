@@ -261,6 +261,85 @@ describe("generateReportForUser", () => {
     );
   });
 
+  it("reuses cached reports for identical inputs", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events = createBulkEvents(5, repoId);
+    const reportsByCacheKey = new Map<string, Doc<"reports">>();
+
+    const repoDoc = {
+      _id: repoId,
+      _creationTime: 0,
+      fullName: "acme/gitpulse",
+    } as Doc<"repos">;
+
+    const runQuery = jest.fn(async (identifier: any, args: any) => {
+      if (identifier === api.events.listByActor) {
+        return events;
+      }
+      if (identifier === internal.events.countByActorInternal) {
+        return events.length;
+      }
+      if (identifier === internal.reports.getByCacheKey) {
+        return reportsByCacheKey.get(args.cacheKey) ?? null;
+      }
+      if (identifier === api.repos.getById) {
+        return repoDoc;
+      }
+
+      throw new Error(`Unexpected query: ${String(identifier)}`);
+    });
+
+    const runMutation = jest.fn(async (identifier: any, args: any) => {
+      if (identifier === internal.reports.create) {
+        const reportId = `report-${reportsByCacheKey.size + 1}` as Id<"reports">;
+        const doc = { _id: reportId, cacheKey: args.cacheKey } as Doc<"reports">;
+        reportsByCacheKey.set(args.cacheKey, doc);
+        return reportId;
+      }
+
+      throw new Error(`Unexpected mutation: ${String(identifier)}`);
+    });
+
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const userDoc = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    generateDailyReportFromContext.mockResolvedValueOnce({
+      markdown: "## Report",
+      html: "<h2>Report</h2>",
+      citations: events.map((event) => event.metadata?.url as string),
+      provider: "google",
+      model: "gemini-2.5-flash",
+    });
+
+    const firstId = await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user: userDoc,
+      kind: "daily",
+      startDate: 0,
+      endDate: 10,
+    });
+
+    const secondId = await generateReportForUser(ctx, {
+      userId: "clerk_user",
+      user: userDoc,
+      kind: "daily",
+      startDate: 0,
+      endDate: 10,
+    });
+
+    expect(firstId).toBeDefined();
+    expect(secondId).toBe(firstId);
+    expect(generateDailyReportFromContext).toHaveBeenCalledTimes(1);
+    expect(runMutation).toHaveBeenCalledTimes(1);
+
+    const metricNames = metricsModule.emitMetric.mock.calls.map((call) => call[0]);
+    expect(metricNames).toContain("report.cache_miss");
+    expect(metricNames).toContain("report.cache_hit");
+  });
+
   it("generates new report when event hashes change", async () => {
     const repoId = "repo1" as Id<"repos">;
     const firstEvents: Array<Doc<"events">> = [
