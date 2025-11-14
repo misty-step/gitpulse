@@ -504,7 +504,7 @@
 
 ## Success Criteria (Launch Checklist)
 
-- [ ] 10k-event test case: all events included, coverage ≥ 0.95
+- [x] 10k-event test case: all events included, coverage ≥ 0.95
 - [ ] Deterministic cache: same input → same output, cache hit <5s
 - [ ] Fail-closed: N_seen ≠ N_expected → error thrown
 - [ ] No breaking changes: existing reports still work (backward compat)

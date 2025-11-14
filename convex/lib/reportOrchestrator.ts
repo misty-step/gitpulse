@@ -19,6 +19,14 @@ import { emitMetric } from "./metrics";
 import { normalizeUrl } from "./url";
 
 const TOKENS_PER_EVENT_ESTIMATE = 50;
+
+export function getTokensPerEventEstimate(): number {
+  const override = Number(process.env.REPORT_TOKENS_PER_EVENT_ESTIMATE);
+  if (!Number.isNaN(override) && Number.isFinite(override) && override > 0) {
+    return override;
+  }
+  return TOKENS_PER_EVENT_ESTIMATE;
+}
 const TOKEN_WARNING_THRESHOLD = 400_000;
 const TOKEN_HARD_LIMIT = 475_000;
 
@@ -247,7 +255,7 @@ function enforceTokenBudget(
   eventCount: number,
   meta: { userId: string; kind: string; startDate: number; endDate: number }
 ): void {
-  const estimatedTokens = eventCount * TOKENS_PER_EVENT_ESTIMATE;
+  const estimatedTokens = eventCount * getTokensPerEventEstimate();
 
   if (estimatedTokens > TOKEN_HARD_LIMIT) {
     emitMetric("report.token_budget_exceeded", {

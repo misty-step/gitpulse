@@ -1,11 +1,10 @@
 import { describe, expect, it, jest } from "@jest/globals";
 import type { Doc, Id } from "../../_generated/dataModel";
-import {
-  buildCacheKey,
-  generateReportForUser,
-  normalizeUrl,
-} from "../reportOrchestrator";
+import * as reportOrchestrator from "../reportOrchestrator";
 import { isEventCited, CoverageValidationError } from "../coverage";
+
+const { buildCacheKey, generateReportForUser, normalizeUrl } =
+  reportOrchestrator;
 import { createMockActionCtx } from "../../../tests/__mocks__/convexCtx";
 import { createAsyncMock } from "../../../tests/utils/jestMocks";
 import { api, internal } from "../../_generated/api";
@@ -397,6 +396,72 @@ describe("generateReportForUser", () => {
         seen: events.length,
       })
     );
+  });
+
+  it("processes 10k events with >=95% coverage when the token estimate stays within budget", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events = createBulkEvents(10_000, repoId);
+    const citations = events.map((event) => event.metadata?.url as string);
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    runMutation.mockResolvedValueOnce("report-10k" as Id<"reports">);
+
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const userDoc = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    const originalEstimate = process.env.REPORT_TOKENS_PER_EVENT_ESTIMATE;
+    process.env.REPORT_TOKENS_PER_EVENT_ESTIMATE = "30";
+
+    try {
+      generateDailyReportFromContext.mockResolvedValueOnce({
+        markdown: "## Report",
+        html: "<h2>Report</h2>",
+        citations,
+        provider: "google",
+        model: "gemini-2.5-flash",
+      });
+
+      const reportId = await generateReportForUser(ctx, {
+        userId: "clerk_user",
+        user: userDoc,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      });
+
+      expect(reportId).toBe("report-10k");
+
+      expect(buildReportContext).toHaveBeenCalledWith(
+        expect.objectContaining({ events })
+      );
+
+      expect(runMutation).toHaveBeenCalledWith(
+        internal.reports.create,
+        expect.objectContaining({
+          coverageScore: 1,
+        })
+      );
+    } finally {
+      if (originalEstimate === undefined) {
+        delete process.env.REPORT_TOKENS_PER_EVENT_ESTIMATE;
+      } else {
+        process.env.REPORT_TOKENS_PER_EVENT_ESTIMATE = originalEstimate;
+      }
+    }
   });
 
   it("warns when estimated tokens exceed the soft threshold", async () => {
