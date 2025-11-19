@@ -5,7 +5,7 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { ErrorCode } from "./lib/types";
 
 /**
@@ -42,11 +42,11 @@ export const listActive = query({
 });
 
 /**
- * Get a specific ingestion job by ID
+ * Get a specific ingestion job by ID (public, auth required)
  *
  * Returns null if not authenticated or unauthorized (graceful degradation).
  */
-export const getById = query({
+export const get = query({
   args: { jobId: v.id("ingestionJobs") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -247,5 +247,44 @@ export const dismiss = mutation({
     // For now, we'll just let the query filter handle this
     // In future, could add an "acknowledged" field
     // await ctx.db.patch(args.jobId, { acknowledged: true });
+  },
+});
+
+/**
+ * Get job by ID (internal use - no auth required)
+ *
+ * Used by continueBackfill and other internal actions
+ */
+export const getById = internalQuery({
+  args: { jobId: v.id("ingestionJobs") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.jobId);
+  },
+});
+
+/**
+ * Find blocked jobs past their blockedUntil time (safety net query)
+ *
+ * Returns jobs that should have resumed but are still blocked.
+ * Used by cron to catch any jobs where the scheduler failed.
+ */
+export const findStuckBlockedJobs = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Find jobs with status "blocked" where blockedUntil has passed
+    const stuckJobs = await ctx.db
+      .query("ingestionJobs")
+      .withIndex("by_status", (q) => q.eq("status", "blocked"))
+      .filter((q) =>
+        q.and(
+          q.neq(q.field("blockedUntil"), undefined),
+          q.lt(q.field("blockedUntil"), now)
+        )
+      )
+      .collect();
+
+    return stuckJobs;
   },
 });

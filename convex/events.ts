@@ -265,6 +265,31 @@ export const getById = internalQuery({
 });
 
 /**
+ * Internal: List events by date range (for debugging)
+ */
+export const listByDateRange = internalQuery({
+  args: {
+    startDate: v.number(),
+    endDate: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 100;
+
+    let query = ctx.db.query("events").withIndex("by_ts");
+
+    query = query.filter((q) =>
+      q.and(
+        q.gte(q.field("ts"), args.startDate),
+        q.lte(q.field("ts"), args.endDate)
+      )
+    );
+
+    return await query.order("desc").take(limit);
+  },
+});
+
+/**
  * Internal: Lookup event by content hash for idempotent writes
  */
 export const getByContentHash = internalQuery({

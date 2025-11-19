@@ -1,8 +1,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction } from "../../_generated/server";
-import { internal } from "../../_generated/api";
+import { internalAction, ActionCtx } from "../../_generated/server";
+import { api, internal } from "../../_generated/api";
 import {
   canonicalizeEvent,
   type CanonicalizeInput,
@@ -12,6 +12,59 @@ import {
   type IssueCommentWebhookEvent,
 } from "../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../lib/canonicalFactService";
+
+/**
+ * GitHub Installation webhook payload types
+ */
+interface InstallationAccount {
+  id: number;
+  login: string;
+  type: string;
+  node_id?: string;
+  avatar_url?: string;
+}
+
+interface InstallationPayload {
+  id: number;
+  account: InstallationAccount;
+  repository_selection: "all" | "selected";
+  access_tokens_url?: string;
+  repositories_url?: string;
+  html_url?: string;
+  app_id?: number;
+  target_id?: number;
+  target_type?: string;
+  permissions?: Record<string, string>;
+  events?: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface InstallationWebhookEvent {
+  action: "created" | "deleted" | "suspend" | "unsuspend" | "new_permissions_accepted";
+  installation: InstallationPayload;
+  repositories?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
+  sender: {
+    id: number;
+    login: string;
+    node_id?: string;
+    avatar_url?: string;
+    type?: string;
+  };
+}
+
+interface InstallationRepositoriesWebhookEvent {
+  action: "added" | "removed";
+  installation: InstallationPayload;
+  repository_selection: "all" | "selected";
+  repositories_added?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
+  repositories_removed?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
+  sender: {
+    id: number;
+    login: string;
+    node_id?: string;
+  };
+}
 
 /**
  * Process GitHub webhook event asynchronously
@@ -52,6 +105,21 @@ export const processWebhook = internalAction({
         id: args.webhookEventId,
         status: "processing",
       });
+
+      // Handle installation events separately (they create installation records, not events)
+      if (event === "installation" || event === "installation_repositories") {
+        const result = await handleInstallationEvent(ctx, event, payload, deliveryId);
+        await ctx.runMutation(internal.webhookEvents.updateStatus, {
+          id: args.webhookEventId,
+          status: "completed",
+        });
+        console.log("Installation event processed", {
+          deliveryId,
+          event,
+          ...result,
+        });
+        return;
+      }
 
       const canonicalInputs = buildCanonicalInputs(event, payload);
       if (canonicalInputs.length === 0) {
@@ -158,4 +226,150 @@ function buildCanonicalInputs(
     default:
       return [];
   }
+}
+
+/**
+ * Handle GitHub App installation events
+ *
+ * Creates/updates installation records and links them to users.
+ * The key is matching the webhook sender (who installed the app) to our user records.
+ */
+async function handleInstallationEvent(
+  ctx: ActionCtx,
+  event: string,
+  payload: unknown,
+  deliveryId: string
+): Promise<{ action: string; installationId: number; linkedToUser: boolean }> {
+  if (event === "installation") {
+    const installationPayload = payload as InstallationWebhookEvent;
+    const { action, installation, sender, repositories } = installationPayload;
+
+    // Try to find the user who performed this action by their GitHub ID
+    const user = await ctx.runQuery(api.users.getByGhId, { ghId: sender.id });
+
+    const clerkUserId = user?.clerkId || undefined;
+
+    if (action === "created") {
+      // Create the installation record
+      const repoNames = repositories?.map((r) => r.full_name) || [];
+
+      await ctx.runMutation(api.installations.upsert, {
+        installationId: installation.id,
+        accountLogin: installation.account.login,
+        accountType: installation.account.type,
+        targetType: installation.target_type,
+        repositorySelection: installation.repository_selection,
+        repositories: repoNames,
+        clerkUserId,
+        status: "active",
+      });
+
+      console.log("Installation created", {
+        installationId: installation.id,
+        account: installation.account.login,
+        sender: sender.login,
+        clerkUserId,
+        repoCount: repoNames.length,
+      });
+
+      return {
+        action,
+        installationId: installation.id,
+        linkedToUser: !!clerkUserId,
+      };
+    }
+
+    if (action === "deleted") {
+      // Mark installation as deleted (or remove it)
+      await ctx.runMutation(api.installations.upsert, {
+        installationId: installation.id,
+        accountLogin: installation.account.login,
+        status: "deleted",
+      });
+
+      console.log("Installation deleted", {
+        installationId: installation.id,
+        account: installation.account.login,
+      });
+
+      return {
+        action,
+        installationId: installation.id,
+        linkedToUser: false,
+      };
+    }
+
+    // Handle suspend/unsuspend
+    if (action === "suspend" || action === "unsuspend") {
+      await ctx.runMutation(api.installations.upsert, {
+        installationId: installation.id,
+        accountLogin: installation.account.login,
+        status: action === "suspend" ? "suspended" : "active",
+      });
+
+      return {
+        action,
+        installationId: installation.id,
+        linkedToUser: false,
+      };
+    }
+
+    // Other actions (new_permissions_accepted) - just acknowledge
+    return {
+      action,
+      installationId: installation.id,
+      linkedToUser: false,
+    };
+  }
+
+  if (event === "installation_repositories") {
+    const reposPayload = payload as InstallationRepositoriesWebhookEvent;
+    const { action, installation, repositories_added, repositories_removed } = reposPayload;
+
+    // Get current installation to update its repository list
+    const existing = await ctx.runQuery(api.installations.getByInstallationId, {
+      installationId: installation.id,
+    });
+
+    let updatedRepos = existing?.repositories || [];
+
+    if (action === "added" && repositories_added) {
+      const addedNames = repositories_added.map((r) => r.full_name);
+      updatedRepos = [...new Set([...updatedRepos, ...addedNames])];
+    }
+
+    if (action === "removed" && repositories_removed) {
+      const removedNames = new Set(repositories_removed.map((r) => r.full_name));
+      updatedRepos = updatedRepos.filter((name: string) => !removedNames.has(name));
+    }
+
+    await ctx.runMutation(api.installations.upsert, {
+      installationId: installation.id,
+      accountLogin: installation.account.login,
+      repositorySelection: reposPayload.repository_selection,
+      repositories: updatedRepos,
+    });
+
+    console.log("Installation repositories updated", {
+      installationId: installation.id,
+      action,
+      added: repositories_added?.length || 0,
+      removed: repositories_removed?.length || 0,
+      total: updatedRepos.length,
+    });
+
+    return {
+      action,
+      installationId: installation.id,
+      linkedToUser: false,
+    };
+  }
+
+  // Unknown installation event type
+  console.warn("Unknown installation event type", { event, deliveryId });
+  return {
+    action: "unknown",
+    installationId: 0,
+    linkedToUser: false,
+  };
 }

@@ -1,42 +1,44 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
+import {
+  formatTimestamp,
+  getGithubInstallUrl,
+  needsIntegrationAttention,
+} from "@/lib/integrationStatus";
+import type { IntegrationStatus } from "@/lib/integrationStatus";
 
 /**
- * IngestionBanner - Shows progress of active ingestion jobs
- *
- * Uses reactive Convex queries to display real-time progress updates.
- * Non-blocking - user can navigate away while jobs run.
- *
- * Graceful handling:
- * - undefined: Query still loading (auth initializing) - don't render
- * - []: No active jobs (or not authenticated yet) - don't render
- * - [...]: Active jobs found - render progress cards
+ * IntegrationStatusBanner - centralizes integration health + ingestion progress.
+ * Renders at most one warning CTA per page plus any active ingestion jobs.
  */
-export function IngestionBanner() {
+export function IntegrationStatusBanner() {
   const activeJobs = useQuery(api.ingestionJobs.listActive);
+  const { status: integrationStatus, isLoading: isIntegrationLoading } = useIntegrationStatus();
 
-  // undefined = still loading (auth initializing, query pending)
-  // Don't render anything - avoid flash of empty state
-  if (activeJobs === undefined) {
+  if (activeJobs === undefined || isIntegrationLoading) {
     return null;
   }
 
-  // [] = no active jobs (or not authenticated yet)
-  // This is a valid state - just don't show banner
-  if (activeJobs.length === 0) {
+  const hasJobs = activeJobs.length > 0;
+  const showWarning = needsIntegrationAttention(integrationStatus);
+  if (!showWarning && !hasJobs) {
     return null;
   }
 
-  // We have active jobs - render them!
   return (
     <div className="space-y-2">
-      {activeJobs.map((job) => (
-        <JobProgressCard key={job._id} job={job} />
-      ))}
+      {showWarning && integrationStatus ? (
+        <IntegrationWarningCard status={integrationStatus} />
+      ) : null}
+      {hasJobs
+        ? activeJobs.map((job) => <JobProgressCard key={job._id} job={job} />)
+        : null}
     </div>
   );
 }
@@ -118,6 +120,37 @@ function JobProgressCard({ job }: { job: Doc<"ingestionJobs"> }) {
         >
           ✕
         </button>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationWarningCard({ status }: { status: IntegrationStatus }) {
+  const installUrl = getGithubInstallUrl();
+  const isInstallMissing = status.kind === "missing_installation";
+  const actionHref = isInstallMissing ? installUrl : "/dashboard/settings/repositories";
+  const actionLabel = isInstallMissing ? "Connect GitHub" : "Review ingestion settings";
+
+  const description =
+    status.kind === "stale_events"
+      ? `No events since ${formatTimestamp(status.lastEventTs)}.`
+      : status.kind === "missing_installation"
+      ? "Install the GitHub App so GitPulse can ingest your activity."
+      : "We haven’t ingested any GitHub activity yet.";
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium">GitHub integration needs attention</p>
+          <p className="mt-1 text-amber-800">{description}</p>
+        </div>
+        <Link
+          href={actionHref}
+          className="inline-flex items-center justify-center rounded-md bg-amber-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-800"
+        >
+          {actionLabel}
+        </Link>
       </div>
     </div>
   );

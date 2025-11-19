@@ -38,3 +38,60 @@ export const processPendingWebhooks = internalAction({
     return { processed: pending.length };
   },
 });
+
+/**
+ * Resume stuck blocked backfill jobs (safety net)
+ *
+ * This action catches any jobs where the scheduler failed to trigger the
+ * continuation. Finds jobs with status "blocked" that are past their
+ * blockedUntil time and resumes them.
+ *
+ * Should be run periodically (e.g., every 5 minutes) by a cron job.
+ */
+export const resumeStuckBackfills = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ resumed: number; failed: number }> => {
+    // Find jobs that should have resumed but are still blocked
+    const stuckJobs = await ctx.runQuery(internal.ingestionJobs.findStuckBlockedJobs, {});
+
+    if (stuckJobs.length === 0) {
+      return { resumed: 0, failed: 0 };
+    }
+
+    console.log(`[SafetyNet] Found ${stuckJobs.length} stuck blocked jobs to resume`);
+
+    let resumed = 0;
+    let failed = 0;
+
+    for (const job of stuckJobs) {
+      try {
+        // Schedule immediate continuation
+        await ctx.scheduler.runAfter(
+          0,
+          internal.actions.github.startBackfill.continueBackfill,
+          { jobId: job._id }
+        );
+
+        console.log("[SafetyNet] Scheduled resume for stuck job", {
+          jobId: job._id,
+          repoFullName: job.repoFullName,
+          blockedUntil: job.blockedUntil
+            ? new Date(job.blockedUntil).toISOString()
+            : "unknown",
+        });
+
+        resumed++;
+      } catch (error) {
+        console.error("[SafetyNet] Failed to schedule resume for job", {
+          jobId: job._id,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        failed++;
+      }
+    }
+
+    console.log(`[SafetyNet] Resume complete: ${resumed} resumed, ${failed} failed`);
+
+    return { resumed, failed };
+  },
+});

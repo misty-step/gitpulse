@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 export const upsert = mutation({
@@ -122,5 +122,15 @@ export const updateSyncState = internalMutation({
     }
 
     await ctx.db.patch(installation._id, update);
+  },
+});
+
+/**
+ * List all installations (internal use for reconciliation)
+ */
+export const listAll = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return ctx.db.query("installations").collect();
   },
 });

@@ -268,6 +268,75 @@ export function shouldPause(remaining?: number): boolean {
 }
 
 /**
+ * GitHub Installation from /app/installations API
+ */
+export interface GitHubInstallation {
+  id: number;
+  account: {
+    id: number;
+    login: string;
+    type: string;
+    node_id?: string;
+    avatar_url?: string;
+  };
+  repository_selection: "all" | "selected";
+  access_tokens_url: string;
+  repositories_url: string;
+  html_url: string;
+  app_id: number;
+  target_id: number;
+  target_type: string;
+  permissions: Record<string, string>;
+  events: string[];
+  created_at: string;
+  updated_at: string;
+  suspended_at?: string | null;
+}
+
+/**
+ * Fetch all installations for this GitHub App
+ *
+ * Uses App JWT authentication to call GET /app/installations
+ */
+export async function listAppInstallations(): Promise<GitHubInstallation[]> {
+  const appJwt = buildAppJwt();
+
+  const allInstallations: GitHubInstallation[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const response = await fetch(`${INSTALLATIONS_ENDPOINT}?per_page=${perPage}&page=${page}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${appJwt}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `Failed to list installations (${response.status}): ${body || response.statusText}`
+      );
+    }
+
+    const installations = (await response.json()) as GitHubInstallation[];
+    allInstallations.push(...installations);
+
+    // Check if there are more pages
+    if (installations.length < perPage) {
+      break;
+    }
+
+    page++;
+  }
+
+  return allInstallations;
+}
+
+/**
  * Test-only helper to clear cached tokens.
  */
 export function __resetGithubAppInternalState() {

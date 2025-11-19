@@ -19,6 +19,19 @@ export const getByGhLogin = query({
 });
 
 /**
+ * List all users by GitHub login (for detecting duplicates)
+ */
+export const listByGhLogin = query({
+  args: { ghLogin: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_ghLogin", (q) => q.eq("ghLogin", args.ghLogin))
+      .collect();
+  },
+});
+
+/**
  * Get user by GitHub ID
  */
 export const getByGhId = query({

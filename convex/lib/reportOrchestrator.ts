@@ -38,11 +38,32 @@ interface GenerateReportParams {
   endDate: number;
 }
 
+type GenerateReportStage =
+  | "collecting"
+  | "generating"
+  | "validating"
+  | "saving"
+  | "completed";
+
+interface GenerateReportOptions {
+  forceRegenerate?: boolean;
+  onStage?: (stage: GenerateReportStage, meta?: Record<string, unknown>) => Promise<void> | void;
+}
+
 export async function generateReportForUser(
   ctx: ActionCtx,
-  params: GenerateReportParams
+  params: GenerateReportParams,
+  options: GenerateReportOptions = {}
 ): Promise<Id<"reports"> | null> {
   const { user, kind, startDate, endDate } = params;
+  const stageReporter = async (
+    stage: GenerateReportStage,
+    meta?: Record<string, unknown>
+  ) => {
+    if (options.onStage) {
+      await options.onStage(stage, meta);
+    }
+  };
 
   if (!user.githubUsername) {
     console.warn(
@@ -94,7 +115,7 @@ export async function generateReportForUser(
     endDate,
   });
 
-  if (cachedReport) {
+  if (!options.forceRegenerate && cachedReport) {
     emitMetric("report.cache_hit", {
       userId: params.userId,
       kind,
@@ -125,10 +146,20 @@ export async function generateReportForUser(
     endDate,
   });
 
+  await stageReporter("collecting", {
+    eventCount: events.length,
+    expectedEventCount,
+  });
+
   const generator =
     kind === "daily"
       ? generateDailyReportFromContext
       : generateWeeklyReportFromContext;
+
+  await stageReporter("generating", {
+    cacheKey,
+    repoCount: reposById.size,
+  });
 
   const llmStart = Date.now();
   const generated = await generator(
@@ -137,6 +168,10 @@ export async function generateReportForUser(
     allowedUrls
   );
   const latencyMs = Date.now() - llmStart;
+
+  await stageReporter("validating", {
+    latencyMs,
+  });
 
   try {
     validateCoverage(
@@ -179,6 +214,8 @@ export async function generateReportForUser(
       ? `Automated daily standup for ${user.githubUsername}`
       : `Automated weekly retrospective for ${user.githubUsername}`;
 
+  await stageReporter("saving");
+
   const reportId = await ctx.runMutation(internal.reports.create, {
     userId: params.userId,
     title,
@@ -213,6 +250,10 @@ export async function generateReportForUser(
     provider: generated.provider,
     model: generated.model,
     costUsd: estimateCost(generated.provider, generated.model, events.length),
+  });
+
+  await stageReporter("completed", {
+    reportId,
   });
 
   return reportId;

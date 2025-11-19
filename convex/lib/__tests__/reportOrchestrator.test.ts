@@ -261,6 +261,75 @@ describe("generateReportForUser", () => {
     );
   });
 
+  it("bypasses cache when forceRegenerate is true", async () => {
+    const repoId = "repo1" as Id<"repos">;
+    const events: Array<Doc<"events">> = [
+      {
+        _id: "evt1" as Id<"events">,
+        _creationTime: 0,
+        repoId,
+        actorId: "actor1" as Id<"users">,
+        type: "commit",
+        ts: 1,
+        canonicalText: "commit",
+        sourceUrl: "https://github.com/acme/gitpulse/commit/1",
+        metadata: { url: "https://github.com/acme/gitpulse/commit/1" },
+        contentScope: "event",
+        contentHash: "hash-commit",
+        createdAt: 0,
+      },
+    ];
+
+    const cachedDoc = { _id: "cached-report" as Id<"reports"> } as Doc<"reports">;
+
+    const runQuery = createAsyncMock<unknown>();
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length)
+      .mockResolvedValueOnce(cachedDoc)
+      .mockResolvedValueOnce({
+        _id: repoId,
+        _creationTime: 0,
+        fullName: "acme/gitpulse",
+      } as unknown as Doc<"repos">);
+
+    const runMutation = createAsyncMock<Id<"reports">>();
+    runMutation.mockResolvedValueOnce("new-report" as Id<"reports">);
+
+    const ctx = createMockActionCtx({ runQuery, runMutation });
+    const userDoc = {
+      _id: "user-doc" as Id<"users">,
+      githubUsername: "octocat",
+    } as Doc<"users">;
+
+    generateDailyReportFromContext.mockResolvedValueOnce({
+      markdown: "## Report",
+      html: "<h2>Report</h2>",
+      citations: events.map((event) => event.sourceUrl!),
+      provider: "google",
+      model: "gemini-2.5-flash",
+    });
+
+    const result = await generateReportForUser(
+      ctx,
+      {
+        userId: "clerk_user",
+        user: userDoc,
+        kind: "daily",
+        startDate: 0,
+        endDate: 10,
+      },
+      { forceRegenerate: true }
+    );
+
+    expect(result).toBe("new-report");
+    expect(generateDailyReportFromContext).toHaveBeenCalledTimes(1);
+    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
+      "report.cache_miss",
+      expect.objectContaining({ cacheKey: expect.any(String) })
+    );
+  });
+
   it("reuses cached reports for identical inputs", async () => {
     const repoId = "repo1" as Id<"repos">;
     const events = createBulkEvents(5, repoId);

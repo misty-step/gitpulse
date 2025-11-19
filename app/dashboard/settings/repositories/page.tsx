@@ -5,12 +5,16 @@ import { useAction, usePaginatedQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import Link from "next/link";
-import { IngestionBanner } from "@/components/IngestionBanner";
+import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { AuthLoadingBoundary } from "@/components/AuthLoadingBoundary";
 import { SkeletonRepoList } from "@/components/Skeleton";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
+import { formatTimestamp, getGithubInstallUrl } from "@/lib/integrationStatus";
+import type { IntegrationStatus } from "@/lib/integrationStatus";
 
 export default function RepositoriesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
+  const { status: integrationStatus } = useIntegrationStatus();
 
   // Use paginated query - Convex handles paginationOpts automatically
   const { results: repos, status, loadMore } = usePaginatedQuery(
@@ -42,9 +46,12 @@ export default function RepositoriesPage() {
         <AddRepositoryForm onClose={() => setShowAddForm(false)} />
       )}
 
+      {/* Integration Health */}
+      {integrationStatus ? <IntegrationHealthCard status={integrationStatus} /> : null}
+
       {/* Progress Banner for Active Ingestions */}
       <AuthLoadingBoundary>
-        <IngestionBanner />
+        <IntegrationStatusBanner />
       </AuthLoadingBoundary>
 
       {/* Repositories Table */}
@@ -443,6 +450,71 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
+  if (status.kind === "unauthenticated" || status.kind === "missing_user") {
+    return null;
+  }
+
+  const installUrl = getGithubInstallUrl();
+  const lastEventText = status.lastEventTs ? formatTimestamp(status.lastEventTs) : "Never";
+  const lastSyncedText = status.lastSyncedAt ? formatTimestamp(status.lastSyncedAt) : "Never";
+  const needsAttention = status.kind !== "healthy";
+
+  const summary =
+    status.kind === "healthy"
+      ? "GitHub App installed and ingesting events."
+      : status.kind === "missing_installation"
+      ? "No GitHub App installation detected."
+      : status.kind === "no_events"
+      ? "No events have been ingested yet."
+      : "Ingestion paused—no new events detected.";
+
+  return (
+    <div
+      className={`rounded-lg border p-4 ${
+        needsAttention
+          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
+          : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100"
+      }`}
+    >
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-semibold">Integration Health</p>
+        <p className="text-sm">{summary}</p>
+        <dl className="mt-2 grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+          <div>
+            <dt className="text-amber-900/70 dark:text-amber-100/70">Installations</dt>
+            <dd className="text-base font-semibold">{status.installCount ?? 0}</dd>
+          </div>
+          <div>
+            <dt className="text-amber-900/70 dark:text-amber-100/70">Last event</dt>
+            <dd className="text-sm font-medium">{lastEventText}</dd>
+          </div>
+          <div>
+            <dt className="text-amber-900/70 dark:text-amber-100/70">Last sync</dt>
+            <dd className="text-sm font-medium">{lastSyncedText}</dd>
+          </div>
+        </dl>
+        {status.kind === "missing_installation" ? (
+          <a
+            href={installUrl}
+            className="text-sm font-semibold text-amber-900 underline hover:text-amber-700 dark:text-amber-100"
+          >
+            Open GitHub App install page →
+          </a>
+        ) : null}
+        {status.kind === "no_events" || status.kind === "stale_events" ? (
+          <Link
+            href="/dashboard/settings/repositories"
+            className="text-sm font-semibold text-amber-900 underline hover:text-amber-700 dark:text-amber-100"
+          >
+            Review tracked repositories →
+          </Link>
+        ) : null}
       </div>
     </div>
   );

@@ -4,15 +4,20 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { CoverageMeter } from "@/components/CoverageMeter";
+import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
+import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
+import type { IntegrationStatus } from "@/lib/integrationStatus";
 
 export default function ReportsPage() {
   const { clerkUser, convexUser, isLoading: isAuthLoading } = useAuthenticatedConvexUser();
   const [loadMoreCount, setLoadMoreCount] = useState(1);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const { status: integrationStatus } = useIntegrationStatus();
 
   const userId = clerkUser?.id;
   const githubUsername = convexUser?.githubUsername;
@@ -105,7 +110,8 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto space-y-6">
+      <IntegrationStatusBanner />
       {/* Loading State */}
       {reports === undefined ? (
         <div className="space-y-4">
@@ -121,13 +127,7 @@ export default function ReportsPage() {
           ))}
         </div>
       ) : reports.length === 0 ? (
-        // Empty State
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-neutral-800 dark:bg-neutral-900">
-          <p className="mb-2 text-base text-gray-500 dark:text-slate-300">No reports yet</p>
-          <p className="text-sm text-gray-400 dark:text-slate-400">
-            Reports are generated automatically at 9am your local time
-          </p>
-        </div>
+        <ReportsEmptyState status={integrationStatus} />
       ) : (
         // Reports Feed
         <>
@@ -215,6 +215,70 @@ export default function ReportsPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }) {
+  const installUrl = getGithubInstallUrl();
+  const isActionable =
+    status && !["healthy", "missing_user", "unauthenticated"].includes(status.kind);
+
+  const title = isActionable
+    ? "Connect GitHub to start generating reports"
+    : "No reports yet";
+
+  let guidance: ReactNode = (
+    <p className="text-sm text-gray-400 dark:text-slate-400">
+      Reports are generated automatically at 9am your local time.
+    </p>
+  );
+
+  if (status) {
+    if (status.kind === "missing_installation") {
+      guidance = (
+        <p className="text-sm text-amber-900 dark:text-amber-100">
+          Install the GitHub App to begin ingesting activity.{" "}
+          <a href={installUrl} className="font-medium underline">
+            Open GitHub
+          </a>
+          .
+        </p>
+      );
+    } else if (status.kind === "no_events") {
+      guidance = (
+        <p className="text-sm text-amber-900 dark:text-amber-100">
+          We haven’t ingested any GitHub activity yet. Add repositories in{" "}
+          <Link href="/dashboard/settings/repositories" className="font-medium underline">
+            Settings
+          </Link>{" "}
+          to kick off your first backfill.
+        </p>
+      );
+    } else if (status.kind === "stale_events") {
+      guidance = (
+        <p className="text-sm text-amber-900 dark:text-amber-100">
+          No new events have arrived since {formatTimestamp(status.lastEventTs)}. Review your GitHub
+          connection in{" "}
+          <Link href="/dashboard/settings/repositories" className="font-medium underline">
+            Settings
+          </Link>{" "}
+          to resume ingestion.
+        </p>
+      );
+    }
+  }
+
+  return (
+    <div
+      className={`rounded-lg border p-12 text-center ${
+        isActionable
+          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
+          : "border-gray-200 bg-white text-gray-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300"
+      }`}
+    >
+      <p className="mb-3 text-base font-semibold">{title}</p>
+      {guidance}
     </div>
   );
 }

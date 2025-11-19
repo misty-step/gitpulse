@@ -1,27 +1,53 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { CoverageMeter } from "@/components/CoverageMeter";
+import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { CitationDrawer } from "@/components/CitationDrawer";
+import { handleConvexError, showSuccess } from "@/lib/errors";
+import { needsIntegrationAttention, formatTimestamp } from "@/lib/integrationStatus";
+import type { IntegrationStatus } from "@/lib/integrationStatus";
 
 export default function ReportViewerPage() {
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as Id<"reports">;
   const { clerkUser } = useAuthenticatedConvexUser();
+  const createRegeneration = useMutation(api.reportRegenerations.createRequest);
+  const [isRequestingRegeneration, setIsRequestingRegeneration] = useState(false);
 
   const report = useQuery(api.reports.getById, { id: reportId });
+  const { status: integrationStatus } = useIntegrationStatus();
 
   // Fetch reports list to find adjacent reports
   const allReports = useQuery(
     api.reports.listByUser,
     clerkUser?.id ? { userId: clerkUser.id, limit: 100 } : "skip"
+  );
+
+  const latestJob = useQuery(
+    api.reportRegenerations.latestByReport,
+    report ? { reportId: report._id } : "skip"
+  );
+
+  const reportVersions = useQuery(
+    api.reports.listByWindow,
+    report && report.scheduleType
+      ? {
+          userId: report.userId,
+          startDate: report.startDate,
+          endDate: report.endDate,
+          scheduleType: report.scheduleType,
+          limit: 10,
+        }
+      : "skip"
   );
 
   // Find previous and next report IDs
@@ -36,6 +62,46 @@ export default function ReportViewerPage() {
       prevReportId: idx < allReports.length - 1 ? allReports[idx + 1]._id : null,
     };
   }, [allReports, reportId]);
+
+  const jobInFlight = Boolean(
+    latestJob && ["queued", "collecting", "generating", "validating", "saving"].includes(latestJob.status)
+  );
+  const jobFailed = latestJob?.status === "failed";
+  const jobProgress = Math.round((latestJob?.progress ?? 0) * 100);
+  const versionList = reportVersions ?? undefined;
+  const latestVersionId = versionList && versionList.length > 0 ? versionList[0]!._id : null;
+  const isLatestVersion =
+    report && versionList && versionList.length > 0 ? versionList[0]!._id === report._id : true;
+  const hasNewerVersion = Boolean(latestVersionId && report && latestVersionId !== report._id);
+  const regenerateLabel = jobInFlight
+    ? "Regenerating..."
+    : jobFailed
+    ? "Retry regeneration"
+    : "Regenerate report";
+  const disableRegenerate = !report || jobInFlight || isRequestingRegeneration;
+
+  const handleRegenerate = async () => {
+    if (!report) return;
+    setIsRequestingRegeneration(true);
+    try {
+      await createRegeneration({ reportId: report._id });
+      showSuccess("Regeneration started", "We\'ll refresh this page when it\'s ready.");
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error("Failed to start regeneration");
+      handleConvexError(err, {
+        operation: "regenerate report",
+        retry: () => handleRegenerate(),
+      });
+    } finally {
+      setIsRequestingRegeneration(false);
+    }
+  };
+
+  const handleViewLatest = () => {
+    if (latestVersionId && latestVersionId !== reportId) {
+      router.replace(`/dashboard/reports/${latestVersionId}`);
+    }
+  };
 
   // Keyboard shortcuts: Escape, ←, →
   useEffect(() => {
@@ -56,6 +122,16 @@ export default function ReportViewerPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router, prevReportId, nextReportId]);
+
+  useEffect(() => {
+    if (!latestJob || latestJob.status !== "completed" || !latestJob.newReportId) {
+      return;
+    }
+
+    if (latestJob.newReportId !== reportId) {
+      router.replace(`/dashboard/reports/${latestJob.newReportId}`);
+    }
+  }, [latestJob, reportId, router]);
 
   if (report === undefined) {
     return (
@@ -91,8 +167,12 @@ export default function ReportViewerPage() {
     URL.revokeObjectURL(url);
   };
 
+  const showIntegrationAlert =
+    report.coverageScore === 0 && needsIntegrationAttention(integrationStatus);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <IntegrationStatusBanner />
       {/* Header */}
       <div className="space-y-4">
         {/* Navigation Bar */}
@@ -136,7 +216,7 @@ export default function ReportViewerPage() {
         </div>
 
         {/* Title and Metadata */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">
               {report.title}
@@ -157,14 +237,80 @@ export default function ReportViewerPage() {
               </span>
             </div>
           </div>
-          <button
-            onClick={handleDownloadMarkdown}
-            className="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
-          >
-            Download Markdown
-          </button>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <button
+              onClick={handleDownloadMarkdown}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
+            >
+              Download Markdown
+            </button>
+            <button
+              onClick={handleRegenerate}
+              disabled={disableRegenerate}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+                disableRegenerate
+                  ? "bg-blue-400/50 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-500"
+              }`}
+            >
+              {regenerateLabel}
+            </button>
+          </div>
         </div>
       </div>
+
+      {showIntegrationAlert && integrationStatus ? (
+        <IntegrationContextNote status={integrationStatus} />
+      ) : null}
+
+      {jobInFlight && latestJob && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
+          <div className="flex items-center justify-between font-medium">
+            <span>Regenerating report</span>
+            <span>{jobProgress}%</span>
+          </div>
+          <div className="mt-2 h-2 rounded-full bg-blue-100 dark:bg-blue-500/30">
+            <div
+              className="h-2 rounded-full bg-blue-600 transition-[width] dark:bg-blue-400"
+              style={{ width: `${jobProgress}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-blue-900/80 dark:text-blue-100/80">
+            {latestJob.message ?? "Working through the latest activity..."}
+          </p>
+        </div>
+      )}
+
+      {jobFailed && latestJob && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+          <div className="flex items-center justify-between font-medium">
+            <span>Regeneration failed</span>
+            <button
+              onClick={handleRegenerate}
+              className="rounded border border-red-300 px-3 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-100 dark:border-red-400 dark:text-red-100 dark:hover:bg-red-500/30"
+            >
+              Retry
+            </button>
+          </div>
+          <p className="mt-2 text-xs">
+            {latestJob.error?.message ?? latestJob.message ?? "Something went wrong."}
+          </p>
+        </div>
+      )}
+
+      {hasNewerVersion && (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-100">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>A newer version of this report is available.</span>
+            <button
+              onClick={handleViewLatest}
+              className="inline-flex items-center justify-center rounded border border-amber-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-300/50 dark:text-amber-100 dark:hover:bg-amber-400/20"
+            >
+              View latest
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Metadata */}
       <div className="space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-neutral-900">
@@ -216,6 +362,55 @@ export default function ReportViewerPage() {
         )}
       </div>
 
+      {report.scheduleType && versionList && versionList.length > 0 && (
+        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Report Versions</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                {versionList.length} version{versionList.length === 1 ? "" : "s"} available for this time range
+              </p>
+            </div>
+            {!isLatestVersion && (
+              <button
+                onClick={handleViewLatest}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
+              >
+                Jump to latest
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {versionList.map((version) => {
+              const isCurrent = version._id === report._id;
+              return (
+                <button
+                  key={version._id}
+                  onClick={() => {
+                    if (!isCurrent) router.push(`/dashboard/reports/${version._id}`);
+                  }}
+                  className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
+                    isCurrent
+                      ? "border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-blue-500/10"
+                      : "border-gray-200 hover:bg-gray-50 dark:border-neutral-800 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-sm font-medium text-gray-900 dark:text-slate-100">
+                    <span>{new Date(version.generatedAt).toLocaleString()}</span>
+                    <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                      {isCurrent ? "Current" : "View"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                    Coverage {(version.coverageScore ?? 0).toLocaleString(undefined, { style: "percent", maximumFractionDigits: 1 })}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Report Content (HTML) */}
       <div className="prose prose-slate max-w-none rounded-lg border border-gray-200 bg-white p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:prose-invert">
         <div
@@ -225,6 +420,25 @@ export default function ReportViewerPage() {
       </div>
 
       <CitationDrawer citations={report.citations} />
+    </div>
+  );
+}
+
+function IntegrationContextNote({ status }: { status: IntegrationStatus }) {
+  let message = "GitHub integration needs attention.";
+
+  if (status.kind === "missing_installation") {
+    message = "Install the GitHub App to collect GitHub activity for this report window.";
+  } else if (status.kind === "no_events") {
+    message = "No GitHub events are available for this timeframe yet.";
+  } else if (status.kind === "stale_events") {
+    message = `We haven’t ingested any GitHub events since ${formatTimestamp(status.lastEventTs)}.`;
+  }
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100">
+      <p className="font-semibold">This report is missing GitHub data</p>
+      <p className="mt-1">{message}</p>
     </div>
   );
 }

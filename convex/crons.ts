@@ -66,6 +66,15 @@ crons.hourly(
   {}
 );
 
+// Resume any stuck blocked backfill jobs (safety net)
+// Runs every 5 minutes to catch jobs where the scheduler failed
+crons.interval(
+  "backfill-stuck-job-recovery",
+  { minutes: 5 },
+  internal.actions.github.scheduler.resumeStuckBackfills,
+  {}
+);
+
 crons.daily(
   "installation-reconcile",
   { hourUTC: 2, minuteUTC: 15 },

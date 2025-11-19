@@ -62,6 +62,35 @@ export const listByGhLogin = query({
   },
 });
 
+export const listByWindow = query({
+  args: {
+    userId: v.string(),
+    startDate: v.number(),
+    endDate: v.number(),
+    scheduleType: v.union(v.literal("daily"), v.literal("weekly")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 20;
+
+    const reports = await ctx.db
+      .query("reports")
+      .withIndex("by_userId_and_schedule", (q) =>
+        q.eq("userId", args.userId).eq("scheduleType", args.scheduleType)
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("startDate"), args.startDate),
+          q.eq(q.field("endDate"), args.endDate)
+        )
+      )
+      .order("desc")
+      .take(limit);
+
+    return reports;
+  },
+});
+
 /**
  * List all reports (for admin/debug)
  */

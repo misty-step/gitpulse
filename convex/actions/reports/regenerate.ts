@@ -63,13 +63,17 @@ export const regenerate = action({
       throw new Error("startDate must be earlier than endDate");
     }
 
-    const reportId = await generateReportForUser(ctx, {
-      userId: user.clerkId ?? `gh:${user.ghLogin}`,
-      user,
-      kind: args.kind,
-      startDate,
-      endDate,
-    });
+    const reportId = await generateReportForUser(
+      ctx,
+      {
+        userId: user.clerkId ?? `gh:${user.ghLogin}`,
+        user,
+        kind: args.kind,
+        startDate,
+        endDate,
+      },
+      { forceRegenerate: true }
+    );
 
     return {
       reportId,

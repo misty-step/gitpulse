@@ -1,317 +1,378 @@
+# DESIGN: Multi-Account Architecture
+
 ## Architecture Overview
-**Selected Approach**: Dual-Stream Content-Addressed Fact Graph
-**Rationale**: Shares one fact pipeline for webhook firehose + resumable backfills, keeps Convex as SoR, constrains LLM spend via deterministic hashes + caches. Aligns with GitHub App queue-first best practices and current stack (Next.js + Convex) so dev velocity stays high.
+**Selected Approach**: Claim-first Convex graph
+**Rationale**: Convex already stores GitHub users + installations globally, so layering a `userInstallations` join plus derived repo access keeps the model close to GitHub's permission semantics while avoiding another service hop.
 
 **Core Modules**
-- GitHub Integration Service – receives & authenticates installs, webhooks, and backfill requests, pushes jobs into prioritized queues.
-- Canonical Fact Service – normalizes payloads, enforces schemas, computes content hashes, writes facts/metrics into Convex.
-- Embedding & Cache Service – batches Voyage/OpenAI embeddings keyed by contentHash, exposes ensureEmbeddings API + monitors spend.
-- Report Orchestrator – selects facts per scope/window, guarantees coverage + citations, dispatches LLM calls with caching/fallbacks, persists reports.
-- Scheduler & Automation – cron + Temporal-style retries for daily/weekly runs, ingestion reconciliation, secret rotation hooks.
-- Experience & Observability Layer – React UI for reports/coverage + metrics emitters/log streams for ingestion, LLM cost, rate limits.
+- InstallationRegistry – canonical GitHub installation metadata + webhook sync
+- InstallationClaimService – verifies, stores, and audits N:M user↔installation claims
+- AccessibleRepoService – computes accessible repos per user + optional tracked repo toggles
+- ReportQueryEngine – assembles report windows from actor filters + repo ACLs
+- IngestionOrchestrator – schedules backfill/webhook ingestion per installation while respecting shared claims
 
-**Data Flow**: GitHub App → GitHub Integration Service → Canonical Fact Service → (Convex events + embeddings) → Report Orchestrator → Reports table → Next.js dashboard.
+**Data Flow**: Clerk user → InstallationClaimService (claim) → InstallationRegistry (token + repo list) → AccessibleRepoService (cache) → ReportQueryEngine (fetch events) → Reports UI → Analytics + exports
 
 **Key Decisions**
-1. Content-addressed EventFacts + coverage scoring drive caching + no double-spend (simplicity + robustness).
-2. Shared module between webhook + backfill ensures no duplicated parsing, deep module boundary (module depth).
-3. Queue-first ingestion with DLQ + reconciliation job handles rate-limit + webhook loss (robustness) without extra infra.
-4. Report cache keyed by (scope, window, contentHashAgg, promptVersion) to cap LLM cost and deliver ≤60 s SLA.
+1. Canonical join table in Convex keeps relationships explicit; no more implicit `clerkUserId` on installations.
+2. Report queries gate by repo set derived from claimed installations before filtering actors; prevents leakage even if reporters type other ghLogins.
+3. Optional `trackedRepos` slice controls noise without reconfiguring installations.
+4. Shared ingestion budget per installation ensures one webhook feed populates data for every claimant.
 
-## Module: GitHub Integration Service
-Responsibility: hide GitHub App auth, webhook verification, and rate-limit aware ingestion scheduling.
+## Module: InstallationRegistry
+Responsibility: Holds truth for GitHub App installations (metadata, repos, rate limits) and reacts to webhook or reconciliation jobs.
 
 Public Interface:
 ```typescript
-interface GitHubIntegrationService {
-  verifyAndEnqueueWebhook(evt: GitHubWebhookEnvelope): Promise<void>
-  startBackfill(input: BackfillRequest): Promise<IngestionJobId>
-  reconcileInstallation(installationId: number, cursor?: string): Promise<void>
+interface InstallationRegistry {
+  getByInstallationId(id: number): Promise<InstallationDoc | null>
+  upsert(payload: InstallationUpsert): Promise<Id<"installations">>
+  updateRateLimit(id: number, budget: RateLimitBudget): Promise<void>
+  listAll(): Promise<InstallationDoc[]>
+  patchRepositories(id: number, names: string[]): Promise<void>
 }
 ```
 
 Internal Implementation:
-- Edge endpoint `/api/webhooks/github` validates `X-Hub-Signature-256`, stores payload envelope in Convex `webhookEvents` table, then enqueues `internal.actions.github.processEvent` on high-priority queue.
-- Installation metadata stored in Convex `installations` collection (installationId, org, repositories, etags, lastCursor, rateLimitBudget).
-- Backfill requests create `ingestionJobs` rows, push tasks into low-priority queue. Workers obey shared rate-limit cache (convex action storing `remaining`, `resetAt`).
-- Reconciliation cron (hourly) uses stored `etag`/`cursor` to call GitHub GraphQL with conditional requests; only diffs processed.
+- Backed by `installations` table (`installationId`, `accountLogin`, `repositorySelection`, `repositories`, `status`, `rateLimit*`).
+- Webhook handler (`actions/github/processWebhook`) and reconciliation job call `upsert` with normalized payload.
+- Maintains ETag + cursor for incremental ingestion.
+- Emits `installation.updated` metric when repos change so AccessibleRepoService can refresh caches.
 
 Dependencies:
-- Convex tables: `users`, `repos`, `ingestionJobs`, new `installations`, `webhookEvents`.
-- External: GitHub App creds (private key, app id, webhook secret), GitHub REST/GraphQL APIs.
-- Used by: Canonical Fact Service (downstream), Scheduler (for retries/cron).
+- GitHub App APIs (`/app/installations`, `/installation/repositories`).
+- Convex internal mutations for ingestion state.
+- Used by ClaimService, IngestionOrchestrator, IntegrationStatus queries.
 
 Data Structures:
 ```typescript
-type GitHubWebhookEnvelope = {
-  id: string; // delivery
-  event: string;
-  payload: unknown;
-  installationId: number;
-  receivedAt: number;
-};
-
-type BackfillRequest = {
-  installationId: number;
-  repos: string[];
-  since: number;
-  until?: number;
-  resumeCursor?: string;
-};
+type InstallationDoc = {
+  installationId: number
+  accountLogin?: string
+  repositories?: string[]
+  status?: "active" | "suspended" | "deleted"
+  lastSyncedAt?: number
+  rateLimitRemaining?: number
+}
 ```
 
 Error Handling:
-- Invalid signature → 401 + log metric, no enqueue.
-- Rate-limit/abuse → worker marks job `blocked`, schedules retry at reset time.
-- Missing installation → auto-clean job + emit alert; user prompted to reinstall.
+- Missing webhook payload → reject + log (DLQ entry in `webhookEvents`).
+- GitHub API 401/404 → emit `installations.sync_failed`, leave prior data unchanged.
+- Repo list drift → patch + emit diff summary.
 
-## Module: Canonical Fact Service
-Responsibility: convert raw GitHub payloads into deterministic EventFacts with hashes + metadata.
+## Module: InstallationClaimService
+Responsibility: Manage the N:M mapping between Clerk users and installations with cryptographic verification against GitHub.
 
 Public Interface:
 ```typescript
-interface CanonicalFactService {
-  upsertFromWebhook(evt: GitHubWebhookEnvelope): Promise<FactWriteResult>
-  upsertFromBackfill(item: GitHubTimelineItem, context: BackfillContext): Promise<FactWriteResult>
+interface InstallationClaimService {
+  listClaims(userId: string): Promise<UserInstallation[]>
+  listUsers(installationId: number): Promise<UserInstallation[]>
+  claimInstallation(input: ClaimInput): Promise<UserInstallation>
+  releaseInstallation(userId: string, installationId: number): Promise<void>
+  assertUserHasAccess(userId: string, installationId: number): Promise<boolean>
 }
 ```
 
 Internal Implementation:
-- Shared `canonicalizeEvent(payload, repoDoc)` returns `{type, actorId, repoId, ts, canonicalText, metrics, sourceUrl, metadata}`.
-- Compute `contentHash = sha256(canonicalText + sourceUrl + JSON.stringify(metrics))`.
-- Check Convex `events` for existing fact via `by_contentHash` index (new). If present, skip write, else insert with `createdAt` + `factMetrics`.
-- Maintains `coverageCandidates` table (factId + reportScope + window) for later coverage calculation.
-- Emits tracing log (`fact.upserted`, `fact.duplicate`, `fact.invalid`).
+- New `userInstallations` table: `{ userId, installationId, claimedAt, role }` with indexes by user, by installation, and composite.
+- `claimInstallation` mutation flow:
+  1. Load Clerk identity + stored GitHub OAuth token.
+  2. Call GitHub `GET /user/installations` (or `/user/installations/{id}`) to verify membership + scope.citeturn1search0turn1search2
+  3. Ensure installation exists in registry; reconcile if missing.
+  4. Insert join row (idempotent via unique composite index) and emit audit log event.
+- `listClaims` hydrates installation metadata for UI (account login, repo count, last sync).
+- `releaseInstallation` deletes join row; optional `role` flag supports future admin vs viewer semantics.
 
 Dependencies:
-- Uses `api.users.upsert`, `api.repos.upsert` to resolve foreign keys.
-- Calls Embedding & Cache Service for any new `contentHash` via `ensureEmbeddings` async dispatch.
+- InstallationRegistry for metadata.
+- Clerk identity + stored GitHub tokens (from `users.updateGitHubAuth`).
+- Used by UI (settings), IngestionOrchestrator (to know watchers), `IntegrationStatus` query.
 
 Data Structures:
 ```typescript
-type EventFact = Doc<"events"> & {
-  canonicalText: string;
-  metrics?: { additions?: number; deletions?: number; filesChanged?: number };
-  sourceUrl: string;
-  contentHash: string;
-  contentScope: "event" | "timeslice";
-};
+interface UserInstallation {
+  userId: string
+  installationId: number
+  role: "owner" | "viewer"
+  claimedAt: number
+}
 ```
 
 Error Handling:
-- Missing actor/repo → retries after upserting user/repo; if still missing, send to DLQ with payload snapshot.
-- Schema violations → log + move to `webhookEvents` DLQ for manual inspection.
+- Missing GitHub token → throw validation error instructing user to connect OAuth.
+- GitHub API denies access → return 403 + recommendation to ask org admin.
+- Duplicate claim → return existing row (no-op) but refresh `claimedAt`.
 
-## Module: Embedding & Cache Service
-Responsibility: maintain Voyage/OpenAI embeddings per contentHash and expose cache hits for LLM context.
+## Module: AccessibleRepoService
+Responsibility: Compute and cache the repositories a user can see, then apply per-repo toggles before handing the list to reporting or ingestion UX.
 
 Public Interface:
 ```typescript
-interface EmbeddingService {
-  ensureEmbeddings(hashes: string[]): Promise<void>
-  getEmbedding(hash: string): Promise<Embedding | null>
+interface AccessibleRepoService {
+  refreshForUser(userId: string): Promise<UserRepoAccess>
+  refreshForInstallation(installationId: number): Promise<void>
+  list(userId: string, filter?: { enabledOnly?: boolean }): Promise<UserRepoAccess>
+  setTrackedRepo(params: { userId: string; repoId: Id<"repos">; enabled: boolean }): Promise<void>
 }
 ```
 
 Internal Implementation:
-- Background action `actions/embeddings.ensureBatch` pulls up to N hashes from `embeddingQueue` table.
-- Deduplicate via `pendingHashSet` (Convex doc). Submit to Voyage batch endpoint (preferred) else OpenAI fallback. Store vector + provider metadata.
-- Track spend per provider in `embeddingCosts` doc for observability dashboard.
+- On every claim change or installation repo delta, recompute:
+  - Fetch union of `installations.repositories` for claimed installations.
+  - Upsert into `repos` table as needed (existing ingestion flow already does this but we trigger lean sync for metadata only).
+  - Persist derived set into `userRepoAccess` cached document or derive on read with deterministic key `access:{userId}` stored via Convex `table()` or `kv`. (Implementation detail recorded in `convex/lib/accessControl.ts`).
+- `trackedRepos` table stores per-user toggles with indexes by user + repo.
+- `list()` merges derived union with toggles: default = enabled, unless entry with `enabled=false` exists.
 
 Dependencies:
-- Convex `embeddings` table (add `contentHash` field + unique index), environment keys `VOYAGE_API_KEY`, `OPENAI_API_KEY`.
-- Called by Canonical Fact Service + Report Orchestrator (for RAG lookups).
+- InstallationRegistry for repo lists.
+- `trackedRepos` table for overrides.
+- `repos` table for metadata used in UI.
+- Notifies ReportQueryEngine when cache version changes (simple monotonic `accessVersion`).
+
+Data Structures:
+```typescript
+type UserRepoAccess = {
+  userId: string
+  repos: Array<{ repoId: Id<"repos">; fullName: string; enabled: boolean }>
+  version: number
+  computedAt: number
+}
+```
 
 Error Handling:
-- Provider 429 → exponential backoff, requeue hash with `retryAfter`.
-- Payload too large → split canonical text (first 2k chars) before embedding.
+- Missing installation repo list → trigger reconciliation job + mark access stale (UI shows warning badge).
+- Stale cache detection (version mismatch) → recompute lazily.
 
-## Module: Report Orchestrator
-Responsibility: deterministic report generation with coverage + citations + caching.
+## Module: ReportQueryEngine
+Responsibility: Fetch canonical events for report generation using repo ACL + actor filters + date windows.
 
 Public Interface:
 ```typescript
-interface ReportOrchestrator {
-  generateReport(input: ReportRequest): Promise<Id<"reports">>
-  computeCoverage(reportId: Id<"reports">): Promise<CoverageSummary>
+interface ReportQueryEngine {
+  getReportEvents(input: {
+    userId: string
+    ghLogins: string[]
+    startDate: number
+    endDate: number
+  }): Promise<Doc<"events">[]>
+  countEvents(...): Promise<number>
+  buildCacheKey(args: ReportQueryArgs): string
 }
 ```
-
-`ReportRequest = { kind: "daily" | "weekly" | "adhoc"; scope: Scope; start: number; end: number; force?: boolean }`
 
 Internal Implementation:
-- Stage C: query EventFacts via `events.by_actor_and_ts`/`by_repo_and_ts`, filter by scope/timeframe, require embeddings ready (if not, enqueue and wait with timeout). Build `AllowedUrl[]`, `coverageCandidates`, `contentHashAgg = sha256(sorted(hashes))`.
-- Cache lookup: query `reports` for matching `(scope, kind, start, end, contentHashAgg, promptVersion)` if `force` false. Return cached doc if found (<5 s response).
-- Otherwise Stage D: call `LLMClient.generate` with prompt (daily uses Gemini Flash, weekly uses Gemini Pro). Validator ensures headings + citations. On failure, fallback to GPT-5 via `LLMClient(auto)`. Synthetic builder last resort.
-- Compute `coverageScore = usedFacts / candidateFacts` and breakdown per repo/user. Persist along with `citations[]`, `sections[]`, `HTML`, `costUsd` from `LLMClient` metadata.
+- `getReportEvents` steps:
+  1. Load `UserRepoAccess` (enabled repos only). If empty → throw `NO_REPO_ACCESS` error for UX.
+  2. Resolve `ghLogins` to `users` table IDs. If empty and UI requested "self", default to Clerk user's GitHub login.
+  3. Query events index by `repoId` + `ts` (new helper `events.listByReposAndWindow` that batches repo IDs in 100 chunks). Filter by `actorId` ∈ resolved IDs + by `ts` within range.
+  4. Enforce coverage count = expected count (mirrors current invariants) before handing to orchestrator.
+- `countEvents` uses same filters but only returns numbers for gating token budgets.
+- Emits `report.query_ms`, `report.zero_events` metrics for observability.
 
 Dependencies:
-- Embedding Service, LLMClient, Convex `reports` table, `coverageCandidates`.
-- Triggered by Scheduler (automated) and Next.js UI (manual).
+- AccessibleRepoService for ACLs.
+- `users` table to resolve GitHub logins.
+- Existing `reportOrchestrator` for downstream LLM calls.
 
-Error Handling:
-- Missing data (<3 facts) → store low-coverage report with warning flag, notify UI via `report.status = "insufficient_data"`.
-- LLM failure → fallback chain + synthetic summary, log metric.
-
-## Module: Scheduler & Automation
-Responsibility: orchestrate recurring jobs, retries, secret rotations.
-
-Components:
-- Convex cron tasks `runDailyReports`, `runWeeklyReports`, `reconcileIngestion`, `rotateSecrets`.
-- Optional Temporal workflow wrappers (flagged) for long backfills or multi-tenant scheduling. Workflow steps: Acquire token → check rate limit cache → fetch page → canonicalize.
-- Maintains `jobsHistory` table for audit.
-
-Interfaces:
+Data Structures:
 ```typescript
-interface Scheduler {
-  enqueueDaily(userId: string): Promise<void>
-  enqueueWeekly(userId: string): Promise<void>
-  scheduleBackfill(job: IngestionJobRef): Promise<void>
+interface ReportQueryArgs {
+  userId: string
+  repoIds: Id<"repos">[]
+  actorIds: Id<"users">[]
+  startDate: number
+  endDate: number
 }
 ```
 
-Error Handling: max retries 5 with exponential delay; on failure mark job `failed`, surface to UI.
+Error Handling:
+- Missing ACL or ghLogins → validation error surfaced to UI.
+- Event count mismatch → throw (existing retry logic) + emit metric.
+- Repo filter produces >5k events → short-circuit with suggestion to narrow ghLogins or enable tracked repos.
 
-## Module: Experience & Observability Layer
-Responsibility: deliver UI + monitoring.
+## Module: IngestionOrchestrator
+Responsibility: Run ingestion/backfill flows using installation scopes, not individual users, while keeping per-user job UX intact.
 
-- Next.js App Router route `app/dashboard/reports/page.tsx` fetches `reports.list` + `reportCoverage.get` (new query) to render coverage meter, citations drawer, job history.
-- `useReportGeneration` hook handles manual triggers, listens to job events via Convex live query.
-- Observability: `lib/metrics.ts` wraps `console.log` style events into structured logs (JSON) for ingestion -> e.g. `events_ingested`, `report_latency_ms`, `llm_cost_usd`.
-- Sentry instrumentation for UI errors; Convex logs for backend.
+Public Interface:
+```typescript
+interface IngestionOrchestrator {
+  queueBackfill(params: { installationId: number; userId: string; repos?: string[]; since: number; until?: number }): Promise<Id<"ingestionJobs">>
+  continueJob(jobId: Id<"ingestionJobs">): Promise<void>
+  fanoutWebhookEvent(envelope: WebhookEnvelope): Promise<void>
+}
+```
+
+Internal Implementation:
+- `queueBackfill` verifies `InstallationClaimService.assertUserHasAccess` before launching.
+- Jobs stored in `ingestionJobs` keep both `userId` (requestor) and `installationId`; ingestion writes events once and marks job complete for requestor.
+- Rate limit tracking keyed by installation so concurrent requestors coordinate automatically.
+- Webhook fanout ensures events are ingested once; downstream users just need ACL to read.
+
+Dependencies:
+- InstallationRegistry for tokens + rate limits.
+- ClaimService for authorization checks.
+- `githubApp` helpers for token minting and timeline fetch.
+
+Data Structures:
+```typescript
+interface IngestionJobDoc {
+  userId: string
+  installationId: number
+  repoFullName: string
+  reposRemaining?: string[]
+  status: "pending" | "running" | "blocked" | "completed" | "failed"
+  blockedUntil?: number
+}
+```
+
+Error Handling:
+- Unauthorized request → 403 with message referencing claim requirement.
+- Rate limit exhaustion → mark job blocked + schedule resume at reset.
+- Webhook duplicate detection remains in `webhookEvents` table (unchanged).
 
 ## Core Algorithms
-### verifyAndEnqueueWebhook
-1. Extract signature headers, compute HMAC with current + previous webhook secret (for rotation window).
-2. If mismatch → 401 + metrics.
-3. Persist envelope `{deliveryId, event, installationId, payload, receivedAt}`.
-4. Push job `{type:"webhook", deliveryId}` onto high-priority queue (Convex action or Temporal signal).
-5. Respond 200 immediately (<200 ms).
+### claimInstallation(userId, installationId)
+1. Ensure Clerk session + GitHub token exist; if not, throw "connect GitHub" error.
+2. Fetch `/user/installations` (paged) until installation located or list exhausted.
+3. When found, call `InstallationRegistry.upsert` to refresh metadata.
+4. Start Convex transaction:
+   - Insert into `userInstallations` unless composite exists.
+   - Emit `userInstallation.claimed` metric with `installationId`, `accountLogin`.
+   - Schedule `AccessibleRepoService.refreshForUser` via async job.
+5. Return hydrated claim (includes repo count + status for UI).
 
-### processWebhookJob
-1. Load envelope, ensure idempotency via `processedDeliveries` set.
-2. Switch on event type; map to canonical payload (PR, commit, review, issue, push forced flag).
-3. Call `CanonicalFactService.upsertFromWebhook` per derived facts.
-4. If push event w/ `forced==true`, mark affected repo windows dirty (re-run coverage + cache invalidation).
-5. Ack job, delete envelope if retention window passed.
+### refreshForUser(userId)
+1. Load all `userInstallations` rows for user.
+2. Fetch each installation's repo list; if missing, call GitHub `installation/repositories` using app token + store result.
+3. Normalize repo names and map to Convex `repos` IDs (create if missing with metadata from GitHub search API for just-in-time descriptions).
+4. Merge lists, apply tracked repo overrides, write cache doc with new `version`.
+5. Return `UserRepoAccess`; IntegrationStatus uses `version` to determine freshness.
 
-### startBackfill
-1. Validate scope + user permissions, fetch installation token.
-2. Create/continue `ingestionJob` doc with cursor.
-3. While rate-limit budget > threshold and repos remaining:
-   - Fetch next page via GraphQL `search` or REST with `If-None-Match`.
-   - For each timeline item, map to canonical fact and upsert.
-   - Update cursor, budget, progress.
-4. Persist stats, pause job when rate-limit low; scheduler resumes after reset.
+### getReportEvents(userId, ghLogins, range)
+1. Access list = `AccessibleRepoService.list(userId, { enabledOnly: true })`.
+2. `actorIds` = lookup `users` by ghLogins; // fallback to Clerk-linked login.
+3. Break repo IDs into batches of 100, query `events` by `repoId`/`ts` per batch.
+4. Filter events to `actorIds`; track counts per actor for coverage metrics.
+5. If `trackedRepos` disabled some repos, note in coverage breakdown.
+6. Return sorted events and `coverageSummary` to orchestrator.
 
-### generateReport
-1. Gather scope facts + compute `contentHashAgg`.
-2. Check report cache; return if found unless `force` true.
-3. Ensure embeddings ready (await up to 10 s). If timeout, degrade to text-only context.
-4. Build prompt payload w/ `AllowedUrls`, coverage target metadata, cost guardrails.
-5. Call `LLMClient.generate` primary → fallback as needed.
-6. Validate headings + citation count (≥90 % sentences). If fail, re-prompt once; else fallback synthetic.
-7. Persist report doc + coverage + cost + `cacheKey`.
-8. Emit metrics.
+### queueBackfill(...)
+1. Assert claim + `installation.status === active`.
+2. Determine repo list: provided override OR union of installation repos OR fallback to `AccessibleRepoService` output.
+3. Create `ingestionJobs` row with `installationId`, `userId` for audit.
+4. Iterate repos (respect MAX_REPOS per invocation). For each repo:
+   - Mint installation token.
+   - Pull timeline window.
+   - Write events + coverage candidate entries.
+   - Update job progress + installation rate limit.
+5. If rate limit near exhaustion, set `blockedUntil = reset` and stop; scheduler requeues via `continueJob`.
+6. On completion emit `ingestion.completed` metric with repo count and requestor id.
 
-### computeCoverage
-1. Load `coverageCandidates` for scope/window.
-2. Count facts referenced in report (match by `_id` or `contentHash`).
-3. coverageScore = used / total; store breakdown.
-4. Surface meter + warning if <70 %.
+### listAvailableInstallations(userId)
+1. Use user's GitHub OAuth token to call `/user/installations`.
+2. For each installation, check ClaimService for existing row.
+3. Return classification: `{ claimed: true }` vs `{ claimable: true }` vs `{ inaccessible: true }` for UI toggles.
 
 ## File Organization
 ```
 convex/
-  actions/
-    github/
-      enqueueWebhook.ts
-      processWebhook.ts
-      startBackfill.ts
-      reconcileInstallation.ts
-    reports/
-      generateDaily.ts
-      generateWeekly.ts
-      generateAdhoc.ts
-    embeddings/
-      ensureBatch.ts
-  lib/
-    canonicalizeEvent.ts
-    contentHash.ts
-    githubApp.ts
-    queues.ts
-    coverage.ts
-  schema.ts (add installations, webhookEvents, coverageCandidates, cache indexes)
-app/
-  api/webhooks/github/route.ts
-  dashboard/reports/
-    page.tsx
-    components/CoverageMeter.tsx
-    components/CitationDrawer.tsx
-    hooks/useReportGeneration.ts
+  schema.ts                  # add userInstallations, trackedRepos, userRepoAccess tables
+  userInstallations.ts       # queries + mutations for claims
+  trackedRepos.ts            # toggles API
+  access.ts                  # AccessibleRepoService helpers (new)
+  actions/github/
+    claimInstallation.ts     # handles OAuth verification + join writes
+    startBackfill.ts         # updated to enforce claims + shared budgets
+    processWebhook.ts        # now only updates InstallationRegistry, no clerk linkage
+  integrations.ts            # integration status pulls from claims + repo cache freshness
+  reports.ts                 # new getReportEvents entrypoint returning repo-scoped data
+app/dashboard/settings/
+  installations/page.tsx     # claim/release UI (new)
+  repositories/page.tsx      # uses AccessibleRepoService output + tracked toggles
+hooks/
+  useInstallationClaims.ts   # client hook for claims + repo access view
 lib/
-  metrics.ts
-  llm/
-    prompts.ts
-    cache.ts
+  accessControl.ts           # shared helpers for ACL caching + versioning
+  integrationStatus.ts       # statuses updated for claim-driven flow
 ```
 
-Existing files touched:
-- `convex/schema.ts`: new tables/fields + indexes.
-- `convex/actions/generateScheduledReport.ts`: refactor into `reports/` orchestrator modules.
-- `convex/events.ts`: extend schema for `contentHash`, indexes.
-- `app/dashboard/...`: add coverage UI + job history.
-- `middleware.ts`: ensure webhook route stays public.
+Existing files to update:
+- `TASK.md` → reference design after delivery (no code change now).
+- `app/dashboard/reports` components (actor selection UI fetches ghLogins defined in claims).
+- `convex/actions/github/maintenance.ts` remove clerk linkage, trigger claim audit instead.
 
 ## Integration Points
-- **GitHub App**: requires env vars `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`. Installation tokens minted via `githubApp.ts` helper. Webhook endpoint registered at `/api/webhooks/github`.
-- **LLM Providers**: `GEMINI_API_KEY`, `OPENAI_API_KEY`. All calls go through `LLMClient`; zero-retention mode toggled via env flag.
-- **Embedding Provider**: `VOYAGE_API_KEY` primary, fallback OpenAI.
-- **Secret Manager**: script/cron rotates webhook secret + private keys; integration placeholder for AWS Secrets Manager or Doppler.
-- **Monitoring**: optional Sentry DSN, DataDog/OTel exporters via `METRICS_ENDPOINT` env.
+- **Convex schema**: add `userInstallations`, `trackedRepos`, optional `userRepoAccessCache` tables; remove `clerkUserId` column after migration.
+- **GitHub APIs**: `GET /user/installations`, `GET /installation/repositories`, `POST /app/installations/{id}/access_tokens`; respect docs requiring short-lived tokens + stored installation IDs.citeturn1search0turn1search1
+- **Clerk**: existing JWT auth + `users.updateGitHubAuth` provide access tokens + `clerkId`; ClaimService depends on this state.
+- **Environment**: ensure `GITHUB_CLIENT_ID/SECRET`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `NEXT_PUBLIC_GITHUB_APP_INSTALL_URL` configured for UI deep links.
+- **Build/Deploy**: Next + Convex remain; run `pnpm build` + `npx convex deploy` once schema extends; Vercel env vars add new tables automatically.
+- **Observability integration**:
+  - Error tracking: wire Sentry (Next) + Convex log scrapes for ClaimService errors (tag `module=claims`).
+  - Structured logging: `emitMetric` for `userInstallation.claimed`, `access.refresh_ms`, `report.query_ms` with correlation IDs.
+  - Performance monitoring: track repo-cache refresh latency + report query durations; compare against 5s UI budget.
+  - Analytics: track claim funnel events (viewed list, attempted claim, success/failure) for onboarding insights.
 
 ## State Management
-- Server state resides in Convex (EventFacts, reports, jobs). All mutations via Convex actions/mutations.
-- Client state limited to transient UI (selected scope, time range). Use React state + server components to fetch authoritative data.
-- Caching: report cache at backend; client uses SWR/React cache keyed by reportId.
-- Invalidation: new fact touching scope → mark cached reports dirty (store `dirtyWindows` per scope). On ingest, call `reports.invalidate({scope, window})` to drop cache entries.
-- Concurrency: idempotent writes via `contentHash`, queue ordering ensures per-repo serialism when needed.
+- **Server**: Convex tables store installations, claims, repo caches, tracked toggles, ingestion jobs. Derived caches keyed by `access:{userId}` versioned to avoid stale reads.
+- **Client**: React hooks (`useInstallationClaims`, `useIntegrationStatus`) fetch via Convex; local component state handles filters + toggles only. No client caching beyond React Query semantics from Convex hooks.
+- **Cache policy**: repo access cache recomputed on claim change or hourly TTL (configurable). Invalidated via `version` increments consumed by hooks.
+- **Concurrency**: `userInstallations` composite index prevents duplicate claims; all claim/release operations wrapped in single Convex mutation to avoid races. AccessibleRepoService uses convex `db.patch` to set version atomically.
 
 ## Error Handling Strategy
-- **Validation errors**: return 4xx to caller, log `validation_error`, no retries.
-- **Rate-limit/Abuse**: mark job blocked, schedule resume at `resetAt`, notify via alert metric.
-- **Provider failures (LLM/embedding)**: retry w/ exponential backoff up to 3 times, then fallback provider, else synthetic summary; log severity WARN.
-- **System faults**: log structured error, push to DLQ with payload reference.
-- Response format for UI queries includes `status`, `warnings[]`, `coverageScore` for transparency.
+- **Validation errors**: missing OAuth token, invalid repo selection, duplicate claim; return 400-equivalent response + toast copy.
+- **Auth errors**: user without Clerk session or lacking claim → 401/403 surfaces across actions and ingestion.
+- **GitHub faults**: map 401/403/404 to actionable UI messages, 429 to retry/backoff; log `rateLimitRemaining` for SLO tracking.
+- **Data conflicts**: detection via version mismatches; auto-retry once, else mark cache stale + prompt user to refresh.
+- **System faults**: DLQ entry in `webhookEvents`; escalate via pager once error budget exceeded.
 
 ## Testing Strategy
-- **Unit**: `lib/canonicalizeEvent.test.ts`, `lib/contentHash.test.ts`, `lib/coverage.test.ts`, `lib/llm/cache.test.ts`. Cover edge payloads, hash determinism, coverage math.
-- **Integration**: Fake webhook payload → Convex action → EventFact inserted; ensures idempotency + coverage candidate creation. Another test ensures report cache reuse + invalidation.
-- **LLM contract tests**: golden prompts/responses with mock LLM to validate heading/citation enforcement.
-- **E2E**: Playwright/Cypress flow: connect repo, ingest sample data, generate report, verify coverage meter + citations clickable.
-- Commands: `pnpm lint`, `pnpm typecheck`, `pnpm exec jest --runInBand`, `pnpm e2e` (custom script) prior to PR.
+- **Unit**: new Convex modules (`userInstallations`, `accessControl`, `reports.getReportEvents`) tested via `convex-test` harness + Jest for pure helpers.
+- **Integration**: mock GitHub API via `tests/__mocks__/github.ts` to cover claim + refresh flows.
+- **E2E**: Playwright/Next test hitting settings UI to claim + toggle repos.
+- **Quality gates**:
+  - Pre-commit (lefthook to add) runs `pnpm lint && pnpm typecheck && pnpm format --check` on touched files.
+  - Pre-push runs `pnpm exec jest --coverage` plus Convex tests.
+  - CI (`claude-code-review`, `enforce-pnpm`) remains; add workflow for lint/typecheck/test matrix before deploy.
+  - Coverage thresholds: ≥80% statements for ClaimService + ReportQueryEngine (critical path).
 
 ## Performance & Security Notes
-- Target throughput: ≥5 repos/min backfill, 50 webhook events/sec bursts. Use batch writes + conditional requests.
-- Report latency: cache hit <5 s, miss <60 s incl embedding gating.
-- Security: Webhook signature + dual-secret rotation, GitHub App short-lived tokens, least-privilege scopes, store secrets in manager not repo.
-- Data access: scope enforcement—report queries verify user/tenant membership before returning facts.
-- Rate-limit telemetry logged to detect approaching limits; auto-pauses backfill before exhaustion.
+- **Load expectations**: 10 installations/user, 100 repos/install → derived repo cache must handle ~1k repos quickly (<2s). Use incremental diff + caching to stay under budget.
+- **Latency targets**: claim action <3s (dominated by GitHub API); repo cache refresh <5s; report query <2s before LLM stage.
+- **Scaling**: caches per user avoid expensive joins; ingestion still bounded by GitHub rate limits (shared across claimants).
+- **Security**:
+  - Never store user GitHub access tokens in client; use Convex env or encrypted storage.
+  - Claims require GitHub verification each time to prevent spoofing.
+  - Rate-limit claim attempts (5/min) via Convex `table` storing attempt timestamps.
+  - Secrets live in Convex env + Vercel; rotate via `maintenance.rotateSecrets` hook.
+- **Observability requirements**:
+  - Performance budget: track Core Web Vitals for settings/reports pages; API SLO 95th percentile <2s for claim/list endpoints.
+  - Error budget: <=1% failed claim attempts per day; alert when threshold hit.
+  - Monitoring: dashboards for `claims.count`, `access.refresh_ms`, `report.query_ms`, `ingestion.jobs_blocked`.
+  - Alerting: fire when webhook backlog >50, rate limit resets <10%, or claim errors spike.
+  - Release tracking: annotate deployments (Vercel + Convex) so regressions correlate with release IDs.
 
 ## Alternative Architectures Considered
-| Option | Pros | Cons | Rubric (Simplicity 40 / Module depth 30 / Explicitness 20 / Robustness 10) | Verdict | Revisit Trigger |
-| --- | --- | --- | --- | --- | --- |
-| Dual-Stream Fact Graph (chosen) | Works with current Convex stack, shared canonicalizer, deterministic caching | Requires queue discipline + new tables | S:4.5 M:4.2 E:4.0 R:4.0 → **4.23** | Build now | Revisit if Convex limits hit (>10M facts) |
-| Nightly Batch Summarizer | Minimal infra, single cron | Slow feedback, duplicates work on retries, can’t meet ≤60 s | S:3.8 M:2.5 E:2.5 R:3.0 → 3.15 | Reject | Only if product pivots to weekly-only insights |
-| Warehouse-First (Aurora/pgvector + dbt) | Strong analytics, SQL governance | Heavy migration, new skillset, more ops | S:2.5 M:3.5 E:3.0 R:3.5 → 3.05 | Defer | Consider when enterprise tenants require warehouse export primary |
-| Event Bus + Microservices (Kafka, Temporal) | Max scale, language freedom | Overkill now, slower iteration, more infra | S:2.8 M:3.8 E:3.2 R:4.5 → 3.35 | Defer | When sustained >100 events/sec real-time load |
+| Option | Pros | Cons | Verdict | Revisit Trigger |
+| --- | --- | --- | --- | --- |
+| Convex Claim Graph (selected) | Minimal new infra, keeps data near reports, simple migrations | Requires cache invalidation plumbing | ✅ Selected | Revisit if Convex storage costs explode |
+| Clerk Org Workspace Layer | Aligns with Clerk multi-tenant APIs, easy to model teams | Adds extra indirection; still need repo ACL join; more UI work | Deferred | If we add org-wide billing + roles per team (align with Clerk org best practices).citeturn2search0 |
+| Dedicated Installation Microservice | Can isolate GitHub API traffic, share with other products | New deployable + persistence, higher latency, duplicated schema | Rejected | Only if GitPulse splits into multiple environments needing shared service |
+| Event-Scoped Access Lists | Tag every event with installation IDs and filter per user | Complex retrofits, increases write amplification, ambiguous when repo moves installations | Rejected | Consider if GitHub starts enforcing repo-level installation scoping on webhooks |
 
 ## Open Questions / Assumptions
-1. Pilot scale (repos/users) still unknown → needed for queue sizing. *Owner: Product, Due Nov 12 2025.*
-2. Non-GitHub sources (Jira/Slack) excluded for MVP? assumed yes. *Owner: Product, Nov 12.*
-3. Delivery channels limited to in-app + copy/export for MVP? *Owner: Design, Nov 10.*
-4. Gemini hosting path (Vertex vs direct) pending security review. *Owner: Security, Nov 14.*
-5. Temporal adoption allowed in Q1? assumption: optional, confirm. *Owner: Platform, Nov 18.*
-6. PagerFit scoring out of scope? assumed future iteration. *Owner: Exec, Nov 15.*
-7. Billing exports not Day 1? assumed telemetry only. *Owner: Finance, Nov 20.*
+- Need product decision on default tracked repo behavior (opt-in vs opt-out) and UI copy for noisy repos.
+- Migration detail: do we keep `clerkUserId` shadow column through full rollout for rollback safety? (assume yes until Phase 4).
+- Permissions: should non-admin claimants get read-only vs ingestion rights? Proposed `role` column but semantics TBD.
+- How many repos can GitHub installation list realistically return? Current API limit ~20k; confirm we can stream and chunk.
+- Webhook security review: do we need to revalidate claims whenever webhook indicates org membership change?
 
+## Validation Pass
+- Interfaces hide GitHub + Convex specifics; callers get simple `claim`, `list`, `getReportEvents` APIs.
+- Vocabulary shifts per layer (installations → claims → repos → reports) so no shallow pass-throughs.
+- Dependencies explicit: join service depends on GitHub + Clerk, report engine depends on ACL + users.
+- Pseudocode covers every hot path (claim, refresh, report, ingestion, listing) with branching spelled out.
+- Risks + observability + testing documented along with rollback/migration notes.
