@@ -277,6 +277,43 @@ export default defineSchema({
     .index("by_cacheKey", ["cacheKey"]),
 
   /**
+   * ReportRegenerations table - User-triggered regeneration jobs with progress tracking
+   */
+  reportRegenerations: defineTable({
+    reportId: v.id("reports"),
+    userId: v.string(),
+    ghLogins: v.array(v.string()),
+    kind: v.union(v.literal("daily"), v.literal("weekly")),
+    startDate: v.number(),
+    endDate: v.number(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("collecting"),
+      v.literal("generating"),
+      v.literal("validating"),
+      v.literal("saving"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    progress: v.number(),
+    message: v.optional(v.string()),
+    error: v.optional(
+      v.object({
+        message: v.string(),
+        stage: v.optional(v.string()),
+        stack: v.optional(v.string()),
+      })
+    ),
+    newReportId: v.optional(v.id("reports")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_reportId_and_createdAt", ["reportId", "createdAt"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_reportId_and_status", ["reportId", "status"]),
+
+  /**
    * IngestionJobs table - Track GitHub data ingestion
    */
   ingestionJobs: defineTable({
@@ -314,7 +351,8 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_repo", ["repoFullName"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
-    .index("by_installationId", ["installationId"]),
+    .index("by_installationId", ["installationId"])
+    .index("by_blockedUntil", ["blockedUntil"]),
 
   /**
    * Installations table - GitHub App installations metadata
@@ -337,7 +375,54 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_installationId", ["installationId"])
+    // DEPRECATED: This field is deprecated in Phase 4. Use `userInstallations` table for user-installation mapping.
     .index("by_clerkUserId", ["clerkUserId"]),
+
+  /**
+   * userInstallations table - Stores N:M mapping between Clerk users and GitHub App installations.
+   */
+  userInstallations: defineTable({
+    userId: v.string(), // Clerk user ID (matches users.clerkId)
+    installationId: v.number(), // GitHub App installation ID
+    role: v.union(v.literal("owner"), v.literal("viewer")), // Role of the user in this installation
+    claimedAt: v.number(), // Unix timestamp when the claim was made
+    createdAt: v.number(), // For consistency
+    updatedAt: v.number(), // For consistency
+  })
+    .index("by_userId", ["userId"])
+    .index("by_installationId", ["installationId"])
+    .index("by_user_and_installation", ["userId", "installationId"]),
+
+  /**
+   * trackedRepos table - Allows users to specify which repositories within an installation they want to track.
+   */
+  trackedRepos: defineTable({
+    userId: v.string(), // Clerk user ID
+    installationId: v.number(), // GitHub App installation ID
+    repoFullName: v.string(), // "owner/repo"
+    tracked: v.boolean(), // true if tracked, false if explicitly untracked
+    createdAt: v.number(), // For consistency
+    updatedAt: v.number(), // For consistency
+  })
+    .index("by_userId", ["userId"])
+    .index("by_installationId", ["installationId"])
+    .index("by_user_installation_repo", ["userId", "installationId", "repoFullName"]),
+
+  /**
+   * userRepoAccessCache table - Caches the list of repositories a user has access to for a given installation.
+   */
+  userRepoAccessCache: defineTable({
+    userId: v.string(), // Clerk user ID
+    installationId: v.number(), // GitHub App installation ID
+    repos: v.array(v.string()), // Array of "owner/repo" strings
+    version: v.number(), // Version of the cache, used for invalidation
+    lastRefreshedAt: v.number(), // Unix timestamp when the cache was last refreshed
+    createdAt: v.number(), // For consistency
+    updatedAt: v.number(), // For consistency
+  })
+    .index("by_userId", ["userId"])
+    .index("by_installationId", ["installationId"])
+    .index("by_user_and_installation", ["userId", "installationId"]),
 
   /**
    * WebhookEvents table - stores raw GitHub webhook envelopes for processing/rehydration

@@ -167,3 +167,38 @@ export function failure(error: ActionError): ActionFailure {
     error,
   };
 }
+
+/**
+ * Installation Role
+ *
+ * Role of a user in a GitHub App installation
+ */
+export type InstallationRole = "owner" | "viewer";
+
+/**
+ * User Installation Claim
+ *
+ * Represents a user's claim to a GitHub App installation
+ */
+export interface UserInstallation {
+  userId: string;
+  installationId: number;
+  role: InstallationRole;
+  claimedAt: number;
+  // Hydrated fields for UI
+  accountLogin?: string;
+  repoCount?: number;
+  lastSyncedAt?: number;
+}
+
+/**
+ * Tracked Repository Configuration
+ *
+ * User preference for tracking a specific repository
+ */
+export interface TrackedRepo {
+  userId: string;
+  installationId: number;
+  repoFullName: string;
+  tracked: boolean;
+}
