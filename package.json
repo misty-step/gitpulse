@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"next dev\" \"npx convex dev\"",
-    "build": "next build",
+    "build": "npx convex deploy && next build",
     "start": "next start",
     "lint": "eslint app convex components hooks lib tests --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit",
