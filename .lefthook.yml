@@ -13,6 +13,8 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx}"
       run: pnpm eslint --fix --cache {staged_files}
       stage_fixed: true
+    secrets:
+      run: gitleaks protect --staged --verbose --config .gitleaks.toml
 
 pre-push:
   commands:
