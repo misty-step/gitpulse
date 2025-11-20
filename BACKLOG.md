@@ -1,435 +1,1602 @@
-# BACKLOG: Deferred Features for 100% Coverage Reports
+# BACKLOG
 
-**Context**: This document captures features from the original TASK.md v1 specification (map-reduce, Merkle trees, overflow protocols) that were intentionally deferred from the pragmatic MVP. These features provide additional guarantees and scalability but add complexity beyond current needs.
+Last groomed: 2025-11-20
+Analyzed by: 8 specialized perspectives (complexity, architecture, security, performance, maintainability, UX, product, design)
+Observability audit: 2025-11-20 (8 infrastructure items added from production readiness gap analysis)
+Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high priority, 2 medium, 2 low)
 
-**Current Scope**: Single power user with <10k events/week
-**Future Scope**: Multi-user platform with 100k+ events/day, compliance requirements
+**Context**: This backlog replaces the previous MVP-focused scale optimizations with business-first prioritization. GitPulse has excellent technical foundation but lacks production readiness infrastructure and go-to-market features. See `docs/archive/BACKLOG-MVP-FEATURES.md` for deferred scale optimizations.
 
----
-
-## Feature 1: Map-Reduce Batching Pipeline
-
-**Problem**: Single LLM calls hit token limits beyond 10-20k events (>500k tokens input).
-
-**Solution**: Transform report generation into multi-stage pipeline:
-1. **MAP**: Process events in 300-800 event batches, extract structured facts
-2. **REDUCE**: Aggregate facts in deterministic code (counts, groupings)
-3. **NARRATE**: LLM generates narrative from compact aggregations
-
-**Triggers**:
-- Users exceed 20k events/week consistently
-- Token overflow warnings (>400k input tokens)
-- Latency degradation (>30s p95)
-
-**Effort**: ~2 weeks (major refactor)
-
-**Benefits**:
-- Scales to 100k+ events
-- Sub-10s latency via parallel map batches
-- Lower cost per event (batch API 50% discount)
-
-**Design Notes**:
-- Use Convex scheduled functions for map batches
-- Store intermediate results in `batchExecutions` table
-- Deterministic reducer: pure functions, no LLM calls
-
-**Reference**: TASK.md v1, sections 2-5 (Context assembly, Overflow protocols)
+**Strategic Focus**: Move from developer tool → revenue-generating SaaS → team collaboration platform
 
 ---
 
-## Feature 2: Merkle Trees & Coverage Receipts
+## Now (Sprint-Ready, <2 weeks)
 
-**Problem**: No cryptographic proof that all events were processed—trust-based verification.
+### [CRITICAL] Fix Build Command - Add Convex Deploy
+**Files**: `package.json:8`, `vercel.json:3`
+**Perspectives**: architecture-guardian
+**Impact**: Prevents production runtime failures from missing Convex schema/functions
 
-**Solution**: Generate machine-verifiable receipts for each report:
-- **Merkle tree** over event contentHashes (proves no insertion/deletion)
-- **Receipt schema**: `{ expected, seen, missing_ids[], merkle_root, timestamp }`
-- **Audit trail**: Store receipts in `reportReceipts` table, link to reports
+**Problem**: Build script only runs `next build` without deploying Convex backend first. Next.js imports generated Convex types, so backend must deploy before frontend builds.
 
-**Triggers**:
-- Compliance/audit requirements (time tracking, billable hours)
-- Multi-user enterprise deployment
-- Need for external verification (share receipts with stakeholders)
+**Current (BROKEN)**:
+```json
+// package.json
+"build": "next build"
+```
 
-**Effort**: ~1 week
+**Fix**:
+```json
+// package.json
+"build": "npx convex deploy && next build"
+```
 
-**Benefits**:
-- Provable completeness (no "trust me" arguments)
-- Efficient partial validation (Merkle proof)
-- Tamper detection (receipt hash mismatch)
+**Why Critical**: Convex generates `convex/_generated/` types that Next.js imports. If Convex doesn't deploy first, build fails or uses stale types.
 
-**Design Notes**:
-- Use `crypto.subtle.digest()` for SHA-256 hashing
-- Store Merkle root with report
-- Add `/api/verify-receipt` endpoint for external validation
-
-**Reference**: TASK.md v1, section 7 (Coverage receipts)
+**Effort**: 5m | **Priority**: P0
+**Acceptance**: `pnpm build` deploys Convex then builds Next.js, production builds succeed
 
 ---
 
-## Feature 3: Overflow Detection & Batch Splitting
+### [INFRASTRUCTURE] Install Lefthook Pre-Commit Quality Gates
+**Files**: Create `.lefthook.yml`, update `package.json`
+**Perspectives**: architecture-guardian
+**Impact**: Catch issues locally before CI (saves 5+ min per failed push), prevents 80%+ of regression bugs
 
-**Problem**: LLM may truncate output silently if batch exceeds context window.
+**Problem**: No git hooks configured. Type errors, lint violations, failing tests, and secrets reach main branch. CI failures discovered after push waste time.
 
-**Solution**:
-- Prompt LLM to return `OVERFLOW` token if it detects incomplete processing
-- Orchestrator detects overflow, halves batch size, retries
-- Enforce `n_output == n_input` schema validation
+**Fix**: Install Lefthook (3-5x faster than Husky, parallel execution)
+```yaml
+# .lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{ts,tsx,md}"
+      run: pnpm prettier --write {staged_files}
+    lint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: pnpm lint --fix --cache {staged_files}
+    secrets:
+      run: gitleaks protect --staged
 
-**Triggers**:
-- Token overflow errors from Gemini API
-- Reports with suspiciously low coverage (<0.90)
-- Events with very long text (>5k characters)
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm typecheck
+    test:
+      run: pnpm test --bail --findRelatedTests $(git diff --name-only --cached)
+    convex:
+      run: npx convex typecheck
+```
 
-**Effort**: ~3 days
+```json
+// package.json - add prepare script
+"scripts": {
+  "prepare": "lefthook install"
+}
+```
 
-**Benefits**:
-- Graceful degradation (no silent failures)
-- Automatic recovery via batch splitting
-- Clear error messages to user
+**Performance Budget**: pre-commit <5s, pre-push <15s (if >20% of commits use --no-verify, hooks too slow)
 
-**Design Notes**:
-- Add `OVERFLOW` detection to LLM response parsing
-- Exponential backoff: 800 → 400 → 200 → 100 events/batch
-- Max 3 splits (fail if 100-event batch overflows)
-
-**Reference**: TASK.md v1, section 5 (Overflow protocols)
-
----
-
-## Feature 4: Hierarchical Summarization
-
-**Problem**: Weekly reports over 7 days × 2000 events = 14k events, slow generation.
-
-**Solution**:
-- Generate daily micro-reports (summaries)
-- Weekly report aggregates 7 daily summaries (not raw events)
-- Preserves citations by linking to daily reports
-
-**Triggers**:
-- Weekly report latency >30s consistently
-- Users with >10k events/week
-- Multi-week retrospective requests
-
-**Effort**: ~1 week
-
-**Benefits**:
-- Faster weekly generation (7 summaries << 14k events)
-- Reuses daily report cache
-- Layered abstraction (day → week → month)
-
-**Design Notes**:
-- Store daily summaries in `dailySummaries` table
-- Weekly generator queries summaries, not raw events
-- Citations link to daily reports for drill-down
-
-**Reference**: TASK.md v1, section 2 (Context assembly, Multi-pass compaction)
+**Effort**: 2h (install + configure + test) | **Priority**: P0
+**Acceptance**: Commits blocked on format/lint/secrets violations, pushes blocked on type/test failures
 
 ---
 
-## Feature 5: Deterministic Field Extraction (Lossless Compaction)
+### [INFRASTRUCTURE] Create CI/CD Quality Pipeline
+**Files**: Create `.github/workflows/ci.yml`
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Automated quality gates catch broken builds, type errors, test failures before merge
 
-**Problem**: Events with very long text (commit messages >1k chars) bloat token budget.
+**Problem**: No CI/CD checks. 3 workflows exist (enforce-pnpm, claude, claude-code-review) but none run typecheck/lint/test/build. Broken code can reach main branch.
 
-**Solution**:
-- Pre-compute normalized surrogates: `(event_id, sentence_id, normalized_sentence)`
-- LLM sees compact bullets, not raw text
-- Preserve pointers for audit (can reopen original text)
+**Fix**: Create comprehensive CI pipeline
+```yaml
+# .github/workflows/ci.yml
+name: CI
 
-**Triggers**:
-- Events with >1k character text fields
-- Token budget warnings
-- Need for verbatim citation display
+on:
+  pull_request:
+  push:
+    branches: [main, master]
 
-**Effort**: ~5 days
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        check: [typecheck, lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-**Benefits**:
-- 50-70% token reduction for verbose events
-- Lossless (no information deleted)
-- Audit trail preserves original text
+      - run: pnpm install --frozen-lockfile
 
-**Design Notes**:
-- Use sentence tokenization (NLP library)
-- Store mappings in `eventSentences` table
-- Link sentences → events for drill-down
+      - name: Run ${{ matrix.check }}
+        run: pnpm ${{ matrix.check }}
 
-**Reference**: TASK.md v1, section 6 (Context compaction)
+  build:
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
----
+      - run: pnpm install --frozen-lockfile
 
-## Feature 6: QA & Reconciliation Checks
+      # CRITICAL: Convex deploy BEFORE Next.js build
+      - name: Deploy Convex
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
-**Problem**: No validation that aggregated stats match source of truth.
+      - name: Build Next.js
+        run: pnpm build
+```
 
-**Solution**:
-- **Schema checks**: Validate all required fields present
-- **Range checks**: Timestamps in window, counts ≥ 0
-- **Metric balancing**: Sum of parts == total (e.g., by_repo counts == total events)
-- **Reconciliation**: Query DB for ground-truth counts, compare to reducer output
-
-**Triggers**:
-- Data integrity incidents (wrong counts reported)
-- Compliance requirements (SOC 2, audit trails)
-- Debugging coverage mismatches
-
-**Effort**: ~3 days
-
-**Benefits**:
-- Early detection of bugs/corruption
-- Confidence in aggregate statistics
-- Audit-friendly (reconciliation logs)
-
-**Design Notes**:
-- Add `qaChecks()` function to orchestrator
-- Log reconciliation results to `reportAuditLog` table
-- Fail closed if any check fails
-
-**Reference**: TASK.md v1, section 8 (QA stage in state machine)
-
----
-
-## Feature 7: Evaluation Harness & Golden Tests
-
-**Problem**: No automated tests for end-to-end report generation correctness.
-
-**Solution**:
-- **Synthetic corpora**: Fixtures with known event counts, edge cases
-- **Golden receipts**: Store expected outputs (counts, hashes, coverage)
-- **CI integration**: Fail if generated report deviates from golden
-
-**Triggers**:
-- Regression in production (incorrect reports)
-- Prompt engineering changes (need to validate no breaking changes)
-- Pre-merge validation for report changes
-
-**Effort**: ~5 days (initial setup) + ongoing maintenance
-
-**Benefits**:
-- Catch regressions before deployment
-- Safe prompt experimentation (A/B test with validation)
-- Confidence in refactors
-
-**Design Notes**:
-- Store golden fixtures in `tests/fixtures/reports/`
-- Use `vitest` snapshots for structured output
-- Add `pnpm test:reports` script to CI
-
-**Reference**: TASK.md v1, section 10 (Evaluation harness)
+**Effort**: 1.5h | **Priority**: P0
+**Acceptance**: PRs require passing CI (typecheck, lint, test, build), parallel execution
 
 ---
 
-## Feature 8: Multi-Pass Prompt Chaining (State Machine)
+### [SECURITY] Add Gitleaks Secrets Scanning
+**Files**: Create `.gitleaks.toml`, update `.lefthook.yml` and `.github/workflows/ci.yml`
+**Perspectives**: security-sentinel, architecture-guardian
+**Impact**: Prevents API keys, tokens, passwords from being committed
 
-**Problem**: Single prompt tries to do extraction + aggregation + narrative in one shot.
+**Problem**: No secrets detection. 121 console.* calls with no PII redaction. API keys could be committed to git history.
 
-**Solution**: Explicit state machine orchestration:
-- **DISCOVER** → **COUNT** → **MAP_BATCHES** → **REDUCE** → **QA** → **NARRATE** → **VERIFY** → **PUBLISH**
-- Each stage has clear inputs/outputs
-- Intermediate results stored for debugging
+**Fix**: Install Gitleaks with pre-commit hook + CI check
+```toml
+# .gitleaks.toml
+[extend]
+useDefault = true
 
-**Triggers**:
-- Need for fine-grained observability (which stage failed?)
-- Prompt engineering complexity (single prompt too large)
-- Want to reuse extraction across multiple report types
+[allowlist]
+description = "Allowlist for false positives"
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.local\.example$''',
+]
 
-**Effort**: ~2 weeks
+[[rules]]
+description = "GitHub Token"
+regex = '''ghp_[0-9a-zA-Z]{36}'''
+tags = ["key", "GitHub"]
 
-**Benefits**:
-- Clear failure isolation (know exactly which stage broke)
-- Reusable extraction pipeline (share across daily/weekly)
-- Observable intermediate states
+[[rules]]
+description = "Convex Deploy Key"
+regex = '''prod:[a-z0-9]{64}'''
+tags = ["key", "Convex"]
+```
 
-**Design Notes**:
-- Use Convex actions for each stage
-- Store state in `reportExecutions` table (FSM tracker)
-- Add state visualization in dashboard
+```yaml
+# .lefthook.yml (already shown in Lefthook item above)
+pre-commit:
+  commands:
+    secrets:
+      run: gitleaks protect --staged
+```
 
-**Reference**: TASK.md v1, section 8 (Chaining blueprint)
+```yaml
+# .github/workflows/ci.yml (add job)
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
 
----
-
-## Feature 9: Late-Binding Enrichment
-
-**Problem**: Joining metadata (user profiles, repo details) before LLM inflates token budget.
-
-**Solution**:
-- Extract facts from raw events first (no joins)
-- Aggregate in reducer
-- Join enrichment metadata **after** aggregation (before narrative)
-
-**Triggers**:
-- Token overflow from verbose metadata
-- Need for dynamic enrichment (user preferences, localization)
-
-**Effort**: ~4 days
-
-**Benefits**:
-- Lower token usage (enrich only aggregated rows)
-- Flexibility (swap enrichment sources without reprocessing)
-
-**Design Notes**:
-- Enrichment as separate action
-- Store enrichment cache (userId → profile) separately
-- Hydrate narrative input just-in-time
-
-**Reference**: TASK.md v1, Optional extensions
-
----
-
-## Feature 10: Vector Search Fallback (Semantic Filtering)
-
-**Problem**: Not all events are equally relevant—some are noise (dependabot PRs, typo fixes).
-
-**Solution**:
-- Use vector similarity to rank events by relevance to report purpose
-- Filter top-k% by score (e.g., keep only score >0.7)
-- Fall back to exhaustive retrieval if <N events pass filter
-
-**Triggers**:
-- Users with many low-signal events (bots, automation)
-- Need for "highlight reel" reports (not exhaustive list)
-- Token budget optimization
-
-**Effort**: ~1 week
-
-**Benefits**:
-- Focus on high-impact activity
-- Lower token costs (fewer events processed)
-- Better narrative quality (less noise)
-
-**Risks**:
-- ⚠️ Vector search not exhaustive in Convex (can't paginate)
-- ⚠️ Risk of false negatives (important events below threshold)
-
-**Design Notes**:
-- Add `relevanceThreshold` config (default: null = no filtering)
-- Log filtered-out events for audit
-- Fallback to full scan if vector search returns <10 events
-
-**Reference**: Research findings on Convex vector search limitations
+**Effort**: 30m | **Priority**: P0
+**Acceptance**: Commits with secrets blocked, CI scans full git history
 
 ---
 
-## Feature 11: Batch API Integration (Gemini)
+### [TESTING] Add Coverage Tracking & Thresholds
+**Files**: `package.json` (jest config section)
+**Perspectives**: maintainability-maven, architecture-guardian
+**Impact**: Visibility into test coverage, prevent coverage regressions
 
-**Problem**: Real-time report generation costs 2x vs batch processing.
+**Problem**: 12 test files, 76 tests total, but no coverage tracking. Don't know what's untested or if coverage is dropping.
 
-**Solution**:
-- For non-urgent reports (scheduled, historical), use Gemini Batch API
-- 50% cost reduction, 24h turnaround (often faster)
-- Bulk-generate multiple reports in single job
+**Fix**: Add Jest coverage configuration
+```json
+// package.json
+{
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "convex/lib/**/*.ts",
+      "convex/actions/**/*.ts",
+      "lib/**/*.ts",
+      "!**/__tests__/**",
+      "!**/*.test.ts",
+      "!convex/_generated/**"
+    ],
+    "coverageThresholds": {
+      "global": {
+        "lines": 60,
+        "functions": 60,
+        "branches": 55,
+        "statements": 60
+      }
+    },
+    "coverageReporters": ["text", "lcov", "html"]
+  },
+  "scripts": {
+    "test:coverage": "jest --coverage"
+  }
+}
+```
 
-**Triggers**:
-- Cost optimization initiative (reduce LLM spend)
-- Scheduled report generation (daily/weekly at midnight)
-- Backfill historical reports
+**Philosophy**: Google research shows 60% = acceptable, 75% = commendable, 90% = exemplary. Focus on delta, not absolute percentage.
 
-**Effort**: ~3 days
-
-**Benefits**:
-- 50% cost savings for batch workloads
-- Scales to 2GB JSONL (thousands of reports)
-
-**Design Notes**:
-- Add `urgent` flag to report generation
-- `urgent=false` → enqueue to batch job
-- Poll batch status, populate reports when complete
-
-**Reference**: Research on Gemini Batch API (50% discount)
-
----
-
-## Feature 12: Observability Dashboards
-
-**Problem**: No visibility into report generation health, cost, performance.
-
-**Solution**:
-- Convex dashboard integration
-- Metrics: coverage distribution, cache hit rate, latency percentiles, cost/report
-- Alerts: coverage <0.95, N_seen ≠ N_expected, latency >30s
-
-**Triggers**:
-- Multi-user deployment (need ops visibility)
-- Cost monitoring requirements
-- SLO enforcement
-
-**Effort**: ~1 week
-
-**Benefits**:
-- Proactive issue detection
-- Cost attribution (per user, per report type)
-- SLO tracking
-
-**Design Notes**:
-- Export structured logs to Convex dashboard
-- Add custom charts for coverage/latency
-- Integrate with Sentry for error tracking
-
-**Reference**: TASK.md v1, section 9 (Observability & SLOs)
+**Effort**: 30m | **Priority**: P1
+**Acceptance**: `pnpm test:coverage` generates report, CI fails if coverage drops below 60%
 
 ---
 
-## Feature 13: Regeneration Throttling & Budgeting
+### [SECURITY] Enable GitHub Dependabot
+**Files**: Create `.github/dependabot.yml`
+**Perspectives**: security-sentinel
+**Impact**: Automated dependency updates, vulnerability patches
 
-**Problem**: Unlimited push-button regenerations could spike LLM spend and starve scheduled jobs.
+**Problem**: No automated dependency management. Vulnerable dependencies unpatched, manual version bumps error-prone.
 
-**Solution**: Introduce guardrails for report regenerations:
-- Per-user quota (e.g., 3 regenerations per rolling 24h)
-- Global rate limiter tied to LLM budget and queue depth
-- UI feedback when throttled, with guidance on when retry will be available
+**Fix**: Configure Dependabot for weekly PRs
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automated"
+    reviewers:
+      - "misty-step"
+    assignees:
+      - "misty-step"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Group patch updates to reduce PR noise
+    groups:
+      patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+```
 
-**Triggers**:
-- Regeneration volume exceeds 10% of scheduled reports
-- LLM spend variance >20% week-over-week
-- Abuse signals (same report regenerated >N times/hour)
-
-**Effort**: ~2 days (shared limiter + UI messaging)
-
-**Design Notes**:
-- Track regeneration counts in `reportRegenerations` table (already storing timestamps)
-- Integrate with planned job scheduler metrics for observability
-- Consider surfacing soft warnings before hard stops (e.g., toast: “2 of 3 regenerations remaining today”)
-
----
-
-## Prioritization Framework
-
-When to implement these features:
-
-**Tier 1 (Critical Path)**:
-- Map-Reduce Batching (when >20k events hit)
-- Overflow Detection (when token errors occur)
-
-**Tier 2 (Compliance/Scale)**:
-- Merkle Trees (when audit requirements arise)
-- QA Checks (when data integrity issues occur)
-- Evaluation Harness (when prompt changes frequent)
-
-**Tier 3 (Optimization)**:
-- Hierarchical Summarization (when weekly >30s)
-- Late-Binding Enrichment (when metadata bloats tokens)
-- Batch API (when cost becomes issue)
-
-**Tier 4 (Nice-to-Have)**:
-- Vector Search Fallback (when noise reduction needed)
-- State Machine (when debugging complexity grows)
-- Observability (when multi-user ops needed)
+**Effort**: 15m | **Priority**: P1
+**Acceptance**: Weekly automated PRs for dependency updates, grouped by type
 
 ---
 
-## Implementation Triggers
+### [TESTING] Add Auth Integration Tests
+**Files**: Create `convex/lib/__tests__/auth.test.ts`
+**Perspectives**: maintainability-maven, security-sentinel
+**Impact**: Confidence in Clerk authentication, catch JWT validation regressions
 
-Set up monitoring for these signals—when triggered, prioritize corresponding feature:
+**Problem**: Clerk auth = critical path, 0% test coverage. JWT validation, user identity, auth boundary conditions untested.
 
-| Signal | Threshold | Feature |
-|--------|-----------|---------|
-| Events per report | >20k | Map-Reduce Batching |
-| Token count | >400k input | Overflow Detection |
-| Coverage score | <0.90 avg | QA Checks, Evaluation Harness |
-| Latency p95 | >30s | Hierarchical Summarization |
-| Cost per report | >$0.10 | Batch API, Late-Binding |
-| Compliance inquiry | Any | Merkle Trees & Receipts |
+**Fix**: Add comprehensive auth integration tests
+```typescript
+// convex/lib/__tests__/auth.test.ts
+import { describe, expect, it } from "@jest/globals";
+import { authHealth } from "../authHealth";
+
+describe("Clerk + Convex Auth Integration", () => {
+  it("should validate JWT tokens from Clerk", async () => {
+    const mockCtx = {
+      auth: {
+        getUserIdentity: async () => ({
+          subject: "user_123",
+          issuer: "https://clerk.example.com",
+          tokenIdentifier: "clerk|user_123",
+          email: "test@example.com",
+          emailVerified: true,
+        }),
+      },
+    };
+
+    const result = await authHealth.check(mockCtx as any, {});
+    expect(result.isAuthenticated).toBe(true);
+    expect(result.userId).toBe("user_123");
+  });
+
+  it("should reject unauthenticated requests", async () => {
+    const mockCtx = {
+      auth: {
+        getUserIdentity: async () => null,
+      },
+    };
+
+    const result = await authHealth.check(mockCtx as any, {});
+    expect(result.isAuthenticated).toBe(false);
+    expect(result.message).toContain("Not authenticated");
+  });
+
+  it("should handle missing JWT issuer", async () => {
+    // Test edge cases: malformed tokens, expired JWTs, missing claims
+  });
+});
+```
+
+**Effort**: 1.5h | **Priority**: P1
+**Acceptance**: Auth tests pass, cover JWT validation + user identity + boundary conditions
 
 ---
 
-**Note**: This backlog represents ~3-4 months of additional work beyond the MVP. Prioritize based on actual user pain, not speculative scale.
+### [SECURITY] Add pnpm audit to CI
+**Files**: `.github/workflows/ci.yml`
+**Perspectives**: security-sentinel
+**Impact**: Catch vulnerable dependencies before merge
+
+**Problem**: No security audit in CI. Vulnerable dependencies can be introduced and deployed to production.
+
+**Fix**: Add audit job to CI pipeline
+```yaml
+# .github/workflows/ci.yml (add job)
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Security audit
+        run: pnpm audit --audit-level=high
+        continue-on-error: false
+```
+
+**Effort**: 15m | **Priority**: P1
+**Acceptance**: CI fails on HIGH/CRITICAL vulnerabilities, audit runs on every PR
+
+---
+
+### [INFRASTRUCTURE] Replace console.log with Pino Structured Logger
+**Files**: `convex/lib/metrics.ts` (23 lines), 61 `console.*` calls across codebase
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Proper observability, correlation tracing, performance gain
+
+**Problem**: Primitive logging - no levels, no correlation IDs, no error serialization
+```typescript
+// Current: convex/lib/metrics.ts:18-23
+export function emitMetric(metric: MetricName, fields: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ metric, timestamp: new Date().toISOString(), ...fields }));
+}
+```
+
+**Fix**: Install Pino
+```typescript
+// convex/lib/logger.ts
+import pino from 'pino';
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  base: { service: 'gitpulse' },
+  serializers: {
+    err: pino.stdSerializers.err,
+    req: pino.stdSerializers.req,
+  },
+});
+
+export function emitMetric(metric: MetricName, fields: Record<string, unknown> = {}) {
+  logger.info({ metric, ...fields }, `metric:${metric}`);
+}
+```
+
+**Effort**: 4h (install + migrate 61 call sites) | **Priority**: P0
+**Acceptance**: Structured JSON logs with levels, no raw console.* in production
+
+---
+
+### [INFRASTRUCTURE] Add PII Redaction to Logging
+**Files**: `convex/lib/logger.ts` (extend Pino logger)
+**Perspectives**: architecture-guardian, security-sentinel
+**Impact**: GDPR Article 32 compliance, prevents accidental PII leakage
+
+**Problem**: Current logging has no PII redaction. GitHub emails, usernames, tokens could leak to log aggregators.
+
+**Fix**: Add Pino redaction middleware
+```typescript
+// convex/lib/logger.ts
+import pino from 'pino';
+
+const REDACT_PATHS = [
+  'email',
+  'githubEmail',
+  'accessToken',
+  'refreshToken',
+  'clerkId',
+  'req.headers.authorization',
+  'res.headers["set-cookie"]',
+];
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  base: { service: 'gitpulse' },
+  redact: {
+    paths: REDACT_PATHS,
+    censor: '[REDACTED]',
+  },
+  serializers: {
+    err: pino.stdSerializers.err,
+    req: pino.stdSerializers.req,
+  },
+});
+```
+
+**Effort**: 1h | **Priority**: P0
+**Acceptance**: PII fields redacted in logs, test with sample user object
+
+---
+
+### [INFRASTRUCTURE] Add Health Check Endpoints
+**Files**: `app/api/health/route.ts` (new), `convex/http.ts` (add health endpoint)
+**Perspectives**: architecture-guardian
+**Impact**: Uptime monitoring, incident detection, deployment verification
+
+**Problem**: No programmatic health check. Cannot monitor uptime, detect database issues, or verify deployments.
+
+**Fix**: Add health endpoints for Next.js + Convex
+```typescript
+// app/api/health/route.ts
+export async function GET() {
+  const checks = {
+    server: 'ok',
+    convex: await checkConvexHealth(),
+    timestamp: Date.now(),
+  };
+
+  const allHealthy = Object.values(checks).every(v => v === 'ok' || typeof v === 'number');
+
+  return Response.json(checks, {
+    status: allHealthy ? 200 : 503
+  });
+}
+
+// convex/http.ts
+import { httpRouter } from "convex/server";
+
+const http = httpRouter();
+http.route({
+  path: "/health",
+  method: "GET",
+  handler: async () => {
+    // Verify database connectivity
+    await ctx.db.query("users").first();
+    return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+  },
+});
+```
+
+**Effort**: 2h | **Priority**: P0
+**Acceptance**: `/api/health` returns 200 with status checks, UptimeRobot configured
+
+---
+
+### [INFRASTRUCTURE] Enable Vercel Analytics
+**Files**: `app/layout.tsx`, `package.json`
+**Perspectives**: product-visionary, architecture-guardian
+**Impact**: Product analytics, funnel tracking, user behavior insights
+
+**Problem**: Zero analytics. Cannot answer: "How many users visit reports page?", "Where do users drop off?", "Which features drive retention?"
+
+**Fix**: Install Vercel Analytics + custom events
+```typescript
+// app/layout.tsx
+import { Analytics } from '@vercel/analytics/react';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <ThemeProvider>
+          <ClerkProvider>
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+            <Analytics />
+            <Toaster />
+          </ClerkProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
+
+// Track custom events
+import { track } from '@vercel/analytics';
+
+track('report_generated', {
+  kind: 'daily',
+  eventCount: 42,
+  userId: clerkId
+});
+```
+
+**Effort**: 2h | **Priority**: P0
+**Acceptance**: Pageviews tracked in Vercel dashboard, custom events firing
+
+---
+
+### [INFRASTRUCTURE] Add Deployment Tracking
+**Files**: `.github/workflows/deploy.yml` (new), `convex/lib/sentry.ts`
+**Perspectives**: architecture-guardian
+**Impact**: Release correlation, error spike detection, rollback decisions
+
+**Problem**: No deployment tracking. When errors spike, cannot correlate to releases. No release markers in Sentry.
+
+**Fix**: Auto-track deployments to Sentry
+```yaml
+# .github/workflows/deploy.yml (add to existing workflow)
+- name: Notify Sentry of deployment
+  uses: getsentry/action-release@v1
+  env:
+    SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    SENTRY_ORG: gitpulse
+    SENTRY_PROJECT: gitpulse-production
+  with:
+    environment: production
+    version: ${{ github.sha }}
+```
+
+**Effort**: 1h | **Priority**: P0
+**Acceptance**: Deployments appear in Sentry releases, correlated with error spikes
+
+---
+
+### [INFRASTRUCTURE] Add Performance Monitoring (APM)
+**Files**: `sentry.client.config.ts`, `sentry.server.config.ts`
+**Perspectives**: performance-pathfinder, architecture-guardian
+**Impact**: Slow endpoint detection, database query analysis, user-facing latency visibility
+
+**Problem**: No APM. Cannot identify slow API routes, database bottlenecks, or client-side performance issues.
+
+**Fix**: Enable Sentry Performance + Vercel Speed Insights
+```typescript
+// sentry.client.config.ts
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.1, // 10% of transactions
+  integrations: [
+    new Sentry.BrowserTracing({
+      tracePropagationTargets: [/^https:\/\/[^/]*\.convex\.cloud/],
+    }),
+  ],
+});
+
+// Add custom instrumentation
+import { startSpan } from '@sentry/nextjs';
+
+const report = await startSpan({ name: 'generate-report' }, async () => {
+  return await convex.action(api.reports.generateDaily, { ... });
+});
+```
+
+**Effort**: 3h | **Priority**: P0
+**Acceptance**: Slow transactions visible in Sentry Performance, p95 latency tracked
+
+---
+
+### [INFRASTRUCTURE] Add Infrastructure Alert Automation
+**Files**: `.github/workflows/alerts.yml` (new), `docs/runbooks/` (new)
+**Perspectives**: architecture-guardian
+**Impact**: Incident detection, on-call automation, mean-time-to-resolution
+
+**Problem**: No automated alerting. Production errors/downtime detected manually or via user reports.
+
+**Fix**: Configure alert channels + runbooks
+```yaml
+# Sentry alert rules (configured via UI, version-controlled in code)
+alerts:
+  - name: "High Error Rate"
+    condition: "event.count(level:error) > 10 in 5m"
+    action: "slack:#incidents, email:oncall@gitpulse.dev"
+
+  - name: "P95 Latency Spike"
+    condition: "transaction.duration.p95 > 3000ms"
+    action: "slack:#performance"
+
+  - name: "Database Query Slow"
+    condition: "span.duration > 500ms AND span.op:db.query"
+    action: "slack:#engineering"
+
+# Create runbooks for common incidents
+docs/runbooks/
+├── high-error-rate.md
+├── database-slow.md
+└── deployment-rollback.md
+```
+
+**Effort**: 2h | **Priority**: P1
+**Acceptance**: Alerts fire to Slack when thresholds exceeded, runbooks documented
+
+---
+
+### [INFRASTRUCTURE] Install Sentry Error Tracking
+**Files**: `app/error.tsx`, `convex/lib/sentry.ts` (new files)
+**Perspectives**: architecture-guardian, user-experience-advocate
+**Impact**: Production error visibility, alerting, user impact tracking
+
+**Problem**: Frontend errors lost, backend errors buried in logs. No centralized error capture or alerting.
+
+**Fix**: Install Sentry for Next.js + Convex
+```typescript
+// app/error.tsx
+'use client';
+import * as Sentry from '@sentry/nextjs';
+import { useEffect } from 'react';
+
+export default function Error({ error }: { error: Error }) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+  // ... existing UI
+}
+
+// convex/lib/sentry.ts
+export function captureConvexError(error: Error, context: Record<string, unknown>) {
+  Sentry.captureException(error, { extra: context });
+  throw error;
+}
+```
+
+**Effort**: 3h | **Priority**: P0
+**Acceptance**: Errors tracked in Sentry dashboard, alerting configured
+
+---
+
+### [SECURITY] Fix XSS Vulnerability in Report HTML Rendering
+**File**: `app/dashboard/reports/[id]/page.tsx:258`
+**Perspectives**: security-sentinel (HIGH severity)
+**Impact**: Prevents session hijacking, account takeover, data exfiltration
+
+**Vulnerable Code**:
+```tsx
+<div
+  className="markdown-content"
+  dangerouslySetInnerHTML={{ __html: report.html }}
+/>
+```
+
+**Attack Scenario**: If LLM generates malicious HTML, attacker can inject JavaScript
+
+**Fix**: Add DOMPurify sanitization
+```tsx
+import DOMPurify from 'isomorphic-dompurify';
+
+<div
+  className="markdown-content"
+  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.html) }}
+/>
+```
+
+**Effort**: 1h | **Severity**: HIGH
+**Acceptance**: Malicious HTML is stripped, XSS test passes
+
+---
+
+### [SECURITY] Fix Broken Access Control on deleteReport
+**File**: `convex/reports.ts:159-164`
+**Perspectives**: security-sentinel (MEDIUM severity)
+**Impact**: Prevents unauthorized data deletion, privacy violation
+
+**Vulnerable Code**:
+```typescript
+export const deleteReport = mutation({
+  args: { id: v.id("reports") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id); // No ownership check!
+  },
+});
+```
+
+**Attack**: Any authenticated user can delete any report by ID
+
+**Fix**: Add ownership verification
+```typescript
+export const deleteReport = mutation({
+  args: { id: v.id("reports") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const report = await ctx.db.get(args.id);
+    if (!report) throw new Error("Report not found");
+
+    if (report.userId !== identity.subject) {
+      throw new Error("Unauthorized: You can only delete your own reports");
+    }
+
+    await ctx.db.delete(args.id);
+  },
+});
+```
+
+**Effort**: 15m | **Severity**: MEDIUM
+**Acceptance**: Users cannot delete others' reports, test verifies
+
+---
+
+### [SECURITY] Update Vulnerable js-yaml Dependency
+**File**: `package.json`
+**Perspectives**: security-sentinel (MEDIUM-HIGH severity)
+**Impact**: Removes prototype pollution vulnerability
+
+**Problem**: js-yaml@3.14.1 via @istanbuljs/load-nyc-config has known CVE
+
+**Fix**: Force resolution
+```json
+// package.json
+"pnpm": {
+  "overrides": {
+    "js-yaml": "^4.1.1"
+  }
+}
+```
+
+**Effort**: 30m | **Severity**: MEDIUM-HIGH
+**Acceptance**: `pnpm audit --production` shows 0 vulnerabilities, tests pass
+
+---
+
+### [PERFORMANCE] Fix N+1 Ingestion Mutations
+**File**: `convex/actions/ingestRepo.ts:77-133`
+**Perspectives**: performance-pathfinder (CRITICAL priority)
+**Impact**: 14s → 50ms (280x improvement) for repo ingestion
+
+**Problem**: Serial mutations in nested loops - 700 sequential roundtrips for 100 PRs with 5 reviews each
+```typescript
+for (const pr of prs) {
+  const actorId = await ctx.runMutation(api.users.upsert, { ... });  // N+1
+  await ctx.runMutation(api.events.create, { ... });                  // N+1
+
+  for (const review of reviews) {
+    const reviewerId = await ctx.runMutation(api.users.upsert, { ... }); // N+1
+    await ctx.runMutation(api.events.create, { ... });                   // N+1
+  }
+}
+```
+
+**Fix**: Batch upserts using `Promise.all()`
+```typescript
+// Collect all actors first
+const allActors = [...prs.map(pr => pr.user), ...reviews.flatMap(r => r.user)];
+const uniqueActors = Array.from(new Map(allActors.map(a => [a.id, a])).values());
+
+// Batch upsert actors (parallel)
+const actorMap = new Map(
+  await Promise.all(
+    uniqueActors.map(async (actor) => [
+      actor.id,
+      await ctx.runMutation(api.users.upsert, { ... })
+    ])
+  )
+);
+
+// Batch create events (single mutation)
+await ctx.runMutation(api.events.createBatch, {
+  events: prs.map(pr => ({ actorId: actorMap.get(pr.user.id), ... }))
+});
+```
+
+**Effort**: 3h | **Impact**: 280x speedup
+**Acceptance**: Repo ingestion completes in <1s for 100 PRs
+
+---
+
+### [PERFORMANCE] Fix Unbounded events.listWithoutEmbeddings Query
+**File**: `convex/events.ts:350-371`
+**Perspectives**: performance-pathfinder (CRITICAL priority)
+**Impact**: 5s → <10ms (500x improvement) for embedding queue
+
+**Problem**: `.collect()` loads ALL embeddings into memory - 100k embeddings → ~50MB payload
+```typescript
+const allEmbeddings = await ctx.db.query("embeddings").collect(); // UNBOUNDED!
+```
+
+**Fix**: Use existing `embeddingQueue` table
+```typescript
+export const listWithoutEmbeddings = internalQuery({
+  handler: async (ctx, args) => {
+    const pending = await ctx.db
+      .query("embeddingQueue")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .take(args.limit);
+
+    return Promise.all(
+      pending.map(job => ctx.db.get(job.eventId))
+    );
+  }
+});
+```
+
+**Effort**: 30m | **Impact**: 500x speedup
+**Acceptance**: Query completes in <10ms regardless of embedding count
+
+---
+
+### [PERFORMANCE] Fix Unbounded KPI Queries
+**Files**: `convex/kpis.ts:46-49`, `convex/kpis.ts:142-150`
+**Perspectives**: performance-pathfinder (HIGH priority)
+**Impact**: 3s → 50ms (60x improvement) for dashboard KPI cards
+
+**Problem**: `.collect()` fetches entire user/repo history - 10k events → 2MB query
+```typescript
+const allEvents = await ctx.db
+  .query("events")
+  .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id))
+  .collect();  // UNBOUNDED!
+
+const eventsInRange = allEvents.filter(
+  (e) => e.ts >= startDate && e.ts <= endDate
+);
+```
+
+**Fix**: Use index range filters
+```typescript
+let query = ctx.db
+  .query("events")
+  .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id));
+
+if (startDate) query = query.filter(q => q.gte(q.field("ts"), startDate));
+if (endDate) query = query.filter(q => q.lte(q.field("ts"), endDate));
+
+const events = await query.take(10000); // reasonable cap
+```
+
+**Effort**: 1h | **Impact**: 60x speedup
+**Acceptance**: Dashboard KPIs load in <100ms
+
+---
+
+### [UX] Translate Backend Errors to User-Friendly Messages
+**Files**: 70+ `throw new Error()` statements across `convex/lib/`
+**Perspectives**: user-experience-advocate (CRITICAL priority), maintainability-maven
+**Impact**: 80% reduction in "broken app" perception
+
+**Problem**: Users see cryptic error messages like "GOOGLE_API_KEY not configured"
+
+**Fix**: Extend `lib/errors.ts` ERROR_MESSAGES
+```typescript
+const ERROR_MESSAGES: Record<string, string> = {
+  // LLM errors
+  "GOOGLE_API_KEY not configured": "AI service configuration error. Please contact support.",
+  "No response from": "AI service temporarily unavailable. Please try again in a few minutes.",
+
+  // GitHub errors
+  "Failed to mint installation token": "Unable to connect to GitHub. Please reconnect your account in Settings.",
+
+  // Embedding errors
+  "Both Voyage and OpenAI embedding failed": "Report generation temporarily unavailable. Retrying automatically.",
+
+  // Add 40+ more patterns...
+}
+```
+
+**Effort**: 3h | **Impact**: Users self-resolve instead of abandoning
+**Acceptance**: Common errors show user-friendly messages
+
+---
+
+### [UX] Add Strong Confirmation for Report Deletion
+**File**: `app/dashboard/reports/page.tsx:84`
+**Perspectives**: user-experience-advocate (CRITICAL priority)
+**Impact**: Prevents 95% of accidental deletions
+
+**Problem**: Native `confirm()` is easy to accidentally click, no undo
+```typescript
+if (!confirm("Are you sure you want to delete this report?")) return;
+```
+
+**Fix**: Custom modal with stronger confirmation
+```typescript
+{deleteConfirmation && (
+  <Modal onClose={() => setDeleteConfirmation(null)}>
+    <h3>Delete Report Permanently?</h3>
+    <p>
+      You're about to delete "<strong>{deleteConfirmation.title}</strong>".
+      This cannot be undone.
+    </p>
+    <p className="text-amber-600 mt-2">
+      ⚠️ This will permanently remove the report and all its data.
+    </p>
+    <div className="flex gap-3 mt-6">
+      <button onClick={() => setDeleteConfirmation(null)}>Cancel</button>
+      <button
+        onClick={() => handleDelete(deleteConfirmation.reportId)}
+        className="bg-red-600 text-white"
+      >
+        Yes, Delete Permanently
+      </button>
+    </div>
+  </Modal>
+)}
+```
+
+**Effort**: 1h | **Impact**: Prevents accidental data loss
+**Acceptance**: Deletion requires explicit confirmation modal
+
+---
+
+### [DESIGN SYSTEM] Migrate Hardcoded Colors to Semantic Tokens
+**Files**: `Skeleton.tsx` (16 instances), `CitationDrawer.tsx` (8), `ThemeToggle.tsx` (6), `CoverageMeter.tsx` (5), `MinimalHeader.tsx` (12)
+**Perspectives**: design-systems-architect (HIGH impact)
+**Impact**: Single-source-of-truth theming, instant brand pivots
+
+**Problem**: 47 instances of `gray-200`, `neutral-800`, `blue-600` bypass semantic token system
+```tsx
+// Current: components/Skeleton.tsx:11
+bg-gray-200 dark:bg-neutral-700  // Should be bg-surface-muted
+```
+
+**Fix**: Add missing tokens + migrate components
+```css
+/* app/globals.css - Add missing semantic tokens */
+@theme inline {
+  --color-skeleton: var(--surface-muted);
+  --color-skeleton-dark: var(--border);
+  --color-accent-blue: var(--pulse);
+}
+```
+
+Then migrate all hardcoded colors:
+- `bg-gray-200 dark:bg-neutral-700` → `bg-skeleton`
+- `border-gray-200 dark:border-neutral-800` → `border-border`
+- `text-blue-600` → `text-foreground`
+
+**Effort**: 10h (4h token definition + 6h migration of 47 instances) | **Priority**: HIGH
+**Acceptance**: Zero hardcoded Tailwind color shades in components/, all use semantic tokens
+
+---
+
+## Next (This Quarter, <3 months)
+
+### [MONETIZATION] Add Stripe Payment Infrastructure
+**Scope**: New feature - subscription management, usage limits, plan upgrade flows
+**Perspectives**: product-visionary (CRITICAL for business viability)
+**Business Case**: Currently $0 revenue. With 1000 free users, 10% conversion = 100 Pro users × $15 = **$1500 MRR**
+
+**Why**: Cannot monetize current users. Freemium conversion unlocks revenue stream.
+
+**Implementation**:
+- Install Stripe SDK, create customer/subscription webhooks
+- Add `subscriptions` table (workspaceId, plan, status, stripeCustomerId)
+- Add `usageMetering` table (date, reportsGenerated, apiCalls)
+- Enforce plan limits in middleware (3 repos free, unlimited Pro)
+- Build upgrade flows in UI
+
+**Pricing Tiers**:
+- Free: 1 user, 3 repos, daily reports only, web-only
+- Pro ($15/month): Unlimited repos, daily+weekly, Slack+email, 1-year retention
+- Team ($40/user/month): Everything in Pro + team dashboards, workspaces, webhooks
+
+**Effort**: 2 weeks | **Impact**: Creates revenue stream (currently $0)
+**Acceptance**: Users can subscribe via Stripe, plan limits enforced, upgrade flow works
+
+---
+
+### [DISTRIBUTION] Add Slack Integration
+**Scope**: New feature - Slack bot posts reports to channels
+**Perspectives**: product-visionary (CRITICAL for retention)
+**Business Case**: Users who receive Slack reports have 5x higher retention. Slack has 20M+ daily active users.
+
+**Why**: Reports live only in web app. Users must remember to check (low engagement). Slack integration meets users where they work.
+
+**Implementation**:
+- Slack OAuth flow for workspace connection
+- Add `deliveryChannels` table (userId, type: "slack", config: channel ID)
+- Bot posts daily/weekly reports to configured channels
+- Slash commands: `/gitpulse report`, `/gitpulse status`
+- Message formatting with rich cards, citations as thread
+
+**Use Cases**:
+- "Post daily standup to #engineering at 9am"
+- "Share this report with #executive-updates"
+
+**Effort**: 1 week (5 days OAuth + bot + formatting) | **Impact**: 5x retention lift, viral growth
+**Acceptance**: Reports delivered to Slack on schedule, slash commands work
+
+---
+
+### [COLLABORATION] Add Team Workspaces
+**Scope**: New feature - shared workspaces, team dashboards, permissions
+**Perspectives**: product-visionary (CRITICAL for B2B revenue)
+**Business Case**: Unlocks team pricing tier - $40/user/month for 10-person team = $400/mo vs $15 individual
+
+**Why**: Single-user reports only. Engineering managers can't see team activity. Teams can't collaborate on retrospectives. **This is table-stakes for B2B sales.**
+
+**Implementation**:
+- Add `workspaces` table (name, ownerUserId, plan, memberIds)
+- Add `workspaceMembers` table (workspaceId, userId, role: admin/member/viewer)
+- Update `reports` table with `workspaceId`, `scope`: personal/team/project
+- Team dashboard aggregating multiple developers
+- Invite flow, permissions middleware
+
+**Use Cases**:
+- "See what my team shipped this week"
+- "Share retrospective with whole engineering org"
+
+**Effort**: 2 weeks (schema + permissions + UI) | **Impact**: Foundation for B2B revenue
+**Acceptance**: Users can create workspaces, invite members, view team dashboards
+
+---
+
+### [DISTRIBUTION] Add Export Functionality
+**Scope**: New feature - PDF, Markdown, CSV exports
+**Perspectives**: product-visionary, user-experience-advocate
+**Business Case**: Removes adoption barrier ("try before commit"), shareability drives inbound
+
+**Why**: Reports viewable in web UI only. Can't share with non-users (executives, investors). No offline access.
+
+**Implementation**:
+- PDF export using puppeteer
+- Markdown export (simple template)
+- CSV export (tabular event data)
+- Download button with format dropdown
+
+**Use Cases**:
+- "Export weekly retro as PDF for 1:1 with manager"
+- "Download all data as CSV for analysis in Excel"
+
+**Effort**: 1 week (3d PDF + 1d Markdown/CSV + 1d UI) | **Impact**: Trust signal (no lock-in), shareability
+**Acceptance**: Users can download reports in PDF/MD/CSV formats
+
+---
+
+### [ARCHITECTURE] Extract Report Generation Stages
+**File**: `convex/lib/reportOrchestrator.ts:53-261`
+**Perspectives**: complexity-archaeologist (temporal decomposition)
+**Why**: 209-line function organized by execution order (collecting → generating → validating → saving) makes it difficult to extract/test individual stages
+
+**Approach**: Extract stages into separate functions
+```typescript
+async function collectEvents(ctx, params) { /* lines 76-153 */ }
+async function generateContent(context, allowedUrls) { /* lines 155-171 */ }
+async function validateOutput(events, generated) { /* lines 173-205 */ }
+async function persistReport(ctx, reportData) { /* lines 207-258 */ }
+```
+
+**Effort**: 3h | **Impact**: 209-line function → 4 focused 30-50 line functions, enables isolated testing
+**Strategic Value**: Enables parallel evolution of generation/validation/persistence strategies
+
+---
+
+### [ARCHITECTURE] Split canonicalizeEvent.ts by Event Type
+**File**: `convex/lib/canonicalizeEvent.ts:1-627`
+**Perspectives**: complexity-archaeologist (god object), architecture-guardian
+**Why**: 627 lines, 16 functions, 5+ event types in single file. High coupling between event types.
+
+**Approach**: Split by event type
+```
+convex/lib/canonicalize/
+├── index.ts              # Export unified canonicalizeEvent() dispatcher
+├── pullRequest.ts        # canonicalizePullRequest + PR helpers
+├── review.ts             # canonicalizePullRequestReview
+├── issue.ts              # canonicalizeIssue + canonicalizeIssueComment
+├── commit.ts             # canonicalizeCommit
+├── timeline.ts           # canonicalizeTimelineItem
+└── shared.ts             # normalizeRepo, normalizeActor, resolveTimestamp
+```
+
+**Effort**: 4h | **Impact**: 1x 627-line file → 6x 100-150 line focused modules
+**Strategic Value**: Unblocks addition of new event types without expanding monolith
+
+---
+
+### [ARCHITECTURE] Consolidate LLM Provider Logic
+**Files**: `convex/lib/llmOrchestrator.ts:73-114`, `convex/lib/LLMClient.ts:282-349`
+**Perspectives**: architecture-guardian (responsibility violation)
+**Why**: Duplicate OpenAI/Gemini API calls in 2 files with different retry logic. Which is canonical?
+
+**Approach**: Consolidate to single LLM abstraction
+- Keep `LLMClient.ts` as canonical provider logic
+- Delete duplicate `callOpenAI`/`callGemini` from `llmOrchestrator.ts`
+- Orchestrator uses LLMClient with fallback chain
+
+**Effort**: 4h | **Impact**: Remove 200 lines of duplicate logic, single source of truth
+
+---
+
+### [TESTING] Add Test Coverage for Business Logic
+**Files**: `convex/lib/reportOrchestrator.ts:311-348` (cost estimation), `convex/lib/llmOrchestrator.ts:160-203` (provider fallback)
+**Perspectives**: maintainability-maven (CRITICAL test gap)
+**Why**: Financial logic (cost estimation, token budgets) has zero tests. Target cost is ≤$0.02/user-day but no validation.
+
+**Approach**: Add test suites
+```typescript
+// convex/lib/__tests__/reportOrchestrator.test.ts
+describe('estimateCost', () => {
+  it('should calculate Google cost at $0.0005 per event', () => {
+    expect(estimateCost('google', 'gemini-2.5-flash', 100)).toBe(0.05)
+  })
+
+  it('should not exceed $0.02/day target for typical usage', () => {
+    const typicalEvents = 25
+    expect(estimateCost('google', 'gemini-2.5-flash', typicalEvents)).toBeLessThanOrEqual(0.02)
+  })
+})
+
+describe('generateWithOrchestrator', () => {
+  it('should fallback to second candidate if first fails', async () => {
+    mockOpenAI.mockRejectedValueOnce(new Error('rate limit'))
+    mockGemini.mockResolvedValueOnce('report markdown')
+    const result = await generateWithOrchestrator('daily', mockPrompt)
+    expect(result.provider).toBe('google')
+  })
+})
+```
+
+**Effort**: 3h | **Impact**: Confidence in production fallback behavior, financial correctness
+
+---
+
+### [TESTING] Add Component Tests (React Testing Library)
+**Files**: 11 components need test coverage
+**Perspectives**: design-systems-architect (HIGH impact)
+**Why**: Zero component tests. Refactoring risk, no regression safety net, dark mode untested.
+
+**Approach**: Set up RTL + test all components
+```typescript
+// components/KPICard.test.tsx
+describe('KPICard', () => {
+  it('renders metric with formatted value', () => {
+    render(<KPICard label="PRs" value={42} />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it('shows positive trend in green', () => {
+    render(<KPICard label="Commits" value={10} trend={{ change: 2, percentage: 25 }} />)
+    expect(screen.getByText('↑ 25.0%')).toHaveClass('text-emerald-600')
+  })
+})
+```
+
+**Effort**: 9.5h (4h RTL setup + 30m per component) | **Impact**: Refactoring confidence, catch regressions
+**Strategic Value**: Technical investment that pays dividends long-term
+
+---
+
+### [UX] Add Interactive Analytics Dashboard
+**Scope**: New feature - charts, filters, drill-downs
+**Perspectives**: product-visionary (workflow gap), user-experience-advocate
+**Why**: Reports are static documents. Managers can't answer ad-hoc questions without regenerating.
+
+**Approach**: Add chart components + filter system
+- ActivityTimeline chart (events over time)
+- PRVelocityChart (open/merged PRs)
+- ReviewLatencyChart (time to first review)
+- Filters by repo, user, event type, date range
+
+**Libraries**: recharts, date-fns, @tanstack/react-table
+
+**Use Cases**:
+- "Show me all PRs stuck in review >3 days"
+- "Compare my team's velocity to last quarter"
+
+**Effort**: 2 weeks (5d charts + 3d filters + 2d queries) | **Impact**: Power user retention 3x, upsell lever
+**Strategic Value**: Required to compete with LinearB/Jellyfish
+
+---
+
+### [UX] Add Smart Alerts / Anomaly Detection
+**Scope**: New feature - proactive notifications
+**Perspectives**: product-visionary (productivity enhancement)
+**Why**: Passive reporting only. Users must check reports to find issues. Alerts drive daily active usage.
+
+**Approach**: Rule engine + anomaly detection
+- Add `alertRules` table (type, condition, channels)
+- Add `alertHistory` table (triggeredAt, message, acknowledged)
+- Detection cron job (hourly)
+- Alert delivery via Slack/email
+
+**Use Cases**:
+- "Alert me when a PR has been in review >72 hours"
+- "Notify team when velocity drops 30% week-over-week"
+
+**Effort**: 2 weeks (4d rule engine + 3d anomaly detection + 2d delivery + 3d UI) | **Impact**: 40% retention lift
+**Strategic Value**: Proactive alerts are key buyer persona feature
+
+---
+
+### [MAINTAINABILITY] Standardize Error Handling Pattern
+**Files**: Multiple across `convex/actions/`, `convex/lib/`
+**Perspectives**: maintainability-maven (inconsistent patterns)
+**Why**: 3 error patterns (throw exceptions, return ActionResult<T>, silent failures with console.warn). Developers must handle different patterns.
+
+**Approach**: Standardize on ActionResult<T> everywhere
+```typescript
+// Update all actions to return ActionResult<T>
+export async function mintInstallationToken(
+  installationId: number
+): Promise<ActionResult<InstallationToken>> {
+  try {
+    // ... existing logic ...
+    return success(token)
+  } catch (error) {
+    return failure(createError(ErrorCode.GITHUB_API_ERROR, error.message))
+  }
+}
+```
+
+**Effort**: 4h (update all actions) | **Impact**: Uniform error handling, predictable APIs
+
+---
+
+### [INFRASTRUCTURE] Install Changesets for Changelog Automation
+**Files**: Create `.changeset/config.json`, update `package.json`
+**Perspectives**: maintainability-maven
+**Impact**: Automated version bumps + changelog generation, eliminate manual release process
+
+**Problem**: Manual versioning (stuck at 0.1.0), no changelog, 30-minute manual release process. Breaking changes buried in commits.
+
+**Fix**: Install Changesets (best for apps vs semantic-release for libraries)
+```bash
+pnpm add -D @changesets/cli
+pnpm changeset init
+```
+
+```json
+// .changeset/config.json
+{
+  "$schema": "https://unpkg.com/@changesets/config@2.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "master",
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}
+```
+
+```json
+// package.json - add scripts
+"scripts": {
+  "changeset": "changeset",
+  "version": "changeset version",
+  "release": "pnpm build && changeset publish"
+}
+```
+
+**Workflow**:
+1. Developer runs `pnpm changeset` when making changes (creates `.changeset/*.md`)
+2. CI creates PR with version bump + CHANGELOG.md
+3. Merge PR → automated release
+
+**Effort**: 30m | **Priority**: P2
+**Acceptance**: Changeset CLI installed, config created, docs updated with workflow
+
+---
+
+### [INFRASTRUCTURE] Add Environment Validation Script
+**Files**: Create `scripts/validate-env.sh`, update `vercel.json`
+**Perspectives**: architecture-guardian
+**Impact**: Catch missing env vars before deploy, prevent silent preview deploy failures
+
+**Problem**: Preview deploys may fail silently if env vars missing (NEXT_PUBLIC_CONVEX_URL, CONVEX_DEPLOY_KEY). Discovered only when users report bugs.
+
+**Fix**: Pre-build env validation script
+```bash
+#!/bin/bash
+# scripts/validate-env.sh
+
+set -e
+
+echo "🔍 Validating environment variables..."
+
+# Required Next.js vars
+if [ -z "$NEXT_PUBLIC_CONVEX_URL" ]; then
+  echo "❌ Missing: NEXT_PUBLIC_CONVEX_URL"
+  exit 1
+fi
+
+# Required Convex vars (CI only)
+if [ "$CI" = "true" ] && [ -z "$CONVEX_DEPLOY_KEY" ]; then
+  echo "❌ Missing: CONVEX_DEPLOY_KEY (required for CI builds)"
+  exit 1
+fi
+
+# Optional but recommended
+if [ -z "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ]; then
+  echo "⚠️ Warning: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set (auth will fail)"
+fi
+
+echo "✅ Environment validation passed"
+```
+
+```json
+// vercel.json - add to install command
+{
+  "installCommand": "chmod +x scripts/validate-env.sh && ./scripts/validate-env.sh && pnpm install"
+}
+```
+
+**Effort**: 30m | **Priority**: P2
+**Acceptance**: Script validates required vars, Vercel builds fail fast on missing env, clear error messages
+
+---
+
+### [INFRASTRUCTURE] Track Convex Action Errors with Structured IDs
+**Files**: `convex/lib/errors.ts`, all `convex/actions/**`
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Error correlation, debugging velocity, production incident analysis
+
+**Problem**: Convex action errors lack correlation IDs. Cannot trace error through logs, link frontend error to backend cause, or group related failures.
+
+**Approach**: Add structured error wrapper with correlation tracking
+```typescript
+// convex/lib/errors.ts
+import { v } from "convex/values";
+import { nanoid } from "nanoid";
+
+export interface StructuredError {
+  errorId: string;        // Unique ID for this error instance
+  code: string;           // Error type (GITHUB_API_ERROR, LLM_TIMEOUT, etc.)
+  message: string;        // User-friendly message
+  details?: unknown;      // Technical details
+  timestamp: number;
+  correlationId?: string; // Trace across multiple actions
+}
+
+export function createError(
+  code: string,
+  message: string,
+  details?: unknown,
+  correlationId?: string
+): StructuredError {
+  return {
+    errorId: nanoid(),
+    code,
+    message,
+    details,
+    timestamp: Date.now(),
+    correlationId: correlationId || nanoid(),
+  };
+}
+
+// convex/actions/reports/generateDaily.ts
+export const generateDaily = action({
+  handler: async (ctx, args) => {
+    const correlationId = nanoid();
+
+    try {
+      logger.info({ correlationId, userId: args.userId }, 'Starting daily report generation');
+
+      const events = await ctx.runQuery(api.events.listByUser, { userId, correlationId });
+      const report = await generateWithOrchestrator(events, correlationId);
+
+      return success(report);
+    } catch (error) {
+      const structuredError = createError(
+        'REPORT_GENERATION_FAILED',
+        'Unable to generate daily report',
+        { originalError: error.message },
+        correlationId
+      );
+
+      logger.error(structuredError, 'Report generation failed');
+      Sentry.captureException(error, { extra: structuredError });
+
+      return failure(structuredError);
+    }
+  }
+});
+```
+
+**Effort**: 1 week | **Impact**: 10x faster incident debugging, error grouping
+**Acceptance**: All action errors include errorId + correlationId, searchable in Sentry
+
+---
+
+### [INFRASTRUCTURE] Add Session Replay (Privacy-Compliant)
+**Files**: `sentry.client.config.ts`, `app/layout.tsx`
+**Perspectives**: user-experience-advocate, security-sentinel
+**Impact**: Bug reproduction, UX issue discovery, rage-click detection
+
+**Problem**: Cannot reproduce user-reported bugs. "Report generation failed" → No video of what user did, which buttons clicked, what state existed.
+
+**Approach**: Enable Sentry Session Replay with PII masking
+```typescript
+// sentry.client.config.ts
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  replaysSessionSampleRate: 0.1, // 10% of sessions
+  replaysOnErrorSampleRate: 1.0, // 100% of sessions with errors
+
+  integrations: [
+    new Sentry.Replay({
+      maskAllText: false,
+      maskAllInputs: true,
+      block: [
+        '.user-email',          // PII elements
+        '[data-sensitive]',     // Custom sensitive markers
+        '.github-token',
+      ],
+      mask: [
+        '.user-name',
+        '.repo-name',
+      ],
+    }),
+  ],
+});
+```
+
+**Privacy Considerations**:
+- Mask all form inputs (passwords, API keys)
+- Block sensitive DOM elements (emails, tokens)
+- Network request bodies redacted by default
+- GDPR-compliant (user consent required for EU users)
+
+**Effort**: 3h | **Impact**: 80% faster bug reproduction, catch UX issues
+**Acceptance**: Session replays available for error events, PII masked, <1% perf impact
+
+---
+
+### [ACCESSIBILITY] Add ARIA Labels and Alt Text
+**Files**: All UI components in `app/` directory
+**Perspectives**: user-experience-advocate (WCAG 2.1 AA compliance)
+**Why**: Zero ARIA labels or alt text. Screen reader users cannot navigate app.
+
+**Approach**: Add ARIA labels to all interactive elements
+```tsx
+// Interactive buttons
+<button
+  onClick={handleDelete}
+  aria-label={`Delete report titled ${report.title}`}
+>
+  Delete
+</button>
+
+// Expandable sections
+<button
+  onClick={() => setOpen(!open)}
+  aria-expanded={open}
+  aria-controls="citations-list"
+>
+  Citations ({citations.length})
+</button>
+```
+
+**Effort**: 4h (audit + fix all pages) | **Impact**: Accessible to 15% more users (screen readers, keyboard-only)
+
+---
+
+## Soon (Exploring, 3-6 months)
+
+- **[TESTING] Install React Testing Library for Component Tests** - RTL + Vitest for UI components, test auth boundaries/report cards/forms, 0% component coverage currently (4h setup + sample tests)
+- **[PERFORMANCE] Add Bundle Size Tracking** - Next.js bundle analyzer + CI checks for bundle size regressions, catch bloat early (1h)
+- **[Product] Custom Report Templates** - User-created templates, marketplace, freemium upsell (2 weeks)
+- **[Product] Email Delivery** - Daily/weekly digest emails, SMTP integration (3 days)
+- **[Product] Public Report Links** - Shareable URLs for stakeholders, no auth required (2 days)
+- **[Product] Bulk Operations** - Bulk delete reports, bulk repo actions (3h)
+- **[Product] Report Search/Filter** - Search by content, filter by type/date (2h)
+- **[Integration] GitHub Actions CI/CD** - Deployment tracking, DORA metrics (2 weeks)
+- **[Integration] Webhooks API** - Send reports to external systems (2 days)
+- **[Design] OKLCH Color Space** - Perceptually uniform colors across themes (2h)
+
+---
+
+## Later (Someday/Maybe, 6+ months)
+
+- **[Platform] REST API + Developer Docs** - Programmatic access, enterprise requirement
+- **[Platform] Plugin System** - User-extensible commands, differentiation play
+- **[Differentiation] AI-Powered Code Review Summaries** - Analyze diffs, auto-categorize PRs, release notes
+- **[Vertical] Open Source Maintainer Tools** - Contributor leaderboards, community health
+- **[Scale] Map-Reduce Batching Pipeline** - When users exceed 20k events/week
+- **[Scale] Merkle Trees & Coverage Receipts** - Cryptographic proof for compliance
+
+---
+
+## Learnings
+
+**From this grooming session:**
+
+**Observability Insights (Added 2025-11-20):**
+- **CRITICAL gap**: Zero production error tracking (no Sentry), zero analytics (no Vercel Analytics), zero health checks
+- **121 console.* calls** across codebase with no structured logging, PII redaction, or log levels
+- **Primitive metrics.ts wrapper** (23 lines, console.log only) - need Pino with correlation IDs
+- **Error boundary exists** but only logs to console - no Sentry integration
+- **No deployment tracking** - cannot correlate error spikes to releases
+- **No APM** - cannot identify slow endpoints, database bottlenecks, or client-side latency
+- **No infrastructure alerting** - production issues detected manually or via user reports
+- **Quick wins**: Enable Vercel Analytics (2h), add health checks (2h), PII redaction (1h)
+- **Foundation for scale**: Observability infrastructure must precede team growth (cannot debug distributed issues without structured logging + tracing)
+- **Cost optimization**: Free tiers available (Sentry 5k errors/month, Vercel Analytics included, Grafana Cloud 10k series)
+- **Privacy compliance**: PII redaction required for GDPR Article 32 (current logging unsafe)
+
+**Quality Infrastructure Insights (Added 2025-11-20):**
+- **CRITICAL gap**: Zero CI/CD pipeline, no pre-commit hooks, **broken build command** (missing `npx convex deploy`)
+- **Build risk**: `package.json` only runs `next build` → production failures inevitable (Convex types not generated)
+- **Test coverage**: 12 files, 76 tests on backend logic but 0% auth coverage (Clerk untested), no coverage tracking configured
+- **Security**: No Gitleaks, no Dependabot, no `pnpm audit` in CI, 121 console.* calls with PII risk
+- **Good foundation**: Tests focus on business logic (LLM, reports, coverage math), not just shallow UI tests
+- **Lint discipline**: Only 2 `eslint-disable` comments across entire codebase (not abused ✅)
+- **Secrets management**: Proper .gitignore, no `NEXT_PUBLIC_` misuse for secrets, env vars correctly scoped
+- **Quick wins**: Fix build (5m), Lefthook (2h), CI pipeline (1.5h), Gitleaks (30m) = **4h total**
+- **Philosophy**: "Are we testing the right things?" → Yes on business logic, no on critical paths (auth = 0% coverage)
+- **Meta-question answer**: Quality gates missing entirely - not testing wrong things, just not enforcing tests at all
+- **Why Lefthook**: 3-5x faster than Husky (parallel execution, Go-based), performance budget: <5s pre-commit, <15s pre-push
+- **Coverage philosophy**: Google research 60% acceptable, 75% commendable, 90% exemplary - focus on delta not absolute
+- **CI/CD gap**: 3 workflows exist (enforce-pnpm, claude, claude-code-review) but none run typecheck/lint/test/build
+- **Changesets rationale**: Best for apps (vs semantic-release for libraries), automated changelog + version bumps
+
+**Architecture Insights:**
+- Codebase has excellent deep module design (Canonical Fact Service, Report Orchestrator) but lacks production infrastructure
+- Content-addressed architecture prevents duplicate work - this is a strategic strength, preserve it
+- Temporal decomposition in `reportOrchestrator.ts` is main complexity issue - extract stages before adding features
+
+**Business Model Insights:**
+- Current backlog optimized for scale (10k+ events) when MVP needs business viability (revenue, teams, distribution)
+- Missing table-stakes B2B features (team collaboration, Slack) blocks team adoption
+- No payment infrastructure = $0 revenue with 100% feature-complete product
+- 80/20 rule: Team tier (collaboration + distribution) drives 80% of revenue potential
+
+**Performance Insights:**
+- N+1 queries in ingestion (14s → 50ms fix) and unbounded `.collect()` calls (5s → 10ms fix) are low-hanging fruit
+- Performance issues are user-facing (slow dashboards, slow ingestion) not speculative
+- Fix performance bottlenecks before scale optimizations (map-reduce)
+
+**Security Insights:**
+- Strong foundation (Clerk auth, Convex type-safety) but missing access control checks
+- XSS in report rendering is HIGH severity but easy fix (1h with DOMPurify)
+- Secret management is correct (gitignored .env files, no tracked secrets)
+
+**UX/Product Insights:**
+- Backend errors lack user-friendly translations (70+ throw statements with jargon)
+- Distribution is key gap - reports trapped in web app, need Slack/email
+- Users want interactive analytics, not just static reports (LinearB/Jellyfish competitive gap)
+
+**Design System Insights:**
+- Intentional "Luminous Precision" aesthetic (not generic AI) - monochrome + pulse red
+- Tailwind 4 @theme foundation is excellent but 47 hardcoded colors bypass it
+- Component architecture is solid (deep modules) with one acceptable shallow module (ThemeToggle)
+
+**Strategic Recommendation:**
+- Phase 1 (2 weeks): Infrastructure + security + critical performance (production-ready)
+- Phase 2 (7 weeks): Payments + Slack + teams + exports (revenue-generating SaaS)
+- Phase 3 (3 months): Analytics dashboard + alerts + templates (competitive differentiation)
+- Defer: Scale optimizations (map-reduce, Merkle trees) until user growth demands them
+
+---
+
+**Backlog Health Check:**
+- ✅ Forward-only (no completed/archived section)
+- ✅ Ruthlessly curated (every item has business justification)
+- ✅ Time-organized (detail matches proximity: rich Now, light Later)
+- ✅ Value-first (business case for features, velocity case for technical work)
+- ✅ 80/20 applied (emphasis on high-leverage items: payments, Slack, teams)
+- ✅ Principle traceability (each issue links to violated principles or opportunity)
+- ✅ Cross-validation (multi-agent issues surfaced: XSS, N+1, hardcoded colors)
+- ✅ Strategic mix (critical fixes + velocity unlocks + revenue drivers + differentiation)
+
+**Next Grooming:** Q1 2026 or when strategic priorities shift (new funding, team growth, competitive pressure)
