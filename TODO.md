@@ -1,0 +1,267 @@
+# TODO: Production-Ready Infrastructure & Critical Fixes
+
+## Context
+- Architecture: MVP functional, needs production hardening
+- Backlog: TASK.md + BACKLOG.md provide detailed infrastructure requirements
+- Current State: Strong technical foundation but missing quality gates, observability, security infrastructure
+- Patterns: Existing test setup (Jest + ts-jest ESM), workflow pattern (enforce-pnpm.yml), structured logging placeholder (convex/lib/metrics.ts)
+
+## P0 Critical Infrastructure (Week 1: 12h total)
+
+### Build & Deployment
+
+- [ ] Fix Build Command - Add Convex Deploy
+  ```
+  Files: package.json:8
+  Issue: Build only runs `next build` without deploying Convex backend first
+  Risk: Production failures from missing generated types
+  Fix: "build": "npx convex deploy && next build"
+  Success: `pnpm build` deploys Convex then builds Next.js
+  Dependencies: None (blocking all other tasks)
+  Time: 5min
+  ```
+
+### Quality Gates
+
+- [ ] Install Lefthook Pre-Commit Hooks
+  ```
+  Files: .lefthook.yml (new), package.json (add prepare script)
+  Architecture: Pre-commit hooks for format/lint/secrets, pre-push for typecheck/test
+  Pseudocode: See TASK.md lines 36-58
+  Success: Commits blocked on violations, <5s pre-commit, <15s pre-push
+  Test: Commit bad code → blocked, push failing tests → blocked
+  Dependencies: Build fix
+  Time: 2h
+  ```
+
+- [ ] Create CI/CD Quality Pipeline
+  ```
+  Files: .github/workflows/ci.yml (new)
+  Architecture: Parallel quality gates (typecheck/lint/test), sequential build
+  Pseudocode: See TASK.md lines 82-131
+  Success: PRs require passing CI, Convex deploys before Next.js build
+  Test: PR with type error → CI fails, merge → all checks pass
+  Dependencies: Build fix
+  Time: 1.5h
+  ```
+
+- [ ] Add Gitleaks Secrets Scanning
+  ```
+  Files: .gitleaks.toml (new), .lefthook.yml (modify), .github/workflows/ci.yml (add job)
+  Architecture: Pre-commit hook + CI scan for API keys/tokens
+  Pseudocode: See TASK.md lines 146-188
+  Success: Commits with secrets blocked, CI scans full git history
+  Test: Commit API key → blocked, push to PR → CI scans history
+  Dependencies: Lefthook installed
+  Time: 30min
+  ```
+
+- [ ] Add Coverage Tracking & Thresholds
+  ```
+  Files: package.json (jest config), .github/workflows/ci.yml (add coverage step)
+  Architecture: Jest coverage with 60% global thresholds (Google research: acceptable)
+  Pseudocode: See TASK.md lines 203-230
+  Success: `pnpm test:coverage` generates report, CI enforces 60% minimum
+  Test: Coverage drop below 60% → CI fails
+  Dependencies: CI pipeline exists
+  Time: 30min
+  ```
+
+- [ ] Enable Dependabot
+  ```
+  Files: .github/dependabot.yml (new)
+  Architecture: Weekly automated dependency PRs, grouped patch updates
+  Pseudocode: See TASK.md lines 248-276
+  Success: Weekly Monday PRs for dependency updates
+  Test: Wait 1 week → Dependabot PR created
+  Dependencies: None
+  Time: 15min
+  ```
+
+### Observability Foundation
+
+- [ ] Replace console.log with Pino Logger
+  ```
+  Files: convex/lib/logger.ts (new), 61 console.* call sites (migrate)
+  Architecture: Structured JSON logging with levels, error serialization, service context
+  Current: convex/lib/metrics.ts:13-21 (console.log wrapper)
+  Fix: Install Pino, create logger module, migrate all 121 console.* calls
+  Pseudocode: See BACKLOG.md lines 117-133
+  Success: Structured logs with levels, no raw console.* in production
+  Test: Logger emits JSON, error objects serialized properly
+  Dependencies: None (parallel to quality gates)
+  Time: 4h
+  ```
+
+- [ ] Add PII Redaction to Logging
+  ```
+  Files: convex/lib/logger.ts (extend Pino logger)
+  Architecture: Redact email, tokens, auth headers via Pino redaction paths
+  Pseudocode: See BACKLOG.md lines 148-173
+  Success: PII fields show '[REDACTED]' in logs
+  Test: Log user object → email/tokens redacted
+  Dependencies: Pino logger installed
+  Time: 1h
+  ```
+
+- [ ] Add Health Check Endpoints
+  ```
+  Files: app/api/health/route.ts (new), convex/http.ts (add /health endpoint)
+  Architecture: Next.js + Convex health checks, 200 OK if healthy, 503 if degraded
+  Pseudocode: See BACKLOG.md lines 189-217
+  Success: GET /api/health returns 200 with status checks
+  Test: curl /api/health → 200 OK, kill Convex → 503
+  Dependencies: None
+  Time: 2h
+  ```
+
+## P1 High-Priority Infrastructure (Week 2: 13h total)
+
+### Security Fixes
+
+- [ ] Fix XSS in Report HTML Rendering
+  ```
+  Files: app/dashboard/reports/[id]/page.tsx:258
+  Vulnerability: dangerouslySetInnerHTML without sanitization
+  Attack: LLM-generated malicious HTML → XSS
+  Fix: Add DOMPurify.sanitize() wrapper
+  Pseudocode: See BACKLOG.md lines 410-417
+  Success: Malicious HTML stripped, XSS test passes
+  Dependencies: None
+  Time: 1h
+  ```
+
+- [ ] Fix Broken Access Control on deleteReport
+  ```
+  Files: convex/reports.ts:159-164
+  Vulnerability: No ownership check before deletion
+  Attack: User can delete any report by ID
+  Fix: Verify report.userId === identity.subject
+  Pseudocode: See BACKLOG.md lines 442-459
+  Success: Users cannot delete others' reports
+  Dependencies: None
+  Time: 15min
+  ```
+
+- [ ] Add pnpm audit to CI
+  ```
+  Files: .github/workflows/ci.yml (add security-audit job)
+  Architecture: Fail CI on HIGH/CRITICAL vulnerabilities
+  Pseudocode: See BACKLOG.md lines 80-95
+  Success: CI runs `pnpm audit --audit-level=high`
+  Dependencies: CI pipeline exists
+  Time: 15min
+  ```
+
+### Observability Stack
+
+- [ ] Enable Vercel Analytics
+  ```
+  Files: app/layout.tsx (add Analytics component), package.json (install @vercel/analytics)
+  Architecture: Pageview tracking + custom events for report generation
+  Pseudocode: See BACKLOG.md lines 232-260
+  Success: Pageviews tracked, custom events firing
+  Test: Navigate app → events in Vercel dashboard
+  Dependencies: None
+  Time: 2h
+  ```
+
+- [ ] Install Sentry Error Tracking
+  ```
+  Files: app/error.tsx (add Sentry.captureException), convex/lib/sentry.ts (new)
+  Architecture: Frontend + backend error capture, alerting
+  Pseudocode: See BACKLOG.md lines 369-387
+  Success: Errors tracked in Sentry dashboard
+  Test: Throw error → appears in Sentry
+  Dependencies: None
+  Time: 3h
+  ```
+
+- [ ] Add Deployment Tracking
+  ```
+  Files: .github/workflows/deploy.yml (add Sentry release notification)
+  Architecture: Auto-track deployments to Sentry for error correlation
+  Pseudocode: See BACKLOG.md lines 276-287
+  Success: Deployments appear in Sentry releases
+  Dependencies: Sentry installed
+  Time: 1h
+  ```
+
+- [ ] Add Performance Monitoring (APM)
+  ```
+  Files: sentry.client.config.ts (enable BrowserTracing), sentry.server.config.ts
+  Architecture: 10% transaction sampling, custom instrumentation for reports
+  Pseudocode: See BACKLOG.md lines 302-320
+  Success: Slow transactions visible in Sentry Performance
+  Test: Generate report → transaction appears in Sentry
+  Dependencies: Sentry installed
+  Time: 3h
+  ```
+
+- [ ] Add Infrastructure Alerts
+  ```
+  Files: docs/runbooks/*.md (new), Sentry alert rules (UI config)
+  Architecture: High error rate, P95 latency, slow DB query alerts → Slack
+  Pseudocode: See BACKLOG.md lines 334-354
+  Success: Alerts fire to Slack when thresholds exceeded
+  Dependencies: Sentry installed
+  Time: 2h
+  ```
+
+### Testing
+
+- [ ] Add Auth Integration Tests
+  ```
+  Files: convex/lib/__tests__/auth.test.ts (new)
+  Coverage Gap: Clerk auth = 0% test coverage (critical path)
+  Pseudocode: See BACKLOG.md lines 24-64
+  Success: Auth tests pass, cover JWT validation + user identity + edge cases
+  Pattern: Follow existing test structure in convex/lib/__tests__/
+  Dependencies: None
+  Time: 1.5h
+  ```
+
+## Design Iteration Checkpoints
+
+After P0 Complete (Week 1):
+- Review quality gate performance: Are hooks <5s pre-commit, <15s pre-push?
+- Check CI parallelization: Are quality gates running concurrently?
+- Validate logging output: Is PII properly redacted?
+
+After P1 Complete (Week 2):
+- Review Sentry error patterns: Are we capturing actionable errors?
+- Check alert noise: Are thresholds tuned correctly?
+- Validate test coverage: Did we hit 60% threshold?
+
+## Automation Opportunities
+
+- **Coverage Trending**: Track coverage delta over time, alert on regressions
+- **Dependency Dashboard**: Visualize outdated deps, security vulns
+- **Performance Budgets**: Track bundle size, API latency trends
+
+## Notes
+
+**Why This Order**:
+1. Build fix is blocking (everything depends on working builds)
+2. Quality gates prevent regressions during infrastructure work
+3. Observability foundation before features (catch issues early)
+4. Security fixes are low-effort, high-impact (do first)
+
+**Excluded from TODO** (Workflow, not Implementation):
+- Creating pull requests (process task)
+- Running tests manually (automated via hooks/CI)
+- Checking out branches (workflow)
+- Reviewing code (process)
+
+**Deferred to BACKLOG** (Not blocking MVP hardening):
+- Changesets setup (P2 - nice to have)
+- Component tests (P2 - refactoring safety, not blocking)
+- Design system token migration (HIGH impact but not blocking)
+- Performance optimizations (N+1 queries, unbounded collects)
+- Error message translation (UX improvement)
+
+**Module Boundaries Preserved**:
+- GitHub Service: Keeps token minting, webhook verification isolated
+- Logging Service: Centralized logger with PII redaction
+- Health Check Service: Database + API connectivity verification
+- Each task creates/modifies ONE well-defined component

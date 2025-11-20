@@ -1,0 +1,24 @@
+# Lefthook Configuration
+# Fast git hooks (3-5x faster than Husky, parallel execution)
+# Performance budget: <5s pre-commit, <15s pre-push
+
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{ts,tsx,md}"
+      run: pnpm prettier --write {staged_files}
+      stage_fixed: true
+    lint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: pnpm eslint --fix --cache {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm typecheck
+    test:
+      run: pnpm test --bail
+    convex:
+      run: npx convex typecheck
