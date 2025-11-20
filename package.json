@@ -10,6 +10,7 @@
     "lint": "eslint app convex components hooks lib tests --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:coverage": "jest --coverage",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "convex": "npx convex dev",
     "convex:deploy": "npx convex deploy",

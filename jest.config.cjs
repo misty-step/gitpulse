@@ -18,4 +18,21 @@ module.exports = {
       },
     ],
   },
+  collectCoverageFrom: [
+    "convex/lib/**/*.ts",
+    "convex/actions/**/*.ts",
+    "lib/**/*.ts",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "!convex/_generated/**",
+  ],
+  coverageThresholds: {
+    global: {
+      lines: 60,
+      functions: 60,
+      branches: 55,
+      statements: 60,
+    },
+  },
+  coverageReporters: ["text", "lcov", "html"],
 };
