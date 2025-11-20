@@ -66,6 +66,20 @@ export const listByClerkUser = query({
   },
 });
 
+export const listMyInstallations = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+    return ctx.db
+      .query("installations")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", identity.subject))
+      .collect();
+  },
+});
+
 export const updateRateLimitBudget = mutation({
   args: {
     installationId: v.number(),

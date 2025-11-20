@@ -171,253 +171,120 @@ export default function ReportViewerPage() {
     report.coverageScore === 0 && needsIntegrationAttention(integrationStatus);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-12 pb-24">
       <IntegrationStatusBanner />
-      {/* Header */}
-      <div className="space-y-4">
-        {/* Navigation Bar */}
+      
+      {/* Header Section */}
+      <header className="space-y-6 border-b border-border pb-8">
         <div className="flex items-center justify-between">
           <Link
             href="/dashboard/reports"
-            className="inline-flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-slate-300 dark:hover:text-slate-100"
+            className="text-xs font-mono uppercase tracking-widest text-muted hover:text-foreground transition-colors"
           >
-            ← Back to Reports
+            ← Index
           </Link>
-
-          {/* Report Navigation */}
-          <div className="flex items-center gap-2">
-            {prevReportId ? (
-              <Link
-                href={`/dashboard/reports/${prevReportId}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
-                title="Older report (←)"
-              >
-                ← Older
-              </Link>
-            ) : (
-              <div className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-400 dark:border-neutral-800 dark:text-slate-500">
-                ← Older
-              </div>
-            )}
-            {nextReportId ? (
-              <Link
-                href={`/dashboard/reports/${nextReportId}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
-                title="Newer report (→)"
-              >
-                Newer →
-              </Link>
-            ) : (
-              <div className="inline-flex cursor-not-allowed items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-400 dark:border-neutral-800 dark:text-slate-500">
-                Newer →
-              </div>
-            )}
+          
+          <div className="flex items-center gap-4">
+             {/* Versions Dropdown / List could go here, keeping it simple for now */}
+             <span className="text-xs font-mono text-muted">
+                ID: {report._id.slice(-8)}
+             </span>
           </div>
         </div>
 
-        {/* Title and Metadata */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-100">
-              {report.title}
-            </h1>
-            {report.description && (
-              <p className="mt-2 text-gray-600 dark:text-slate-300">{report.description}</p>
-            )}
-            <div className="mt-4 flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
-              <span>
-                Generated: {new Date(report.generatedAt).toLocaleDateString()}
-              </span>
-              <span>•</span>
-              <span>{report.citations.length} citations</span>
-              <span>•</span>
-              <span>
-                {report.ghLogins.length}{" "}
-                {report.ghLogins.length === 1 ? "user" : "users"}
-              </span>
-            </div>
+        <div className="space-y-4">
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            {report.title}
+          </h1>
+          
+          {/* Spec Sheet Metadata */}
+          <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-4 border-t border-border pt-6">
+             <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Generated</div>
+                <div className="text-sm font-mono">{new Date(report.generatedAt).toLocaleDateString()}</div>
+             </div>
+             <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Range</div>
+                <div className="text-sm font-mono">
+                   {new Date(report.startDate).toLocaleDateString()} — {new Date(report.endDate).toLocaleDateString()}
+                </div>
+             </div>
+             <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Model</div>
+                <div className="text-sm font-mono">{report.provider}/{report.model}</div>
+             </div>
+             <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Coverage</div>
+                <div className="text-sm font-mono">{report.coverageScore ?? 0}%</div>
+             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:items-end">
+        </div>
+        
+        <div className="flex gap-3 pt-2">
             <button
               onClick={handleDownloadMarkdown}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
+              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-xs font-medium transition-colors hover:bg-surface-muted"
             >
-              Download Markdown
+              Download MD
             </button>
             <button
               onClick={handleRegenerate}
               disabled={disableRegenerate}
-              className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
-                disableRegenerate
-                  ? "bg-blue-400/50 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-500"
-              }`}
+              className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
             >
               {regenerateLabel}
             </button>
-          </div>
         </div>
-      </div>
+      </header>
 
       {showIntegrationAlert && integrationStatus ? (
         <IntegrationContextNote status={integrationStatus} />
       ) : null}
 
       {jobInFlight && latestJob && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
-          <div className="flex items-center justify-between font-medium">
-            <span>Regenerating report</span>
-            <span>{jobProgress}%</span>
-          </div>
-          <div className="mt-2 h-2 rounded-full bg-blue-100 dark:bg-blue-500/30">
-            <div
-              className="h-2 rounded-full bg-blue-600 transition-[width] dark:bg-blue-400"
-              style={{ width: `${jobProgress}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-blue-900/80 dark:text-blue-100/80">
-            {latestJob.message ?? "Working through the latest activity..."}
-          </p>
+        <div className="flex items-center gap-4 border-l-2 border-black pl-4 py-2 bg-surface-muted/30">
+           <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+           <div>
+              <div className="text-sm font-medium">Regenerating... {jobProgress}%</div>
+              <div className="text-xs text-muted">{latestJob.message}</div>
+           </div>
         </div>
       )}
 
-      {jobFailed && latestJob && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
-          <div className="flex items-center justify-between font-medium">
-            <span>Regeneration failed</span>
-            <button
-              onClick={handleRegenerate}
-              className="rounded border border-red-300 px-3 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-100 dark:border-red-400 dark:text-red-100 dark:hover:bg-red-500/30"
-            >
-              Retry
-            </button>
-          </div>
-          <p className="mt-2 text-xs">
-            {latestJob.error?.message ?? latestJob.message ?? "Something went wrong."}
-          </p>
-        </div>
-      )}
-
-      {hasNewerVersion && (
-        <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-100">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>A newer version of this report is available.</span>
-            <button
-              onClick={handleViewLatest}
-              className="inline-flex items-center justify-center rounded border border-amber-300 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-300/50 dark:text-amber-100 dark:hover:bg-amber-400/20"
-            >
-              View latest
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Metadata */}
-      <div className="space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
-          <span className="font-medium">Users:</span>
-          <div className="flex flex-wrap gap-1">
-            {report.ghLogins.map((login) => (
-              <span
-                key={login}
-                className="rounded border border-gray-200 bg-white px-2 py-0.5 text-gray-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-200"
-              >
-                {login}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
-          <span className="font-medium">Date Range:</span>
-          <span className="text-gray-600 dark:text-slate-300">
-            {new Date(report.startDate).toLocaleDateString()} -{" "}
-            {new Date(report.endDate).toLocaleDateString()}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
-          <span className="font-medium">Model:</span>
-          <span className="text-gray-600 dark:text-slate-300">
-            {report.provider}/{report.model}
-          </span>
-        </div>
-      </div>
-
-      {/* Coverage */}
-      <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
-          Coverage
-        </h2>
-        <CoverageMeter score={report.coverageScore} />
-        {report.coverageBreakdown && report.coverageBreakdown.length > 0 && (
-          <div className="space-y-2 text-sm text-gray-600 dark:text-slate-300">
-            {report.coverageBreakdown.map((entry) => (
-              <div key={entry.scopeKey} className="flex justify-between">
-                <span className="truncate pr-2">{entry.scopeKey}</span>
-                <span className="tabular-nums text-gray-500">
-                  {entry.used}/{entry.total}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {report.scheduleType && versionList && versionList.length > 0 && (
-        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Report Versions</h2>
-              <p className="text-sm text-gray-500 dark:text-slate-400">
-                {versionList.length} version{versionList.length === 1 ? "" : "s"} available for this time range
-              </p>
-            </div>
-            {!isLatestVersion && (
-              <button
-                onClick={handleViewLatest}
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-neutral-700 dark:text-slate-200 dark:hover:bg-neutral-800"
-              >
-                Jump to latest
-              </button>
-            )}
-          </div>
-          <div className="space-y-2">
-            {versionList.map((version) => {
-              const isCurrent = version._id === report._id;
-              return (
-                <button
-                  key={version._id}
-                  onClick={() => {
-                    if (!isCurrent) router.push(`/dashboard/reports/${version._id}`);
-                  }}
-                  className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
-                    isCurrent
-                      ? "border-blue-200 bg-blue-50 dark:border-blue-500/40 dark:bg-blue-500/10"
-                      : "border-gray-200 hover:bg-gray-50 dark:border-neutral-800 dark:hover:bg-neutral-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-sm font-medium text-gray-900 dark:text-slate-100">
-                    <span>{new Date(version.generatedAt).toLocaleString()}</span>
-                    <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
-                      {isCurrent ? "Current" : "View"}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
-                    Coverage {(version.coverageScore ?? 0).toLocaleString(undefined, { style: "percent", maximumFractionDigits: 1 })}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Report Content (HTML) */}
-      <div className="prose prose-slate max-w-none rounded-lg border border-gray-200 bg-white p-8 dark:border-neutral-800 dark:bg-neutral-900 dark:prose-invert">
+      {/* Report Content */}
+      <article className="prose prose-zinc max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-p:text-foreground-muted prose-a:text-foreground prose-code:text-xs prose-code:font-mono prose-code:bg-surface-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm">
         <div
           className="markdown-content"
           dangerouslySetInnerHTML={{ __html: report.html }}
         />
-      </div>
+      </article>
+      
+      {/* Footer / Versions */}
+      {(report.scheduleType && versionList && versionList.length > 0) && (
+         <div className="border-t border-border pt-12 mt-12">
+            <h3 className="text-sm font-semibold mb-6">History</h3>
+            <div className="space-y-0">
+               {versionList.map((version) => {
+                  const isCurrent = version._id === report._id;
+                  return (
+                    <Link
+                      key={version._id}
+                      href={`/dashboard/reports/${version._id}`}
+                      className={`flex items-center justify-between py-3 border-b border-border text-sm hover:bg-surface-muted/50 transition-colors ${isCurrent ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                    >
+                       <div className="font-mono">
+                          {new Date(version.generatedAt).toLocaleString()}
+                       </div>
+                       <div className="flex items-center gap-4">
+                          <span className="font-mono text-xs text-muted">Score: {version.coverageScore}%</span>
+                          {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-black" />}
+                       </div>
+                    </Link>
+                  );
+               })}
+            </div>
+         </div>
+      )}
 
       <CitationDrawer citations={report.citations} />
     </div>

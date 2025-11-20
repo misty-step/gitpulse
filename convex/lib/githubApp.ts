@@ -137,27 +137,28 @@ export async function mintInstallationToken(
 }
 
 /**
- * Call GitHub's Search API to fetch issue + PR timelines for a repository window.
+ * Call GitHub's List Issues API to fetch issue + PR timelines for a repository window.
+ * 
+ * Switched from Search API to List Issues API to utilize the standard 5000 req/hr rate limit
+ * instead of the restrictive 30 req/min Search limit.
  */
 export async function fetchRepoTimeline(
   args: FetchRepoTimelineArgs
 ): Promise<RepoTimelineResult> {
-  const { repoFullName, sinceISO, untilISO, cursor, token, etag } = args;
+  const { repoFullName, sinceISO, cursor, token, etag } = args;
 
   if (!repoFullName.includes("/")) {
     throw new Error(`Invalid repo format: ${repoFullName}`);
   }
 
   const page = cursor ? Math.max(Number(cursor), 1) : 1;
-  const queryParts = [`repo:${repoFullName}`, `updated:>=${sinceISO}`];
-  if (untilISO) {
-    queryParts.push(`updated:<${untilISO}`);
-  }
-
+  
+  // https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues
   const searchParams = new URLSearchParams({
-    q: queryParts.join(" "),
+    since: sinceISO,
     sort: "updated",
-    order: "asc",
+    direction: "asc",
+    state: "all", // Get both open and closed
     per_page: SEARCH_PER_PAGE.toString(),
     page: page.toString(),
   });
@@ -172,7 +173,7 @@ export async function fetchRepoTimeline(
     headers["If-None-Match"] = etag;
   }
 
-  const response = await fetch(`${GITHUB_API_BASE}/search/issues?${searchParams.toString()}`, {
+  const response = await fetch(`${GITHUB_API_BASE}/repos/${repoFullName}/issues?${searchParams.toString()}`, {
     method: "GET",
     headers,
   });
@@ -186,25 +187,39 @@ export async function fetchRepoTimeline(
       hasNextPage: false,
       endCursor: cursor,
       etag: responseEtag ?? etag,
-      totalCount: 0,
+      totalCount: 0, // API doesn't return total count in headers for lists easily without pagination checks
       rateLimit,
       notModified: true,
+    };
+  }
+
+  if (response.status === 403 || response.status === 429) {
+    // Gracefully handle rate limits by returning empty and letting the caller pause
+    const resetTime = rateLimit.reset ? new Date(rateLimit.reset).toISOString() : "unknown";
+    console.warn(`[fetchRepoTimeline] Rate limit hit. Reset at ${resetTime}. Remaining: ${rateLimit.remaining}`);
+    
+    // If we hit a rate limit, we fake a result that indicates we should stop.
+    // returning rateLimit with remaining=0 will trigger the shouldPause logic in the caller.
+    return {
+      nodes: [],
+      hasNextPage: true, // Assume there's more since we failed
+      endCursor: cursor, // Retry same page
+      totalCount: 0,
+      rateLimit: { ...rateLimit, remaining: 0 }, 
+      etag: etag, // Keep old etag
     };
   }
 
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(
-      `GitHub search error (${response.status}): ${errText || response.statusText}`
+      `GitHub API error (${response.status}): ${errText || response.statusText}`
     );
   }
 
-  const data = (await response.json()) as {
-    total_count: number;
-    items: Array<any>;
-  };
+  const items = (await response.json()) as Array<any>;
 
-  const nodes: RepoTimelineNode[] = data.items.map((item) => ({
+  const nodes: RepoTimelineNode[] = items.map((item) => ({
     __typename: item.pull_request ? "PullRequest" : "Issue",
     id: item.node_id ?? String(item.id ?? item.url),
     number: item.number,
@@ -222,8 +237,8 @@ export async function fetchRepoTimeline(
       : null,
   }));
 
-  const cappedTotal = Math.min(data.total_count ?? 0, SEARCH_MAX_RESULTS);
-  const couldHaveMore = nodes.length === SEARCH_PER_PAGE && page * SEARCH_PER_PAGE < cappedTotal;
+  // For standard pagination, we just check if we got a full page
+  const couldHaveMore = nodes.length === SEARCH_PER_PAGE;
   const endCursor = couldHaveMore ? String(page + 1) : undefined;
 
   return {
@@ -231,7 +246,7 @@ export async function fetchRepoTimeline(
     endCursor,
     hasNextPage: !!endCursor,
     etag: responseEtag,
-    totalCount: data.total_count ?? 0,
+    totalCount: items.length, // This is just the page count, not total, but sufficient for progress logic usually
     rateLimit,
   };
 }

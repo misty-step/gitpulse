@@ -297,27 +297,34 @@ export class LLMClient {
 
     const modelId = modelMap[this.config.model] || "gpt-5";
 
+    const body: Record<string, any> = {
+      model: modelId,
+      messages: [
+        {
+          role: "system",
+          content: payload.systemPrompt,
+        },
+        {
+          role: "user",
+          content: payload.userPrompt,
+        },
+      ],
+      max_completion_tokens: maxTokens,
+    };
+
+    // Some newer OpenAI models (e.g., gpt-4.1 / gpt-5 preview) reject custom temperature.
+    // Only include it when it differs from the default AND the model allows it.
+    if (temperature !== 1) {
+      body.temperature = temperature;
+    }
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: modelId,
-        messages: [
-          {
-            role: "system",
-            content: payload.systemPrompt,
-          },
-          {
-            role: "user",
-            content: payload.userPrompt,
-          },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -347,11 +354,11 @@ export class LLMClient {
    * Preference order: Google (cheaper) > OpenAI (fallback)
    */
   private selectProvider(): "google" | "openai" {
-    if (process.env.GOOGLE_API_KEY) {
-      return "google";
-    }
     if (process.env.OPENAI_API_KEY) {
       return "openai";
+    }
+    if (process.env.GOOGLE_API_KEY) {
+      return "google";
     }
     throw new Error("No LLM provider API keys configured");
   }
@@ -393,17 +400,17 @@ export function createLLMClient(taskType: "daily" | "weekly" | "complex"): LLMCl
   switch (taskType) {
     case "daily":
       return new LLMClient({
-        provider: "google",
-        model: "gemini-2.5-flash",
-        temperature: 0,
+        provider: "openai",
+        model: "gpt-4.1",
+        temperature: 0, // Deterministic for caching
         maxTokens: 1024,
       });
 
     case "weekly":
       return new LLMClient({
-        provider: "google",
-        model: "gemini-2.5-pro",
-        temperature: 0,
+        provider: "openai",
+        model: "gpt-4.1",
+        temperature: 0, // Deterministic for caching
         maxTokens: 2048,
       });
 
@@ -411,7 +418,7 @@ export function createLLMClient(taskType: "daily" | "weekly" | "complex"): LLMCl
       return new LLMClient({
         provider: "openai",
         model: "gpt-5",
-        temperature: 0.3,
+        temperature: 0.3, // Higher creativity for complex analysis
         maxTokens: 4096,
       });
 

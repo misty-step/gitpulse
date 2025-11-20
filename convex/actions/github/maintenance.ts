@@ -1,7 +1,7 @@
 "use node";
 
 import { internalAction } from "../../_generated/server";
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { listAppInstallations } from "../../lib/githubApp";
 
 /**
@@ -87,6 +87,53 @@ export const reconcileInstallations = internalAction({
       linked,
     };
   },
+});
+
+/**
+ * Identify and sync stale installations.
+ * 
+ * This acts as a safety net for missed webhooks. 
+ * It finds active installations that haven't synced in > 24 hours and triggers a backfill.
+ */
+export const runCatchUpSync = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const installations = await ctx.runQuery(internal.installations.listAll);
+    
+    const now = Date.now();
+    const staleThreshold = 24 * 60 * 60 * 1000; // 24 hours
+    
+    const staleInstallations = installations.filter((install) => {
+      if (install.status !== "active" || !install.clerkUserId || !install.repositories?.length) {
+        return false;
+      }
+      
+      const lastSynced = install.lastSyncedAt || 0;
+      return (now - lastSynced) > staleThreshold;
+    });
+
+    console.log(`[Maintenance] Found ${staleInstallations.length} stale installations needing catch-up sync.`);
+
+    for (const install of staleInstallations) {
+      // Sync from last known sync time (minus 1 hour buffer) or default to 30 days if never synced
+      const buffer = 60 * 60 * 1000;
+      const since = install.lastSyncedAt 
+        ? install.lastSyncedAt - buffer 
+        : now - (30 * 24 * 60 * 60 * 1000);
+
+      try {
+        await ctx.runAction(internal.actions.github.startBackfill.adminStartBackfill, {
+          installationId: install.installationId,
+          clerkUserId: install.clerkUserId!,
+          repositories: install.repositories!,
+          since,
+        });
+        console.log(`[Maintenance] Triggered catch-up sync for installation ${install.installationId}`);
+      } catch (error) {
+        console.error(`[Maintenance] Failed to trigger catch-up for installation ${install.installationId}`, error);
+      }
+    }
+  }
 });
 
 export const rotateSecrets = internalAction({

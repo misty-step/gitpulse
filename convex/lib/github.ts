@@ -12,6 +12,17 @@
  */
 const GITHUB_API_BASE = "https://api.github.com";
 
+export class RateLimitError extends Error {
+  reset: number;
+
+  constructor(reset: number, message?: string) {
+    super(message || "GitHub API rate limit exceeded");
+    this.name = "RateLimitError";
+    this.reset = reset;
+  }
+}
+
+
 /**
  * GitHub API error response
  */
@@ -39,6 +50,21 @@ async function withRetry<T>(
       // Don't retry on final attempt
       if (attempt === maxRetries) {
         break;
+      }
+
+      // Check if it's a rate limit error
+      if (error instanceof RateLimitError) {
+        // If the reset time is far in the future (> 1 minute), don't retry in this loop
+        // Let it throw so the caller can schedule a long-term pause
+        const waitTime = error.reset - Date.now();
+        if (waitTime > 60 * 1000) {
+           throw error;
+        }
+        
+        // Otherwise, if it's a short wait (e.g. secondary rate limit), wait and retry
+        const delay = Math.max(baseDelay * Math.pow(2, attempt), 1000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
       }
 
       // Check if it's a rate limit error (403 or 429)
@@ -81,6 +107,47 @@ async function githubFetch<T>(
   });
 
   if (!response.ok) {
+    // Handle Rate Limits specifically
+    if (response.status === 403 || response.status === 429) {
+      // Parse error body first to check message
+      let message = "GitHub API rate limit exceeded";
+      let errorBody: GitHubError | null = null;
+      try {
+        errorBody = (await response.json()) as GitHubError;
+        message = errorBody.message;
+      } catch (e) {
+        // ignore json parse error
+      }
+
+      const remainingHeader = response.headers.get("x-ratelimit-remaining");
+      const isRateLimit = 
+        response.status === 429 || 
+        (remainingHeader === "0") || 
+        message.toLowerCase().includes("rate limit") ||
+        message.toLowerCase().includes("abuse") ||
+        message.toLowerCase().includes("secondary");
+
+      if (isRateLimit) {
+        const resetHeader = response.headers.get("x-ratelimit-reset");
+        const retryAfterHeader = response.headers.get("retry-after");
+        
+        let reset = Date.now() + 3600 * 1000; // Default 1h
+        
+        if (resetHeader) {
+           reset = parseInt(resetHeader, 10) * 1000;
+        } else if (retryAfterHeader) {
+           reset = Date.now() + parseInt(retryAfterHeader, 10) * 1000;
+        }
+
+        throw new RateLimitError(reset, `GitHub API error (${response.status}): ${message}`);
+      }
+      
+      // If not a rate limit, throw standard error below
+      if (errorBody) {
+         throw new Error(`GitHub API error (${response.status}): ${errorBody.message}`);
+      }
+    }
+
     const error = (await response.json()) as GitHubError;
     throw new Error(
       `GitHub API error (${response.status}): ${error.message || response.statusText}`

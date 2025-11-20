@@ -30,17 +30,23 @@ describe("LLMClient deterministic generation", () => {
 
   beforeEach(() => {
     process.env.GOOGLE_API_KEY = "test-key";
+    process.env.OPENAI_API_KEY = "test-key";
     let counter = 0;
-    (global as any).fetch = jest.fn(async (_url, init) => {
+    (global as any).fetch = jest.fn(async (url, init) => {
       counter += 1;
       const requestInit = (init ?? {}) as RequestInit;
       const body = JSON.parse((requestInit.body as string | undefined) ?? "{}");
-      const temperature = body?.generationConfig?.temperature ?? 0.3;
-      const text =
-        temperature === 0
-          ? "stable-output"
-          : `variant-${counter}`;
-      return makeGeminiResponse(text);
+
+      // Detect OpenAI vs Gemini by URL
+      if (typeof url === 'string' && url.includes('openai.com')) {
+        const temperature = body?.temperature ?? 1;
+        const text = temperature === 0 ? "stable-output" : `variant-${counter}`;
+        return makeOpenAIResponse(text);
+      } else {
+        const temperature = body?.generationConfig?.temperature ?? 0.3;
+        const text = temperature === 0 ? "stable-output" : `variant-${counter}`;
+        return makeGeminiResponse(text);
+      }
     });
   });
 
@@ -154,6 +160,22 @@ function makeGeminiResponse(text: string): Response {
         {
           content: {
             parts: [{ text }],
+          },
+        },
+      ],
+    }),
+    text: async () => text,
+  } as unknown as Response;
+}
+
+function makeOpenAIResponse(text: string): Response {
+  return {
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: text,
           },
         },
       ],

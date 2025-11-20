@@ -5,6 +5,38 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 
+type Report = {
+  _id: any;
+  userId: string;
+  scheduleType?: "daily" | "weekly";
+  startDate: number;
+  endDate: number;
+  createdAt: number;
+  updatedAt: number;
+  [key: string]: any;
+};
+
+function dedupeByWindow(reports: Report[]): Report[] {
+  const seen = new Map<string, Report>();
+
+  for (const report of reports) {
+    if (!report.scheduleType) continue;
+    const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
+    const existing = seen.get(key);
+    if (!existing || report.createdAt > existing.createdAt) {
+      seen.set(key, report);
+    }
+  }
+
+  // Sort by endDate desc then createdAt desc
+  return Array.from(seen.values()).sort((a, b) => {
+    if (b.endDate === a.endDate) {
+      return b.createdAt - a.createdAt;
+    }
+    return b.endDate - a.endDate;
+  });
+}
+
 /**
  * Get report by ID
  */
@@ -26,11 +58,13 @@ export const listByUser = query({
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 50;
-    return await ctx.db
+    const raw = await ctx.db
       .query("reports")
       .withIndex("by_userId_and_endDate", (q) => q.eq("userId", args.userId))
       .order("desc")
-      .take(limit);
+      .take(limit * 3); // overfetch to allow dedupe
+
+    return dedupeByWindow(raw).slice(0, limit);
   },
 });
 
@@ -49,16 +83,13 @@ export const listByGhLogin = query({
     const allReports = await ctx.db
       .query("reports")
       .order("desc")
-      .take(limit * 2); // Get extra to filter
+      .take(limit * 3); // Get extra to filter & dedupe
 
     const filteredReports = allReports.filter(
       (report) => report.userId === `gh:${args.ghLogin}`
     );
 
-    // Sort by endDate descending (most recent report period first)
-    filteredReports.sort((a, b) => b.endDate - a.endDate);
-
-    return filteredReports.slice(0, limit);
+    return dedupeByWindow(filteredReports).slice(0, limit);
   },
 });
 
@@ -87,6 +118,7 @@ export const listByWindow = query({
       .order("desc")
       .take(limit);
 
+    // Keep all versions for detail navigation; callers can limit if desired
     return reports;
   },
 });
@@ -128,6 +160,38 @@ export const deleteReport = mutation({
   args: { id: v.id("reports") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
+  },
+});
+
+/**
+ * Internal maintenance: prune duplicate reports for the same user/schedule/window,
+ * keeping only the newest createdAt.
+ */
+export const pruneDuplicates = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("reports").collect();
+    const keepers = new Map<string, Report>();
+
+    for (const report of all as Report[]) {
+      if (!report.scheduleType) continue;
+      const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
+      const existing = keepers.get(key);
+      if (!existing || report.createdAt > existing.createdAt) {
+        keepers.set(key, report);
+      }
+    }
+
+    let deleted = 0;
+    for (const report of all as Report[]) {
+      if (!report.scheduleType) continue;
+      const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
+      const keeper = keepers.get(key);
+      if (!keeper || keeper._id === report._id) continue;
+      await ctx.db.delete(report._id);
+      deleted++;
+    }
+    return deleted;
   },
 });
 

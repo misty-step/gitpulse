@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, usePaginatedQuery } from "convex/react";
+import { useAction, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import Link from "next/link";
@@ -23,19 +23,37 @@ export default function RepositoriesPage() {
     { initialNumItems: 50 }
   );
 
+  const installations = useQuery(api.installations.listMyInstallations);
+  const startBackfill = useAction(api.actions.startBackfill.startBackfill);
+
+  const handleSync = async (installationId: number) => {
+    try {
+      // eslint-disable-next-line react-hooks/purity
+      const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      await startBackfill({
+        installationId,
+        repositories: [], // Empty array means "sync all from installation"
+        since: ninetyDaysAgo,
+      });
+      showSuccess("Sync started", "Repository backfill is running in the background.");
+    } catch (err) {
+      handleConvexError(err as Error);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-24">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-end justify-between border-b border-border pb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Repositories</h1>
-          <p className="mt-2 text-gray-600">
-            Manage GitHub repositories for analysis
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Repositories</h1>
+          <p className="mt-2 text-sm text-muted font-mono uppercase tracking-wider">
+            Configuration / Sources
           </p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          className="inline-flex items-center justify-center rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background transition-transform hover:scale-105 active:scale-95"
         >
           + Add Repository
         </button>
@@ -54,104 +72,125 @@ export default function RepositoriesPage() {
         <IntegrationStatusBanner />
       </AuthLoadingBoundary>
 
-      {/* Repositories Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* Repositories List */}
+      <div className="border-t border-border">
         {status === "LoadingFirstPage" ? (
           <SkeletonRepoList repos={5} />
         ) : repos.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500 mb-4">No repositories yet</p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Add your first repository
-            </button>
+          <div className="py-24 text-center">
+            <div className="mb-8">
+              <div className="mx-auto w-12 h-12 border border-border rounded-full flex items-center justify-center mb-4 bg-surface-muted">
+                <span className="text-xl">📦</span>
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">No sources configured</h3>
+              <p className="text-muted max-w-sm mx-auto text-sm leading-relaxed">
+                Connect your GitHub repositories to begin the ingestion process.
+              </p>
+            </div>
+
+            {installations && installations.length > 0 ? (
+              <div className="max-w-lg mx-auto border border-border bg-surface p-6 text-left">
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted mb-4">Detected Installations</h4>
+                <div className="space-y-3">
+                  {installations.map(install => (
+                    <div key={install._id} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                        <div>
+                           <p className="font-medium text-foreground">{install.accountLogin}</p>
+                           <p className="text-xs text-muted font-mono">{install.repositories?.length || 0} repos</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleSync(install.installationId)}
+                        className="text-xs font-medium border border-border px-3 py-1.5 hover:bg-surface-muted transition-colors"
+                      >
+                        Sync All
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <a
+                  href={getGithubInstallUrl()}
+                  className="inline-flex items-center justify-center rounded-full bg-foreground px-6 py-3 text-sm font-medium text-background transition-transform hover:scale-105"
+                >
+                  Install GitHub App
+                </a>
+                <div className="block pt-4">
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="text-xs text-muted hover:text-foreground font-mono uppercase tracking-wider"
+                  >
+                    or add manually via URL
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Repository
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Owner
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Language
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Updated
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
+          <div className="divide-y divide-border">
+             {/* Header Row */}
+             <div className="grid grid-cols-12 gap-4 py-3 px-4 text-[10px] font-mono uppercase tracking-widest text-muted">
+                <div className="col-span-5">Repository</div>
+                <div className="col-span-2">Owner</div>
+                <div className="col-span-2">Language</div>
+                <div className="col-span-3 text-right">Updated</div>
+             </div>
+             
               {repos.map((repo) => (
-                <tr key={repo._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
+                <div key={repo._id} className="grid grid-cols-12 gap-4 py-4 px-4 items-center hover:bg-surface-muted/50 transition-colors group">
+                  <div className="col-span-5">
+                    <div className="flex items-center gap-3">
                       <Link
                         href={`/dashboard/settings/repositories/${repo._id}`}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                        className="font-medium text-foreground hover:underline"
                       >
                         {repo.name}
                       </Link>
                       {repo.isPrivate && (
-                        <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                        <span className="px-1.5 py-0.5 text-[10px] font-mono border border-border rounded-sm text-muted uppercase tracking-wide">
                           Private
                         </span>
                       )}
                     </div>
                     {repo.description && (
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-xs text-muted mt-1 truncate pr-4">
                         {repo.description}
                       </p>
                     )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+                  </div>
+                  <div className="col-span-2 text-sm text-foreground-muted">
                     {repo.owner}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {repo.language || "-"}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(repo.updatedAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm space-x-3">
-                    <Link
-                      href={`/dashboard/settings/repositories/${repo._id}`}
-                      className="text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      View Details
-                    </Link>
-                    <a
-                      href={repo.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-600 hover:text-gray-700 font-medium"
-                    >
-                      GitHub →
-                    </a>
-                  </td>
-                </tr>
+                  </div>
+                  <div className="col-span-2 text-sm text-foreground-muted font-mono text-xs">
+                    {repo.language || "—"}
+                  </div>
+                  <div className="col-span-3 flex items-center justify-end gap-4">
+                    <span className="text-xs font-mono text-muted">
+                       {new Date(repo.updatedAt).toLocaleDateString()}
+                    </span>
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-3">
+                       <Link href={`/dashboard/settings/repositories/${repo._id}`} className="text-xs font-medium hover:text-foreground">Details</Link>
+                       <a href={repo.url} target="_blank" rel="noopener" className="text-xs font-medium hover:text-foreground">GitHub ↗</a>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+          </div>
         )}
 
         {/* Load More Button */}
         {status !== "LoadingFirstPage" && repos.length > 0 && status !== "Exhausted" && (
-          <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="py-8 text-center">
             <button
               onClick={() => loadMore(50)}
               disabled={status === "LoadingMore"}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-6 py-2 border border-border text-sm font-medium hover:bg-surface-muted transition-colors disabled:opacity-50"
             >
-              {status === "LoadingMore" ? "Loading..." : `Load More Repositories (${repos.length} loaded)`}
+              {status === "LoadingMore" ? "Loading..." : "Load More"}
             </button>
           </div>
         )}
@@ -270,32 +309,32 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Add Repository</h2>
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-surface border border-border shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-xl font-semibold tracking-tight">Add Source</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-muted hover:text-foreground transition-colors"
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Mode Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-xs font-mono uppercase tracking-widest text-muted mb-3">
               Ingestion Mode
             </label>
-            <div className="flex gap-3">
+            <div className="flex border border-border divide-x divide-border">
               <button
                 type="button"
                 onClick={() => setMode("single")}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
                   mode === "single"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-foreground text-background"
+                    : "bg-surface hover:bg-surface-muted"
                 }`}
               >
                 Single Repo
@@ -303,13 +342,13 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 onClick={() => setMode("batch")}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
                   mode === "batch"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-foreground text-background"
+                    : "bg-surface hover:bg-surface-muted"
                 }`}
               >
-                User/Org Repos
+                User/Org Batch
               </button>
             </div>
           </div>
@@ -317,7 +356,7 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
           {/* Single Repo Fields */}
           {mode === "single" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Repository Full Name
               </label>
               <input
@@ -326,10 +365,10 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setRepoFullName(e.target.value)}
                 placeholder="facebook/react"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-border bg-surface-muted/50 focus:ring-1 focus:ring-foreground focus:border-foreground transition-all outline-none placeholder:text-muted/50"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Format: owner/repository (e.g., facebook/react)
+              <p className="text-xs text-muted mt-2 font-mono">
+                Format: owner/repository
               </p>
             </div>
           )}
@@ -338,37 +377,35 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
           {mode === "batch" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Scope Type
                 </label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setScopeType("user")}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                      scopeType === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="scopeType" 
+                      checked={scopeType === "user"}
+                      onChange={() => setScopeType("user")}
+                      className="accent-foreground"
+                    />
                     User
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScopeType("org")}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                      scopeType === "org"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="scopeType" 
+                      checked={scopeType === "org"}
+                      onChange={() => setScopeType("org")}
+                      className="accent-foreground"
+                    />
                     Organization
-                  </button>
+                  </label>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   {scopeType === "user" ? "GitHub Username" : "Organization Name"}
                 </label>
                 <input
@@ -377,18 +414,15 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={scopeType === "user" ? "torvalds" : "facebook"}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-border bg-surface-muted/50 focus:ring-1 focus:ring-foreground focus:border-foreground transition-all outline-none placeholder:text-muted/50"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  This will add all {scopeType === "user" ? "user's" : "organization's"} public repositories. Private repos require token with appropriate access.
-                </p>
               </div>
             </>
           )}
 
           {/* Since Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Ingest Since
             </label>
             <input
@@ -397,56 +431,47 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
               onChange={(e) => setSinceDate(e.target.value)}
               max={new Date().toISOString().split("T")[0]}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-border bg-surface-muted/50 focus:ring-1 focus:ring-foreground focus:border-foreground transition-all outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Fetch events from this date onwards
-            </p>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            <div className="p-3 bg-red-50 border border-red-100 text-sm text-red-600">
               {error}
             </div>
           )}
 
-          {/* Result Message (for batch mode progress) */}
+          {/* Result Message */}
           {resultMessage && !success && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-600">
+            <div className="p-3 bg-surface-muted border border-border text-sm text-foreground font-mono text-xs">
               {resultMessage}
             </div>
           )}
 
           {/* Success Message */}
           {success && (
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600">
-              {resultMessage || (mode === "single"
-                ? "Repository ingestion started! This may take a few minutes."
-                : "Batch ingestion started! This may take several minutes."
-              )}
+            <div className="p-3 bg-emerald-50 border border-emerald-100 text-sm text-emerald-600">
+              {resultMessage || "Ingestion queued successfully."}
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-4 border-t border-border">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+              className="flex-1 px-4 py-2 text-sm font-medium text-muted hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || success}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting
-                ? (mode === "batch" ? "Discovering & Ingesting..." : "Ingesting...")
-                : (mode === "batch" ? `Add ${scopeType === "user" ? "User" : "Org"} Repos` : "Add Repository")
-              }
+              {isSubmitting ? "Processing..." : "Begin Ingestion"}
             </button>
           </div>
         </form>
@@ -476,45 +501,43 @@ function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
 
   return (
     <div
-      className={`rounded-lg border p-4 ${
+      className={`border p-5 ${
         needsAttention
-          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
-          : "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-100"
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-border bg-surface text-foreground"
       }`}
     >
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-semibold">Integration Health</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+           <p className="text-sm font-semibold uppercase tracking-wider opacity-70">System Status</p>
+           <div className={`h-2 w-2 rounded-full ${needsAttention ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+        </div>
+        
         <p className="text-sm">{summary}</p>
-        <dl className="mt-2 grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+        
+        <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3 border-t border-black/5 pt-4 mt-2">
           <div>
-            <dt className="text-amber-900/70 dark:text-amber-100/70">Installations</dt>
+            <dt className="text-muted mb-1 font-mono">INSTALLATIONS</dt>
             <dd className="text-base font-semibold">{status.installCount ?? 0}</dd>
           </div>
           <div>
-            <dt className="text-amber-900/70 dark:text-amber-100/70">Last event</dt>
+            <dt className="text-muted mb-1 font-mono">LAST EVENT</dt>
             <dd className="text-sm font-medium">{lastEventText}</dd>
           </div>
           <div>
-            <dt className="text-amber-900/70 dark:text-amber-100/70">Last sync</dt>
+            <dt className="text-muted mb-1 font-mono">LAST SYNC</dt>
             <dd className="text-sm font-medium">{lastSyncedText}</dd>
           </div>
-        </dl>
-        {status.kind === "missing_installation" ? (
+        </div>
+        
+        {status.kind === "missing_installation" && (
           <a
             href={installUrl}
-            className="text-sm font-semibold text-amber-900 underline hover:text-amber-700 dark:text-amber-100"
+            className="text-sm font-semibold underline decoration-amber-900/30 underline-offset-4 hover:decoration-amber-900"
           >
             Open GitHub App install page →
           </a>
-        ) : null}
-        {status.kind === "no_events" || status.kind === "stale_events" ? (
-          <Link
-            href="/dashboard/settings/repositories"
-            className="text-sm font-semibold text-amber-900 underline hover:text-amber-700 dark:text-amber-100"
-          >
-            Review tracked repositories →
-          </Link>
-        ) : null}
+        )}
       </div>
     </div>
   );

@@ -7,10 +7,9 @@ import {
 import type { ReportContext } from "./reportContext.js";
 import { markdownToHtml } from "./markdown.js";
 import {
-  createLLMClient,
-  type LLMRequestPayload,
-  LLMClient,
-} from "./LLMClient.js";
+  generateWithOrchestrator,
+  validateLLMMarkdown,
+} from "./llmOrchestrator.js";
 
 export interface GeneratedReport {
   markdown: string;
@@ -113,8 +112,13 @@ async function generateWithPrompt(
   prompt: PromptPayload,
   allowedUrls: string[]
 ): Promise<GeneratedReport> {
-  const generation = await generateWithFallback(kind, prompt);
-  const markdown = generation.markdown;
+  const generation = await generateWithOrchestrator(kind, prompt);
+  const validationErrors = validateLLMMarkdown(generation.markdown, prompt);
+  if (validationErrors.length > 0) {
+    throw new Error(`Report validation failed: ${validationErrors.join("; ")}`);
+  }
+
+  const markdown = generation.markdown.trim();
   const html = markdownToHtml(markdown);
   const citations = filterCitations(extractCitations(markdown), allowedUrls);
 
@@ -131,70 +135,6 @@ interface GenerationResult {
   markdown: string;
   provider: string;
   model: string;
-}
-
-async function generateWithFallback(
-  kind: "daily" | "weekly",
-  prompt: PromptPayload
-): Promise<GenerationResult> {
-  const primaryClient = createLLMClient(kind);
-  const primaryModel =
-    kind === "daily" ? "gemini-2.5-flash" : "gemini-2.5-pro";
-
-  try {
-    const markdown = await runClient(primaryClient, prompt);
-    return { markdown, provider: "google", model: primaryModel };
-  } catch (error) {
-    console.warn(
-      `[Reports] Primary ${kind} generation failed, falling back to OpenAI`,
-      error
-    );
-    const fallbackClient = createLLMClient("complex");
-    const markdown = await runClient(fallbackClient, prompt);
-    return { markdown, provider: "openai", model: "gpt-5" };
-  }
-}
-
-async function runClient(
-  client: LLMClient,
-  prompt: PromptPayload
-): Promise<string> {
-  const payload: LLMRequestPayload = {
-    systemPrompt: prompt.systemPrompt,
-    userPrompt: prompt.userPrompt,
-  };
-
-  const markdown = await client.generate(payload);
-  const errors = validateMarkdown(markdown, prompt);
-  if (errors.length > 0) {
-    throw new Error(`Report validation failed: ${errors.join("; ")}`);
-  }
-  return markdown.trim();
-}
-
-function validateMarkdown(markdown: string, prompt: PromptPayload): string[] {
-  const errors: string[] = [];
-  const trimmed = markdown.trim();
-
-  if (!trimmed) {
-    errors.push("LLM returned empty content");
-    return errors;
-  }
-
-  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
-  if (wordCount < prompt.minWordCount) {
-    errors.push(
-      `Word count ${wordCount} below minimum ${prompt.minWordCount}`
-    );
-  }
-
-  for (const heading of prompt.requiredHeadings) {
-    if (!trimmed.includes(heading)) {
-      errors.push(`Missing required section heading: ${heading}`);
-    }
-  }
-
-  return errors;
 }
 
 function filterCitations(

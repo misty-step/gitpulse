@@ -346,11 +346,13 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
+    lastUpdatedAt: v.optional(v.number()),
   })
     .index("by_userId", ["userId"])
     .index("by_status", ["status"])
     .index("by_repo", ["repoFullName"])
     .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_userId_and_status", ["userId", "status"])
     .index("by_installationId", ["installationId"])
     .index("by_blockedUntil", ["blockedUntil"]),
 

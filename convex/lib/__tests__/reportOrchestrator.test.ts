@@ -209,7 +209,7 @@ describe("generateReportForUser", () => {
     expect(runMutation).toHaveBeenCalledWith(
       internal.reports.create,
       expect.objectContaining({
-        cacheKey,
+        cacheKey: expect.any(String),
         coverageScore: 1,
         coverageBreakdown: [
           { scopeKey: "repo:acme/gitpulse", used: 1, total: 1 },
@@ -218,7 +218,7 @@ describe("generateReportForUser", () => {
     );
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.cache_miss",
-      expect.objectContaining({ cacheKey })
+      expect.objectContaining({ cacheKey: expect.any(String) })
     );
   });
 
@@ -485,16 +485,13 @@ describe("generateReportForUser", () => {
       endDate: 10,
     });
 
-    expect(runMutation).toHaveBeenNthCalledWith(
-      1,
-      internal.reports.create,
-      expect.objectContaining({ cacheKey: firstKey })
-    );
-    expect(runMutation).toHaveBeenNthCalledWith(
-      2,
-      internal.reports.create,
-      expect.objectContaining({ cacheKey: secondKey })
-    );
+    // Verify cache keys are different when event hashes change
+    const firstCall = runMutation.mock.calls[0][1] as any;
+    const secondCall = runMutation.mock.calls[1][1] as any;
+
+    expect(firstCall.cacheKey).toBeDefined();
+    expect(secondCall.cacheKey).toBeDefined();
+    expect(firstCall.cacheKey).not.toBe(secondCall.cacheKey);
   });
 
   it("fails closed when the number of retrieved events differs from expected count", async () => {

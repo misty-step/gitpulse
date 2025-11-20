@@ -20,6 +20,17 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     setMounted(true);
   }, []);
 
+  if (!mounted) {
+    // Return a placeholder with the same shape but no theme-specific logic
+    return (
+      <div
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm ${className ?? ""}`}
+      >
+        <span className="h-3 w-3 rounded-full bg-gray-300" />
+      </div>
+    );
+  }
+
   const isDark = (resolvedTheme ?? "light") === "dark";
   const label = isDark ? "Switch to light theme" : "Switch to dark theme";
 
@@ -36,14 +47,10 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-200 dark:hover:border-neutral-500 dark:hover:text-white ${className ?? ""}`}
     >
       <span className="sr-only">{label}</span>
-      {mounted ? (
-        isDark ? (
-          <MoonIcon className="h-5 w-5" />
-        ) : (
-          <SunIcon className="h-5 w-5" />
-        )
+      {isDark ? (
+        <MoonIcon className="h-5 w-5" />
       ) : (
-        <span className="h-3 w-3 rounded-full bg-gray-300 dark:bg-neutral-700" />
+        <SunIcon className="h-5 w-5" />
       )}
     </button>
   );

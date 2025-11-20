@@ -75,10 +75,25 @@ crons.interval(
   {}
 );
 
+// Cleanup zombie jobs (running > 10m without update)
+crons.interval(
+  "cleanup-zombie-jobs",
+  { minutes: 10 },
+  internal.ingestionJobs.cleanupStuckJobs,
+  {}
+);
+
 crons.daily(
   "installation-reconcile",
   { hourUTC: 2, minuteUTC: 15 },
   internal.actions.github.maintenance.reconcileInstallations,
+  {}
+);
+
+crons.daily(
+  "sync-catch-up",
+  { hourUTC: 4, minuteUTC: 30 },
+  internal.actions.github.maintenance.runCatchUpSync,
   {}
 );
 

@@ -3,35 +3,66 @@
 
 :root {
   color-scheme: light;
-  --background: #f8fafc;
+  
+  /* 
+    "Luminous Precision" (Hara/Rams)
+    Pure white paper, absolute black ink, minimal grays.
+    The accent is "Signal Blue" or "Seal Red" - high contrast.
+  */
+  
+  /* Base - Pure White */
+  --background: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #f1f5f9;
-  --border: #e2e8f0;
-  --foreground: #0f172a;
-  --foreground-muted: #475569;
-  --muted: #64748b;
-  --accent: #2563eb;
-  --accent-foreground: #f8fafc;
-  --code-surface: #e2e8f0;
+  --surface-muted: #f4f4f5; /* Zinc-100 */
+  
+  /* Borders - Extremely subtle */
+  --border: #e4e4e7; /* Zinc-200 */
+  
+  /* Typography - High Contrast */
+  --foreground: #09090b; /* Zinc-950 (Soft Black) */
+  --foreground-muted: #52525b; /* Zinc-600 */
+  --muted: #a1a1aa; /* Zinc-400 */
+  
+  /* Accent - "International Orange" / "Pulse Red" */
+  --accent: #000000; /* Primary Action is Black (Architecture) */
+  --accent-foreground: #ffffff;
+  --pulse: #ef4444; /* The literal "Pulse" indicator */
+  
+  --code-surface: #f4f4f5;
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0f172a;
-  --surface: #111827;
-  --surface-muted: #1f2937;
-  --border: #1f2937;
-  --foreground: #f8fafc;
-  --foreground-muted: #cbd5f5;
-  --muted: #94a3b8;
-  --accent: #60a5fa;
-  --accent-foreground: #0f172a;
-  --code-surface: #1f2937;
+  
+  /* Base - Deep Void */
+  --background: #09090b; /* Zinc-950 */
+  --surface: #09090b;
+  --surface-muted: #18181b; /* Zinc-900 */
+  
+  --border: #27272a; /* Zinc-800 */
+  
+  --foreground: #fafafa; /* Zinc-50 */
+  --foreground-muted: #a1a1aa; /* Zinc-400 */
+  --muted: #52525b; /* Zinc-600 */
+  
+  --accent: #ffffff;
+  --accent-foreground: #000000;
+  --pulse: #f87171;
+  
+  --code-surface: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-pulse: var(--pulse);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -40,69 +71,70 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  /* No transition on background for instant, snappy feel (Swiss) */
+  /* transition: background-color 0.2s ease, color 0.2s ease; */
+}
+
+/* Typography - The "Swiss" Grid */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.03em; /* Tight tracking is key to the "Modern" look */
+  line-height: 1.1;
+}
+
+/* Utility - Glass */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass {
+  background: rgba(9, 9, 11, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Markdown content styling */
 .markdown-content {
-  line-height: 1.7;
+  line-height: 1.6;
   color: var(--foreground);
 }
 
 .markdown-content p,
-.markdown-content li,
-.markdown-content span,
-.markdown-content blockquote,
-.markdown-content strong,
-.markdown-content em,
-.markdown-content code,
-.markdown-content td,
-.markdown-content th {
+.markdown-content li {
   color: var(--foreground-muted);
-}
-
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
-  color: var(--foreground);
+  font-size: 1rem;
+  line-height: 1.75;
 }
 
 .markdown-content h1 {
-  font-size: 1.875rem;
+  margin-top: 2em;
+  font-size: 2rem;
+  letter-spacing: -0.04em;
 }
 
 .markdown-content h2 {
+  margin-top: 1.5em;
   font-size: 1.5rem;
+  letter-spacing: -0.03em;
 }
 
 .markdown-content h3 {
+  margin-top: 1.5em;
   font-size: 1.25rem;
-}
-
-.markdown-content p {
-  margin-bottom: 1em;
-}
-
-.markdown-content ul,
-.markdown-content ol {
-  margin-bottom: 1em;
-  padding-left: 1.5em;
-}
-
-.markdown-content li {
-  margin-bottom: 0.5em;
+  letter-spacing: -0.02em;
 }
 
 .markdown-content a {
-  color: var(--accent);
+  color: var(--foreground);
   text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.2s;
 }
 
 .markdown-content a:hover {
-  opacity: 0.85;
+  text-decoration-color: var(--foreground);
 }
 
 .markdown-content pre {
@@ -110,26 +142,31 @@ body {
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
-  margin-bottom: 1em;
+  margin: 1.5em 0;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
 }
 
 .markdown-content code {
-  background-color: var(--code-surface);
-  padding: 0.125rem 0.25rem;
+  background-color: var(--surface-muted);
+  padding: 0.2em 0.4em;
   border-radius: 0.25rem;
   font-size: 0.875em;
   font-family: var(--font-mono);
+  color: var(--foreground);
 }
 
 .markdown-content pre code {
   background-color: transparent;
   padding: 0;
+  color: inherit;
 }
 
-.markdown-content strong {
-  font-weight: 600;
-}
-
-.markdown-content em {
-  font-style: italic;
+@keyframes progress-stripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 12px 12px;
+  }
 }

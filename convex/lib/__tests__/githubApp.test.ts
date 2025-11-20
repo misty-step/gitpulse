@@ -99,19 +99,16 @@ describe("fetchRepoTimeline", () => {
       status: 200,
       ok: true,
       headers,
-      json: async () => ({
-        total_count: 60,
-        items: [
-          {
-            id: 1,
-            node_id: "MDQ6",
-            title: "Fix bug",
-            html_url: "https://github.com/acme/gitpulse/pull/1",
-            updated_at: new Date().toISOString(),
-            user: { id: 7, login: "octocat", node_id: "MDQ6U" },
-          },
-        ],
-      }),
+      json: async () => ([
+        {
+          id: 1,
+          node_id: "MDQ6",
+          title: "Fix bug",
+          html_url: "https://github.com/acme/gitpulse/pull/1",
+          updated_at: new Date().toISOString(),
+          user: { id: 7, login: "octocat", node_id: "MDQ6U" },
+        },
+      ]),
     });
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -130,11 +127,11 @@ describe("fetchRepoTimeline", () => {
 describe("rate limit helpers", () => {
   it("parses headers and determines pause threshold", () => {
     const headers = new Headers({
-      "x-ratelimit-remaining": "150",
+      "x-ratelimit-remaining": "90",
       "x-ratelimit-reset": "1700000000",
     });
     const info = parseRateLimit(headers);
-    expect(info.remaining).toBe(150);
+    expect(info.remaining).toBe(90);
     expect(info.reset).toBe(1700000000 * 1000);
     expect(shouldPause(info.remaining)).toBe(true);
     expect(shouldPause(MIN_BACKFILL_BUDGET + 1)).toBe(false);

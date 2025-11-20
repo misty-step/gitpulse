@@ -12,7 +12,7 @@ import {
 import { ErrorCode } from "../../lib/types";
 import { canonicalizeEvent } from "../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../lib/canonicalFactService";
-import { getRepository } from "../../lib/github";
+import { getRepository, RateLimitError } from "../../lib/github";
 
 const MAX_REPOS_PER_INVOCATION = 10;
 const DEFAULT_BLOCKED_DELAY_MS = 5 * 60 * 1000;
@@ -29,6 +29,10 @@ interface BackfillInternalArgs {
   repositories: string[];
   since: number;
   until?: number;
+  existingJobId?: Id<"ingestionJobs">;
+  initialEventsIngested?: number;
+  initialProgress?: number;
+  initialCursor?: string;
 }
 
 type BackfillReturn = { ok: boolean; jobs: Array<{ repo: string; jobId: string; status: string; blockedUntil?: number; eventsIngested?: number }> };
@@ -128,19 +132,48 @@ export const continueBackfill = internalAction({
 
     if (!job.installationId) {
       console.error("[continueBackfill] Job missing installationId", { jobId: args.jobId });
+      await ctx.runMutation(internal.ingestionJobs.fail, {
+        jobId: job._id,
+        errorMessage: "Missing installationId; marking failed",
+      });
       return { ok: false, jobs: [] };
     }
 
-    // Build repository list from job state
-    const repositories = job.reposRemaining && job.reposRemaining.length > 0
-      ? job.reposRemaining
-      : [job.repoFullName];
+    // SERIAL CONTINUATION LOGIC:
+    // If the job is "completed" but has remaining repos, we are chaining to the next repo.
+    // If the job is "running" or "blocked", we are resuming the SAME repo.
 
-    console.log("[continueBackfill] Resuming job", {
-      jobId: args.jobId,
-      repositories,
-      cursor: job.cursor,
-    });
+    const initialEventsIngested = job.eventsIngested ?? 0;
+    const initialProgress = job.progress ?? 0;
+    const initialCursor = job.cursor ?? undefined;
+
+    let repositories: string[] = [];
+
+    if (job.status === "completed" && job.reposRemaining && job.reposRemaining.length > 0) {
+      // We are moving to the next repo in the chain
+      repositories = job.reposRemaining;
+      console.log("[continueBackfill] Chaining to next repo", {
+        previousJobId: args.jobId,
+        nextRepo: repositories[0],
+      });
+    } else if (job.status !== "completed") {
+      // We are resuming the current repo (from block/pause)
+      repositories =
+        job.reposRemaining && job.reposRemaining.length > 0
+          ? [job.repoFullName, ...job.reposRemaining]
+          : [job.repoFullName];
+
+      console.log("[continueBackfill] Resuming paused job", {
+        jobId: args.jobId,
+        repo: job.repoFullName,
+      });
+    } else {
+      console.log("[continueBackfill] Job finished and no repos remaining.", { jobId: args.jobId });
+      return { ok: true, jobs: [] };
+    }
+
+    const remainingRepos = repositories.slice(1);
+    const reuseExistingJob = job.status === "blocked";
 
     return runBackfillInternal(ctx, {
       installationId: job.installationId,
@@ -148,6 +181,10 @@ export const continueBackfill = internalAction({
       repositories,
       since: job.since ?? Date.now() - 30 * 24 * 60 * 60 * 1000, // Default: 30 days
       until: job.until,
+      existingJobId: reuseExistingJob ? job._id : undefined,
+      initialEventsIngested,
+      initialProgress,
+      initialCursor,
     });
   },
 });
@@ -178,79 +215,107 @@ async function runBackfillInternal(
   const sinceISO = new Date(args.since).toISOString();
   const untilISO = args.until ? new Date(args.until).toISOString() : undefined;
 
-  const jobSummaries: Array<{
-    repo: string;
-    jobId: string;
-    status: string;
-    blockedUntil?: number;
-    eventsIngested?: number;
-  }> = [];
+  // PROCESS SERIALIZATION: Only start ONE job for the first repository.
+  // The completion/continuation logic will handle the next repo in the list via 'reposRemaining'.
+  // This prevents "Job Explosion" where resuming a job would fan-out into multiple parallel jobs.
 
-  for (let index = 0; index < reposToProcess.length; index++) {
-    const repoFullName = reposToProcess[index];
-    const remainingRepos = reposToProcess.slice(index + 1);
+  const repoFullName = reposToProcess[0];
+  const remainingRepos = reposToProcess.slice(1);
 
-    const latestInstallation = await ctx.runQuery(api.installations.getByInstallationId, {
-      installationId: args.installationId,
+  const baseEventsIngested = args.initialEventsIngested ?? 0;
+
+  const latestInstallation = await ctx.runQuery(api.installations.getByInstallationId, {
+    installationId: args.installationId,
+  });
+
+  if (!latestInstallation) {
+    throw new Error(
+      `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} missing during backfill`
+    );
+  }
+
+  const initialCursor = args.initialCursor ?? latestInstallation.lastCursor ?? undefined;
+  const initialEtag = latestInstallation.etag ?? undefined;
+
+  let jobId: Id<"ingestionJobs">;
+
+  if (args.existingJobId) {
+    jobId = args.existingJobId;
+
+    await ctx.runMutation(internal.ingestionJobs.resume, {
+      jobId,
+      reposRemaining: remainingRepos,
     });
-
-    if (!latestInstallation) {
-      throw new Error(
-        `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} missing during backfill`
-      );
-    }
-
-    const jobId = await ctx.runMutation(internal.ingestionJobs.create, {
+  } else {
+    jobId = await ctx.runMutation(internal.ingestionJobs.create, {
       userId: args.userId,
       repoFullName,
       installationId: args.installationId,
       since: args.since,
       until: args.until,
       status: "running",
-      progress: 0,
-      cursor: latestInstallation.lastCursor ?? undefined,
+      progress: args.initialProgress ?? 0,
+      cursor: initialCursor,
       reposRemaining: remainingRepos,
       rateLimitRemaining: latestInstallation.rateLimitRemaining ?? undefined,
       rateLimitReset: latestInstallation.rateLimitReset ?? undefined,
     });
+  }
 
-      try {
-        const result = await processRepoBackfill({
-          ctx,
-          jobId,
-          repoFullName,
-          installationId: args.installationId,
-          sinceISO,
-          untilISO,
-          initialCursor: latestInstallation.lastCursor ?? undefined,
-          initialEtag: latestInstallation.etag ?? undefined,
-          remainingRepos,
-          args,
-        });
+  const jobSummary = {
+    repo: repoFullName,
+    jobId: jobId as string,
+    status: args.existingJobId ? "running" : "pending",
+    blockedUntil: undefined as number | undefined,
+    eventsIngested: baseEventsIngested,
+  };
 
-        jobSummaries.push({
-          repo: repoFullName,
-          jobId: jobId as string,
-          status: result.status,
-          blockedUntil: result.blockedUntil,
-          eventsIngested: result.eventsIngested,
-        });
+  try {
+    const result = await processRepoBackfill({
+      ctx,
+      jobId,
+      repoFullName,
+      installationId: args.installationId,
+      sinceISO,
+      untilISO,
+      initialCursor,
+      initialEtag,
+      initialEventsIngested: baseEventsIngested,
+      remainingRepos,
+      args,
+    });
 
-        if (result.status === "blocked") {
-          // Stop processing further repos; scheduler will resume later.
-          return { ok: true, jobs: jobSummaries };
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        await ctx.runMutation(internal.ingestionJobs.fail, {
-          jobId,
-          errorMessage,
-        });
-        throw error;
-      }
+    jobSummary.status = result.status;
+    jobSummary.blockedUntil = result.blockedUntil;
+    jobSummary.eventsIngested = result.eventsIngested;
+
+    // If the job finished successfully (not blocked) and there are more repos,
+    // we should theoretically schedule the next one.
+    // However, the current architecture relies on 'continueBackfill' or a separate trigger.
+    // For now, we return the single job result. The caller (UI/CLI) can see it completed.
+    // Ideally, we would self-schedule the next repo here if not blocked.
+
+    if (result.status === "completed" && remainingRepos.length > 0) {
+       // Self-schedule next batch immediately?
+       // For safety, let's rely on the scheduler or manual re-trigger for now to avoid infinite loops if buggy.
+       // But actually, the user WANTS it to backfill all.
+       // Let's schedule the continuation for the *next* repo immediately.
+       
+       await ctx.scheduler.runAfter(0, internal.actions.github.startBackfill.continueBackfill, {
+         jobId: jobId,
+       });
     }
 
-    return { ok: true, jobs: jobSummaries };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    await ctx.runMutation(internal.ingestionJobs.fail, {
+      jobId,
+      errorMessage,
+    });
+    throw error;
+  }
+
+  return { ok: true, jobs: [jobSummary] };
 }
 
 interface ProcessRepoArgs {
@@ -262,6 +327,7 @@ interface ProcessRepoArgs {
   untilISO?: string;
   initialCursor?: string;
   initialEtag?: string;
+  initialEventsIngested?: number;
   remainingRepos: string[];
   args: {
     installationId: number;
@@ -281,26 +347,66 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
     untilISO,
     initialCursor,
     initialEtag,
+    initialEventsIngested,
     remainingRepos,
     args,
   } = params;
+
+  const baseEvents = initialEventsIngested ?? 0;
 
   const { token } = await mintInstallationToken(installationId);
   let repoDetails: Awaited<ReturnType<typeof getRepository>> | null = null;
   try {
     repoDetails = await getRepository(token, repoFullName);
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      const resetTime = new Date(error.reset).toISOString();
+      console.warn(
+        `[processRepoBackfill] Rate limit hit during getRepository. Reset at ${resetTime}`
+      );
+
+      await ctx.runMutation(internal.ingestionJobs.markBlocked, {
+        jobId,
+        blockedUntil: error.reset,
+        rateLimitRemaining: 0,
+        rateLimitReset: error.reset,
+      });
+
+      await ctx.runMutation(internal.installations.updateSyncState, {
+        installationId,
+        status: "paused",
+        rateLimitRemaining: 0,
+        rateLimitReset: error.reset,
+      });
+
+      await ctx.scheduler.runAt(
+        error.reset,
+        internal.actions.github.startBackfill.continueBackfill,
+        {
+          jobId,
+        }
+      );
+
+      return {
+        status: "blocked",
+        eventsIngested: baseEvents,
+        blockedUntil: error.reset,
+      };
+    }
+
     console.error("Failed to load repository metadata for backfill", {
       repoFullName,
       error,
     });
-    throw error instanceof Error ? error : new Error("Unable to fetch repository metadata");
+    throw error instanceof Error
+      ? error
+      : new Error("Unable to fetch repository metadata");
   }
 
   let cursor = initialCursor;
   let etag = initialEtag;
   let hasNextPage = true;
-  let processedEvents = 0;
+  let additionalEvents = 0;
   let totalCount = 0;
 
   while (hasNextPage) {
@@ -333,7 +439,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
         });
 
         if (result.status === "inserted") {
-          processedEvents++;
+          additionalEvents++;
         }
       }
     }
@@ -341,30 +447,28 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
     cursor = timeline.endCursor ?? cursor;
     etag = timeline.etag ?? etag;
 
+    const totalEvents = baseEvents + additionalEvents;
+
     const progress =
       totalCount > 0
-        ? Math.min(99, Math.round((processedEvents / totalCount) * 100))
-        : Math.min(95, processedEvents);
+        ? Math.min(99, Math.round((totalEvents / totalCount) * 100))
+        : Math.min(95, totalEvents);
 
     await ctx.runMutation(internal.ingestionJobs.updateProgress, {
       jobId,
       progress,
-      eventsIngested: processedEvents,
+      eventsIngested: totalEvents,
       cursor: cursor ?? undefined,
       reposRemaining: remainingRepos,
       rateLimitRemaining: timeline.rateLimit.remaining,
       rateLimitReset: timeline.rateLimit.reset,
     });
 
-    await ctx.runMutation(internal.installations.updateSyncState, {
-      installationId,
-      lastCursor: cursor ?? undefined,
-      etag: etag ?? undefined,
-      lastSyncedAt: Date.now(),
-      rateLimitRemaining: timeline.rateLimit.remaining,
-      rateLimitReset: timeline.rateLimit.reset,
-      status: timeline.notModified ? "idle" : "active",
-    });
+    // OPTIMIZATION: Do NOT update installation state on every page.
+    // This causes Optimistic Concurrency Failures if multiple jobs run for the same installation.
+    // We only update the installation state when:
+    // 1. We pause due to rate limits
+    // 2. We finish the repo (complete)
 
     if (shouldPause(timeline.rateLimit.remaining)) {
       const blockedUntil =
@@ -405,7 +509,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
 
       return {
         status: "blocked",
-        eventsIngested: processedEvents,
+        eventsIngested: totalEvents,
         blockedUntil,
       };
     }
@@ -415,7 +519,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
     if (!hasNextPage) {
       await ctx.runMutation(internal.ingestionJobs.complete, {
         jobId,
-        eventsIngested: processedEvents,
+        eventsIngested: totalEvents,
         rateLimitRemaining: timeline.rateLimit.remaining,
         rateLimitReset: timeline.rateLimit.reset,
       });
@@ -423,7 +527,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
       await ctx.runMutation(internal.installations.updateSyncState, {
         installationId,
         status: "idle",
-        lastCursor: undefined,
+        lastCursor: undefined, // Clear cursor on completion
         etag: etag ?? undefined,
         rateLimitRemaining: timeline.rateLimit.remaining,
         rateLimitReset: timeline.rateLimit.reset,
@@ -434,8 +538,10 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
     }
   }
 
+  const finalEvents = baseEvents + additionalEvents;
+
   return {
     status: "completed",
-    eventsIngested: processedEvents,
+    eventsIngested: finalEvents,
   };
 }

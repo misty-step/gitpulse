@@ -56,6 +56,7 @@ export async function generateReportForUser(
   options: GenerateReportOptions = {}
 ): Promise<Id<"reports"> | null> {
   const { user, kind, startDate, endDate } = params;
+  const { startDate: windowStart, endDate: windowEnd } = normalizeWindow(kind, startDate, endDate);
   const stageReporter = async (
     stage: GenerateReportStage,
     meta?: Record<string, unknown>
@@ -74,8 +75,8 @@ export async function generateReportForUser(
 
   const events = await ctx.runQuery(api.events.listByActor, {
     actorId: user._id,
-    startDate,
-    endDate,
+    startDate: windowStart,
+    endDate: windowEnd,
     limit: 2000,
   });
 
@@ -103,7 +104,7 @@ export async function generateReportForUser(
     );
   }
 
-  const cacheKey = buildCacheKey(kind, params.userId, startDate, endDate, events);
+  const cacheKey = buildCacheKey(kind, params.userId, windowStart, windowEnd, events);
   const cachedReport = await ctx.runQuery(internal.reports.getByCacheKey, {
     cacheKey,
   });
@@ -111,8 +112,8 @@ export async function generateReportForUser(
   enforceTokenBudget(events.length, {
     userId: params.userId,
     kind,
-    startDate,
-    endDate,
+    startDate: windowStart,
+    endDate: windowEnd,
   });
 
   if (!options.forceRegenerate && cachedReport) {
@@ -142,8 +143,8 @@ export async function generateReportForUser(
   const { context, allowedUrls } = buildReportContext({
     events,
     reposById,
-    startDate,
-    endDate,
+    startDate: windowStart,
+    endDate: windowEnd,
   });
 
   await stageReporter("collecting", {
@@ -207,8 +208,8 @@ export async function generateReportForUser(
 
   const title =
     kind === "daily"
-      ? `Daily Standup - ${new Date(endDate).toLocaleDateString()}`
-      : `Weekly Retro - Week of ${new Date(startDate).toLocaleDateString()}`;
+      ? `Daily Standup - ${new Date(windowEnd).toLocaleDateString()}`
+      : `Weekly Retro - Week of ${new Date(windowStart).toLocaleDateString()}`;
   const description =
     kind === "daily"
       ? `Automated daily standup for ${user.githubUsername}`
@@ -220,8 +221,8 @@ export async function generateReportForUser(
     userId: params.userId,
     title,
     description,
-    startDate,
-    endDate,
+    startDate: windowStart,
+    endDate: windowEnd,
     ghLogins: [user.githubUsername],
     markdown: generated.markdown,
     html: generated.html,
@@ -274,6 +275,27 @@ export function buildCacheKey(
   return createHash("sha256")
     .update([kind, userId, startDate, endDate, contentHashes].join("|"))
     .digest("hex");
+}
+
+/**
+ * Normalize time windows so that cache keys are stable for a given calendar bucket.
+ * Daily -> UTC midnight bucket; Weekly -> 7-day window aligned to UTC midnight ending at endDate.
+ */
+export function normalizeWindow(
+  kind: "daily" | "weekly",
+  startDate: number,
+  endDate: number
+): { startDate: number; endDate: number } {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  if (kind === "daily") {
+    const dayStart = Math.floor(endDate / DAY) * DAY;
+    return { startDate: dayStart, endDate: dayStart + DAY };
+  }
+
+  // weekly: align end to next day boundary, start 7 days before
+  const endAligned = Math.floor(endDate / DAY) * DAY + DAY;
+  return { startDate: endAligned - 7 * DAY, endDate: endAligned };
 }
 
 export function resolveScopeKey(

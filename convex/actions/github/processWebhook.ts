@@ -272,6 +272,18 @@ async function handleInstallationEvent(
         repoCount: repoNames.length,
       });
 
+      // Automatically start backfill if we identified the user
+      if (clerkUserId && repoNames.length > 0) {
+        const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+        await ctx.runAction(internal.actions.github.startBackfill.adminStartBackfill, {
+          installationId: installation.id,
+          clerkUserId,
+          repositories: repoNames,
+          since: ninetyDaysAgo,
+        });
+        console.log("Auto-triggered backfill for new installation", { installationId: installation.id });
+      }
+
       return {
         action,
         installationId: installation.id,

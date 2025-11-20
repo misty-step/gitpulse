@@ -1,7 +1,6 @@
 /**
  * KPI Card Component
- *
- * Displays a metric with trend indicator and optional sparkline
+ * "Luminous Precision" Style (Hara/Rams)
  */
 
 interface KPICardProps {
@@ -21,40 +20,28 @@ export function KPICard({ label, value, trend, format = (v) => v.toLocaleString(
   const isNeutral = hasTrend && trend.percentage === 0;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-      <p className="text-sm text-gray-600 mb-1">{label}</p>
-      <div className="flex items-baseline gap-2">
-        <p className="text-2xl font-bold text-gray-900">{format(value)}</p>
+    <div className="flex flex-col justify-between h-full p-6 border border-border bg-surface transition-all hover:border-zinc-300 dark:hover:border-zinc-700 group">
+      <div className="flex items-start justify-between mb-4">
+        <p className="text-[10px] font-mono uppercase tracking-widest text-muted group-hover:text-foreground transition-colors">
+          {label}
+        </p>
+        
         {hasTrend && (
-          <div className="flex items-center gap-1">
-            {!isNeutral && (
-              <span className={isPositive ? "text-green-600" : "text-red-600"}>
-                {isPositive ? "↑" : "↓"}
-              </span>
-            )}
-            <span
-              className={`text-sm font-medium ${
-                isPositive
-                  ? "text-green-600"
-                  : isNegative
-                  ? "text-red-600"
-                  : "text-gray-500"
-              }`}
-            >
-              {isNeutral
-                ? "—"
-                : `${Math.abs(trend.percentage).toFixed(1)}%`}
-            </span>
+          <div className={`flex items-center gap-1 text-xs font-medium ${
+            isPositive ? "text-emerald-600 dark:text-emerald-400" : 
+            isNegative ? "text-rose-600 dark:text-rose-400" : 
+            "text-muted"
+          }`}>
+             <span>{isNeutral ? "—" : `${isPositive ? "↑" : "↓"} ${Math.abs(trend.percentage).toFixed(1)}%`}</span>
           </div>
         )}
       </div>
-      {hasTrend && (
-        <p className="text-xs text-gray-500 mt-1">
-          {isNeutral
-            ? "No change from previous period"
-            : `${isPositive ? "+" : ""}${trend.change.toLocaleString()} from previous period`}
+
+      <div className="mt-auto">
+        <p className="text-3xl font-semibold tracking-tight text-foreground">
+          {format(value)}
         </p>
-      )}
+      </div>
     </div>
   );
 }

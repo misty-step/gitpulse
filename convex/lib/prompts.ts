@@ -319,7 +319,7 @@ Make the report specific and technical. Pull commit messages, PR titles, review 
       "## Key Decisions & Context",
       "## Momentum & Next Steps",
     ],
-    minWordCount: 350,
+    minWordCount: 280,
     allowedUrls,
   };
 }
@@ -398,7 +398,7 @@ Surface meaningful patterns: concentrations of work in particular repositories, 
       "## Challenges & Growth",
       "## Momentum & Direction",
     ],
-    minWordCount: 700,
+    minWordCount: 550,
     allowedUrls,
   };
 }

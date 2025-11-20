@@ -52,4 +52,4 @@ export interface FetchRepoTimelineArgs {
 }
 
 export const TOKEN_REFRESH_BUFFER_MS = 60 * 1000; // refresh installation token 60s before expiry
-export const MIN_BACKFILL_BUDGET = 200; // pause when fewer than 200 calls remain
+export const MIN_BACKFILL_BUDGET = 100; // pause when fewer than 100 calls remain

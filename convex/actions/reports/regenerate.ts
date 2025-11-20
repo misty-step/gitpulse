@@ -24,6 +24,7 @@ export const regenerate = action({
     kind: v.union(v.literal("daily"), v.literal("weekly")),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
+    force: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<RegenerateResult> => {
     if (!args.clerkId && !args.ghLogin) {
@@ -72,7 +73,7 @@ export const regenerate = action({
         startDate,
         endDate,
       },
-      { forceRegenerate: true }
+      { forceRegenerate: args.force === true }
     );
 
     return {
