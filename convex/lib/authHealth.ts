@@ -5,6 +5,7 @@
  */
 
 import { query } from "../_generated/server";
+import { logger } from "./logger.js";
 
 /**
  * Check authentication health
@@ -27,19 +28,22 @@ export const check = query({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {
-      console.warn("[AUTH_HEALTH] No authentication detected");
+      logger.warn(
+        "No authentication detected - JWT template may not be configured",
+      );
       return {
         isAuthenticated: false,
         userId: null,
         issuer: null,
         tokenIdentifier: null,
         timestamp: Date.now(),
-        message: "Not authenticated - JWT template may not be configured in Clerk",
+        message:
+          "Not authenticated - JWT template may not be configured in Clerk",
         setupGuide: "See CLERK_JWT_SETUP.md for configuration instructions",
       };
     }
 
-    console.info(`[AUTH_HEALTH] User authenticated: ${identity.subject}`);
+    logger.info({ userId: identity.subject }, "User authenticated");
     return {
       isAuthenticated: true,
       userId: identity.subject,
@@ -64,11 +68,11 @@ export const getCurrentIdentity = query({
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {
-      console.info("[AUTH_HEALTH] getCurrentIdentity: Not authenticated");
+      logger.info("getCurrentIdentity: Not authenticated");
       return null;
     }
 
-    console.info(`[AUTH_HEALTH] getCurrentIdentity: ${identity.subject}`);
+    logger.info({ userId: identity.subject }, "getCurrentIdentity");
 
     // Return full identity for debugging
     return {
