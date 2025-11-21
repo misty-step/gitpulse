@@ -3,7 +3,12 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 
 type Report = {
   _id: any;
@@ -86,7 +91,7 @@ export const listByGhLogin = query({
       .take(limit * 3); // Get extra to filter & dedupe
 
     const filteredReports = allReports.filter(
-      (report) => report.userId === `gh:${args.ghLogin}`
+      (report) => report.userId === `gh:${args.ghLogin}`,
     );
 
     return dedupeByWindow(filteredReports).slice(0, limit);
@@ -107,13 +112,13 @@ export const listByWindow = query({
     const reports = await ctx.db
       .query("reports")
       .withIndex("by_userId_and_schedule", (q) =>
-        q.eq("userId", args.userId).eq("scheduleType", args.scheduleType)
+        q.eq("userId", args.userId).eq("scheduleType", args.scheduleType),
       )
       .filter((q) =>
         q.and(
           q.eq(q.field("startDate"), args.startDate),
-          q.eq(q.field("endDate"), args.endDate)
-        )
+          q.eq(q.field("endDate"), args.endDate),
+        ),
       )
       .order("desc")
       .take(limit);
@@ -155,10 +160,22 @@ export const count = query({
 
 /**
  * Delete report
+ *
+ * Security: Verifies ownership before deletion to prevent unauthorized access
  */
 export const deleteReport = mutation({
   args: { id: v.id("reports") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const report = await ctx.db.get(args.id);
+    if (!report) throw new Error("Report not found");
+
+    if (report.userId !== identity.subject) {
+      throw new Error("Unauthorized: You can only delete your own reports");
+    }
+
     await ctx.db.delete(args.id);
   },
 });
@@ -208,15 +225,15 @@ export const updateUserId = mutation({
     const reports = await ctx.db
       .query("reports")
       .withIndex("by_userId_and_createdAt", (q) =>
-        q.eq("userId", args.oldUserId)
+        q.eq("userId", args.oldUserId),
       )
       .collect();
 
     // Update each report
     const updates = await Promise.all(
       reports.map((report) =>
-        ctx.db.patch(report._id, { userId: args.newUserId })
-      )
+        ctx.db.patch(report._id, { userId: args.newUserId }),
+      ),
     );
 
     return {
@@ -255,8 +272,8 @@ export const create = internalMutation({
           scopeKey: v.string(),
           used: v.number(),
           total: v.number(),
-        })
-      )
+        }),
+      ),
     ),
     sections: v.optional(
       v.array(
@@ -264,8 +281,8 @@ export const create = internalMutation({
           title: v.string(),
           bullets: v.array(v.string()),
           citations: v.array(v.string()),
-        })
-      )
+        }),
+      ),
     ),
   },
   handler: async (ctx, args) => {
