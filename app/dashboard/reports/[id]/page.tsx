@@ -18,6 +18,7 @@ import {
 } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import DOMPurify from "isomorphic-dompurify";
+import { track } from "@vercel/analytics";
 
 export default function ReportViewerPage() {
   const params = useParams();
@@ -95,10 +96,17 @@ export default function ReportViewerPage() {
   const disableRegenerate = !report || jobInFlight || isRequestingRegeneration;
 
   const handleRegenerate = async () => {
-    if (!report) return;
+    if (!report || !clerkUser) return;
     setIsRequestingRegeneration(true);
     try {
       await createRegeneration({ reportId: report._id });
+
+      // Track report regeneration event
+      track("report_regenerated", {
+        reportId: report._id,
+        kind: report.scheduleType || "daily",
+      });
+
       showSuccess(
         "Regeneration started",
         "We\'ll refresh this page when it\'s ready.",
