@@ -32,7 +32,7 @@ module.exports = {
     "!**/*.test.ts",
     "!convex/_generated/**",
   ],
-  coverageThresholds: {
+  coverageThreshold: {
     global: {
       lines: 60,
       functions: 60,
