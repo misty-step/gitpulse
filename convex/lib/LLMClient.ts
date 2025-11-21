@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import type { ZodTypeAny, infer as ZodInfer } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { logger } from "./logger.js";
 
 /**
  * LLM Provider Abstraction - Deep Module (October 2025)
@@ -23,12 +24,12 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 
 export type LLMProvider = "google" | "openai" | "auto";
 export type LLMModel =
-  | "gemini-2.5-flash"      // Google: Best price/performance, ~1M context
-  | "gemini-2.5-pro"        // Google: Deep reasoning, multimodal
+  | "gemini-2.5-flash" // Google: Best price/performance, ~1M context
+  | "gemini-2.5-pro" // Google: Deep reasoning, multimodal
   | "gemini-2.5-flash-lite" // Google: Fastest, lowest cost
-  | "gpt-5"                 // OpenAI: Superior reasoning, 400K context
-  | "gpt-4.1"               // OpenAI: Long context (1M tokens)
-  | "auto";                 // Auto-select based on task complexity
+  | "gpt-5" // OpenAI: Superior reasoning, 400K context
+  | "gpt-4.1" // OpenAI: Long context (1M tokens)
+  | "auto"; // Auto-select based on task complexity
 
 interface LLMConfig {
   provider: LLMProvider;
@@ -95,7 +96,7 @@ export class LLMClient {
    */
   async generate(
     payload: LLMRequestPayload,
-    options?: GenerateOptions
+    options?: GenerateOptions,
   ): Promise<string> {
     const temperature = options?.temperature ?? this.config.temperature;
     const maxTokens = options?.maxTokens ?? this.config.maxTokens;
@@ -114,9 +115,9 @@ export class LLMClient {
         }
       } catch (error) {
         lastError = error as Error;
-        console.error(
-          `LLM generation attempt ${attempt + 1}/${retries} failed:`,
-          error
+        logger.error(
+          { err: error, attempt: attempt + 1, retries },
+          "LLM generation attempt failed",
         );
 
         // Exponential backoff: 1s, 2s, 4s
@@ -127,18 +128,18 @@ export class LLMClient {
     }
 
     throw new Error(
-      `LLM generation failed after ${retries} attempts: ${lastError?.message}`
+      `LLM generation failed after ${retries} attempts: ${lastError?.message}`,
     );
   }
 
   async generateStructured<T extends ZodTypeAny>(
     payload: LLMRequestPayload,
     schema: T,
-    options?: GenerateOptions
+    options?: GenerateOptions,
   ): Promise<ZodInfer<T>> {
     if (this.config.provider !== "google") {
       throw new Error(
-        "Structured generation is only supported for the Google provider"
+        "Structured generation is only supported for the Google provider",
       );
     }
 
@@ -146,17 +147,22 @@ export class LLMClient {
     const maxTokens = options?.maxTokens ?? this.config.maxTokens;
     const jsonSchema = zodToJsonSchema(schema, "LLMStructuredResponse");
 
-    const raw = await this.generateGoogleContent(payload, temperature, maxTokens, {
-      responseMimeType: "application/json",
-      responseSchema: jsonSchema,
-    });
+    const raw = await this.generateGoogleContent(
+      payload,
+      temperature,
+      maxTokens,
+      {
+        responseMimeType: "application/json",
+        responseSchema: jsonSchema,
+      },
+    );
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch (error) {
       throw new Error(
-        `Structured response was not valid JSON: ${(error as Error).message}`
+        `Structured response was not valid JSON: ${(error as Error).message}`,
       );
     }
 
@@ -165,7 +171,7 @@ export class LLMClient {
     } catch (error) {
       if (error instanceof ZodError) {
         throw new Error(
-          `Structured response failed validation: ${error.message}`
+          `Structured response failed validation: ${error.message}`,
         );
       }
       throw error;
@@ -178,7 +184,7 @@ export class LLMClient {
   private async generateGoogle(
     payload: LLMRequestPayload,
     temperature: number,
-    maxTokens: number
+    maxTokens: number,
   ): Promise<string> {
     return this.generateGoogleContent(payload, temperature, maxTokens);
   }
@@ -190,7 +196,7 @@ export class LLMClient {
     structured?: {
       responseMimeType?: string;
       responseSchema?: Record<string, unknown>;
-    }
+    },
   ): Promise<string> {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -251,7 +257,7 @@ export class LLMClient {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `Google Gemini API error: ${response.status} ${response.statusText} - ${errorText}`
+        `Google Gemini API error: ${response.status} ${response.statusText} - ${errorText}`,
       );
     }
 
@@ -264,12 +270,12 @@ export class LLMClient {
     const candidate = data.candidates[0];
     const finishReason = candidate?.finishReason ?? "unknown";
     const contentPart = candidate?.content?.parts?.find(
-      (part: { text?: string }) => typeof part.text === "string"
+      (part: { text?: string }) => typeof part.text === "string",
     );
 
     if (!contentPart || !contentPart.text) {
       throw new Error(
-        `Empty response from Google Gemini (finishReason: ${finishReason})`
+        `Empty response from Google Gemini (finishReason: ${finishReason})`,
       );
     }
 
@@ -282,7 +288,7 @@ export class LLMClient {
   private async generateOpenAI(
     payload: LLMRequestPayload,
     temperature: number,
-    maxTokens: number
+    maxTokens: number,
   ): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -330,7 +336,7 @@ export class LLMClient {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(
-        `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
+        `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
       );
     }
 
@@ -396,7 +402,9 @@ export class LLMClient {
  * - Weekly retros: gemini-2.5-pro (deeper analysis)
  * - Complex reports: gpt-5 (superior reasoning)
  */
-export function createLLMClient(taskType: "daily" | "weekly" | "complex"): LLMClient {
+export function createLLMClient(
+  taskType: "daily" | "weekly" | "complex",
+): LLMClient {
   switch (taskType) {
     case "daily":
       return new LLMClient({

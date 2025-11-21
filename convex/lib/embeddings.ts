@@ -6,6 +6,8 @@
  * Strategy pattern: Voyage primary, OpenAI fallback.
  */
 
+import { logger } from "./logger.js";
+
 /**
  * Embedding options
  */
@@ -41,7 +43,7 @@ export interface EmbeddingResult {
 async function embedWithVoyage(
   text: string,
   apiKey: string,
-  model: string = "voyage-3-large"
+  model: string = "voyage-3-large",
 ): Promise<EmbeddingResult> {
   const response = await fetch("https://api.voyageai.com/v1/embeddings", {
     method: "POST",
@@ -92,7 +94,7 @@ async function embedWithVoyage(
 async function embedWithOpenAI(
   text: string,
   apiKey: string,
-  model: string = "text-embedding-3-small"
+  model: string = "text-embedding-3-small",
 ): Promise<EmbeddingResult> {
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
@@ -163,7 +165,7 @@ export async function embedText(
   text: string,
   voyageApiKey: string | undefined,
   openaiApiKey: string | undefined,
-  options: EmbedOptions = {}
+  options: EmbedOptions = {},
 ): Promise<EmbeddingResult> {
   // If provider explicitly specified, use only that provider
   if (options.provider === "openai") {
@@ -186,7 +188,10 @@ export async function embedText(
       return await embedWithVoyage(text, voyageApiKey, options.model);
     }
   } catch (error) {
-    console.warn("Voyage embedding failed, falling back to OpenAI:", error);
+    logger.warn(
+      { err: error },
+      "Voyage embedding failed, falling back to OpenAI",
+    );
   }
 
   // Fallback to OpenAI
@@ -223,10 +228,10 @@ export async function embedBatch(
   texts: string[],
   voyageApiKey: string | undefined,
   openaiApiKey: string | undefined,
-  options: EmbedOptions = {}
+  options: EmbedOptions = {},
 ): Promise<EmbeddingResult[]> {
   // Execute embeddings in parallel
   return await Promise.all(
-    texts.map((text) => embedText(text, voyageApiKey, openaiApiKey, options))
+    texts.map((text) => embedText(text, voyageApiKey, openaiApiKey, options)),
   );
 }

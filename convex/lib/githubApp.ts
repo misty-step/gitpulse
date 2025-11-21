@@ -9,6 +9,7 @@ import type {
   FetchRepoTimelineArgs,
 } from "./githubTypes";
 import { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET } from "./githubTypes";
+import { logger } from "./logger.js";
 
 // Re-export types for backwards compatibility
 export type {
@@ -55,7 +56,9 @@ function requireAppConfig(): { appId: string; privateKey: string } {
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
   if (!appId || !privateKey) {
-    throw new Error("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be configured");
+    throw new Error(
+      "GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be configured",
+    );
   }
 
   return { appId, privateKey: normalizePrivateKey(privateKey) };
@@ -67,7 +70,10 @@ function requireAppConfig(): { appId: string; privateKey: string } {
 function buildAppJwt(): string {
   const now = Date.now();
 
-  if (appJwtCache.token && appJwtCache.expiresAt - now > TOKEN_REFRESH_BUFFER_MS) {
+  if (
+    appJwtCache.token &&
+    appJwtCache.expiresAt - now > TOKEN_REFRESH_BUFFER_MS
+  ) {
     return appJwtCache.token;
   }
 
@@ -85,7 +91,7 @@ function buildAppJwt(): string {
     privateKey,
     {
       algorithm: "RS256",
-    }
+    },
   );
 
   appJwtCache.token = token;
@@ -98,7 +104,7 @@ function buildAppJwt(): string {
  * Mint (and cache) a GitHub App installation access token.
  */
 export async function mintInstallationToken(
-  installationId: number
+  installationId: number,
 ): Promise<InstallationToken> {
   const cached = installationTokenCache.get(installationId);
   if (cached && cached.expiresAt - Date.now() > TOKEN_REFRESH_BUFFER_MS) {
@@ -107,19 +113,22 @@ export async function mintInstallationToken(
 
   const appJwt = buildAppJwt();
 
-  const response = await fetch(`${INSTALLATIONS_ENDPOINT}/${installationId}/access_tokens`, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${appJwt}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+  const response = await fetch(
+    `${INSTALLATIONS_ENDPOINT}/${installationId}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${appJwt}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  });
+  );
 
   if (!response.ok) {
     const body = await response.text();
     throw new Error(
-      `Failed to mint installation token (${response.status}): ${body || response.statusText}`
+      `Failed to mint installation token (${response.status}): ${body || response.statusText}`,
     );
   }
 
@@ -138,12 +147,12 @@ export async function mintInstallationToken(
 
 /**
  * Call GitHub's List Issues API to fetch issue + PR timelines for a repository window.
- * 
+ *
  * Switched from Search API to List Issues API to utilize the standard 5000 req/hr rate limit
  * instead of the restrictive 30 req/min Search limit.
  */
 export async function fetchRepoTimeline(
-  args: FetchRepoTimelineArgs
+  args: FetchRepoTimelineArgs,
 ): Promise<RepoTimelineResult> {
   const { repoFullName, sinceISO, cursor, token, etag } = args;
 
@@ -152,7 +161,7 @@ export async function fetchRepoTimeline(
   }
 
   const page = cursor ? Math.max(Number(cursor), 1) : 1;
-  
+
   // https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues
   const searchParams = new URLSearchParams({
     since: sinceISO,
@@ -173,10 +182,13 @@ export async function fetchRepoTimeline(
     headers["If-None-Match"] = etag;
   }
 
-  const response = await fetch(`${GITHUB_API_BASE}/repos/${repoFullName}/issues?${searchParams.toString()}`, {
-    method: "GET",
-    headers,
-  });
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/issues?${searchParams.toString()}`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
 
   const rateLimit = parseRateLimit(response.headers);
   const responseEtag = response.headers.get("etag");
@@ -195,9 +207,18 @@ export async function fetchRepoTimeline(
 
   if (response.status === 403 || response.status === 429) {
     // Gracefully handle rate limits by returning empty and letting the caller pause
-    const resetTime = rateLimit.reset ? new Date(rateLimit.reset).toISOString() : "unknown";
-    console.warn(`[fetchRepoTimeline] Rate limit hit. Reset at ${resetTime}. Remaining: ${rateLimit.remaining}`);
-    
+    const resetTime = rateLimit.reset
+      ? new Date(rateLimit.reset).toISOString()
+      : "unknown";
+    logger.warn(
+      {
+        resetTime,
+        rateLimitRemaining: rateLimit.remaining,
+        repoFullName,
+      },
+      "Rate limit hit during repo timeline fetch",
+    );
+
     // If we hit a rate limit, we fake a result that indicates we should stop.
     // returning rateLimit with remaining=0 will trigger the shouldPause logic in the caller.
     return {
@@ -205,7 +226,7 @@ export async function fetchRepoTimeline(
       hasNextPage: true, // Assume there's more since we failed
       endCursor: cursor, // Retry same page
       totalCount: 0,
-      rateLimit: { ...rateLimit, remaining: 0 }, 
+      rateLimit: { ...rateLimit, remaining: 0 },
       etag: etag, // Keep old etag
     };
   }
@@ -213,7 +234,7 @@ export async function fetchRepoTimeline(
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(
-      `GitHub API error (${response.status}): ${errText || response.statusText}`
+      `GitHub API error (${response.status}): ${errText || response.statusText}`,
     );
   }
 
@@ -321,19 +342,22 @@ export async function listAppInstallations(): Promise<GitHubInstallation[]> {
   const perPage = 100;
 
   while (true) {
-    const response = await fetch(`${INSTALLATIONS_ENDPOINT}?per_page=${perPage}&page=${page}`, {
-      method: "GET",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${appJwt}`,
-        "X-GitHub-Api-Version": "2022-11-28",
+    const response = await fetch(
+      `${INSTALLATIONS_ENDPOINT}?per_page=${perPage}&page=${page}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${appJwt}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
-        `Failed to list installations (${response.status}): ${body || response.statusText}`
+        `Failed to list installations (${response.status}): ${body || response.statusText}`,
       );
     }
 

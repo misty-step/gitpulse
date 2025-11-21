@@ -17,6 +17,7 @@ import {
 } from "./coverage";
 import { emitMetric } from "./metrics";
 import { normalizeUrl } from "./url";
+import { logger } from "./logger.js";
 
 const TOKENS_PER_EVENT_ESTIMATE = 50;
 
@@ -47,19 +48,26 @@ type GenerateReportStage =
 
 interface GenerateReportOptions {
   forceRegenerate?: boolean;
-  onStage?: (stage: GenerateReportStage, meta?: Record<string, unknown>) => Promise<void> | void;
+  onStage?: (
+    stage: GenerateReportStage,
+    meta?: Record<string, unknown>,
+  ) => Promise<void> | void;
 }
 
 export async function generateReportForUser(
   ctx: ActionCtx,
   params: GenerateReportParams,
-  options: GenerateReportOptions = {}
+  options: GenerateReportOptions = {},
 ): Promise<Id<"reports"> | null> {
   const { user, kind, startDate, endDate } = params;
-  const { startDate: windowStart, endDate: windowEnd } = normalizeWindow(kind, startDate, endDate);
+  const { startDate: windowStart, endDate: windowEnd } = normalizeWindow(
+    kind,
+    startDate,
+    endDate,
+  );
   const stageReporter = async (
     stage: GenerateReportStage,
-    meta?: Record<string, unknown>
+    meta?: Record<string, unknown>,
   ) => {
     if (options.onStage) {
       await options.onStage(stage, meta);
@@ -67,8 +75,9 @@ export async function generateReportForUser(
   };
 
   if (!user.githubUsername) {
-    console.warn(
-      `[Reports] Cannot generate ${kind} report for user ${params.userId} - missing githubUsername`
+    logger.warn(
+      { userId: params.userId, kind },
+      "Cannot generate report - missing githubUsername",
     );
     return null;
   }
@@ -86,7 +95,7 @@ export async function generateReportForUser(
       actorId: user._id,
       startDate,
       endDate,
-    }
+    },
   );
 
   if (events.length !== expectedEventCount) {
@@ -100,11 +109,17 @@ export async function generateReportForUser(
     });
 
     throw new Error(
-      `[Reports] Event count mismatch for ${user.githubUsername}: expected ${expectedEventCount}, saw ${events.length}`
+      `[Reports] Event count mismatch for ${user.githubUsername}: expected ${expectedEventCount}, saw ${events.length}`,
     );
   }
 
-  const cacheKey = buildCacheKey(kind, params.userId, windowStart, windowEnd, events);
+  const cacheKey = buildCacheKey(
+    kind,
+    params.userId,
+    windowStart,
+    windowEnd,
+    events,
+  );
   const cachedReport = await ctx.runQuery(internal.reports.getByCacheKey, {
     cacheKey,
   });
@@ -134,10 +149,10 @@ export async function generateReportForUser(
 
   const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
   const repoDocs = await Promise.all(
-    repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
+    repoIds.map((id) => ctx.runQuery(api.repos.getById, { id })),
   );
   const reposById = new Map<Id<"repos">, Doc<"repos"> | null>(
-    repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
+    repoIds.map((id, idx) => [id, repoDocs[idx] ?? null]),
   );
 
   const { context, allowedUrls } = buildReportContext({
@@ -163,11 +178,7 @@ export async function generateReportForUser(
   });
 
   const llmStart = Date.now();
-  const generated = await generator(
-    user.githubUsername,
-    context,
-    allowedUrls
-  );
+  const generated = await generator(user.githubUsername, context, allowedUrls);
   const latencyMs = Date.now() - llmStart;
 
   await stageReporter("validating", {
@@ -181,7 +192,7 @@ export async function generateReportForUser(
         markdown: generated.markdown,
         citations: generated.citations,
       },
-      0.95
+      0.95,
     );
   } catch (error) {
     emitMetric("report.coverage_failed", {
@@ -192,16 +203,16 @@ export async function generateReportForUser(
   }
 
   const citationSet = new Set(
-    generated.citations.map(normalizeUrl).filter((value): value is string =>
-      Boolean(value)
-    )
+    generated.citations
+      .map(normalizeUrl)
+      .filter((value): value is string => Boolean(value)),
   );
 
   const coverage = computeCoverageSummary(
     events.map((event) => ({
       scopeKey: resolveScopeKey(event, reposById.get(event.repoId) ?? null),
       used: isEventCited(event, citationSet),
-    }))
+    })),
   );
 
   const now = Date.now();
@@ -265,7 +276,7 @@ export function buildCacheKey(
   userId: string,
   startDate: number,
   endDate: number,
-  events: Doc<"events">[]
+  events: Doc<"events">[],
 ): string {
   const contentHashes = events
     .map((event) => event.contentHash ?? String(event._id))
@@ -284,7 +295,7 @@ export function buildCacheKey(
 export function normalizeWindow(
   kind: "daily" | "weekly",
   startDate: number,
-  endDate: number
+  endDate: number,
 ): { startDate: number; endDate: number } {
   const DAY = 24 * 60 * 60 * 1000;
 
@@ -300,7 +311,7 @@ export function normalizeWindow(
 
 export function resolveScopeKey(
   event: Doc<"events">,
-  repo: Doc<"repos"> | null
+  repo: Doc<"repos"> | null,
 ): string {
   if (repo?.fullName) {
     return `repo:${repo.fullName}`;
@@ -308,7 +319,11 @@ export function resolveScopeKey(
   return `repoId:${event.repoId}`;
 }
 
-export function estimateCost(provider: string, model: string, eventCount: number): number {
+export function estimateCost(
+  provider: string,
+  model: string,
+  eventCount: number,
+): number {
   // Rough placeholder: cost scales with event count to keep visibility in logs
   const base = provider === "google" ? 0.0005 : 0.0008;
   return Number((base * Math.max(eventCount, 1)).toFixed(6));
@@ -316,7 +331,7 @@ export function estimateCost(provider: string, model: string, eventCount: number
 
 function enforceTokenBudget(
   eventCount: number,
-  meta: { userId: string; kind: string; startDate: number; endDate: number }
+  meta: { userId: string; kind: string; startDate: number; endDate: number },
 ): void {
   const estimatedTokens = eventCount * getTokensPerEventEstimate();
 
@@ -329,7 +344,7 @@ function enforceTokenBudget(
 
     throw new Error(
       `[Reports] Estimated token usage ${estimatedTokens.toLocaleString()} exceeds safety limit (${TOKEN_HARD_LIMIT.toLocaleString()} tokens). ` +
-        "Please narrow the date range or scope before regenerating."
+        "Please narrow the date range or scope before regenerating.",
     );
   }
 
@@ -340,9 +355,14 @@ function enforceTokenBudget(
       eventCount,
     });
 
-    console.warn(
-      `[Reports] Estimated token usage ${estimatedTokens.toLocaleString()} tokens for ${meta.kind} report ` +
-        `is nearing the safety limit (${TOKEN_HARD_LIMIT.toLocaleString()} tokens). Consider narrowing the window.`
+    logger.warn(
+      {
+        estimatedTokens,
+        kind: meta.kind,
+        tokenHardLimit: TOKEN_HARD_LIMIT,
+        eventCount,
+      },
+      "Estimated token usage nearing safety limit - consider narrowing window",
     );
   }
 }
