@@ -9,9 +9,6 @@ jobs:
   gitleaks:
     name: Secrets Scanning
     runs-on: ubuntu-latest
-    # Gitleaks requires a license for organization repos
-    # TODO: Add GITLEAKS_LICENSE secret or migrate to alternative (TruffleHog/GitHub native scanning)
-    if: false  # Temporarily disabled - see BACKLOG.md
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

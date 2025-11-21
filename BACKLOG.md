@@ -13,6 +13,26 @@ Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high 
 
 ## Now (Sprint-Ready, <2 weeks)
 
+### [CI/CD] Investigate Claude Review Action Failures
+**Files**: `.github/workflows/claude-code-review.yml`
+**Perspectives**: maintainability-maven
+**Impact**: Enable automated code review feedback on PRs
+
+**Problem**: Claude Code Review action failing with generic error "I'll analyze this and get back to you" (Run ID: 19576735656). No detailed error logs available in PR comments.
+
+**Investigation Steps**:
+1. Check Claude action logs via `gh run view 19576735656 --log-failed`
+2. Verify `ANTHROPIC_API_KEY` secret exists and is valid
+3. Check action configuration (model, token limits, custom instructions)
+4. Validate PR diff size doesn't exceed Claude's context window
+5. Test with minimal PR to isolate issue
+
+**Effort**: 2h investigation + 1h fix | **Priority**: P2
+**Acceptance**: Claude review action completes successfully, provides constructive feedback on PRs
+**Deferral Rationale**: Non-blocking for MVP - human code reviews sufficient, automated review is enhancement
+
+---
+
 ### [TESTING] Add Auth Integration Tests
 **Files**: Create `convex/lib/__tests__/auth.test.ts`
 **Perspectives**: maintainability-maven, security-sentinel
