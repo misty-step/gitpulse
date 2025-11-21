@@ -68,7 +68,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Convex types
-        run: npx convex codegen
+        run: npx convex codegen --prod
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
