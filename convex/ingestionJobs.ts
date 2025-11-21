@@ -5,8 +5,14 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 import { ErrorCode } from "./lib/types";
+import { logger } from "./lib/logger.js";
 
 /**
  * List active ingestion jobs for current user
@@ -20,28 +26,30 @@ export const listActive = query({
 
     // Graceful degradation: Return empty array if not authenticated
     if (!identity) {
-      console.info("[AUTH] listActive query called without authentication - returning empty array");
+      logger.info(
+        "listActive query called without authentication - returning empty array",
+      );
       return [];
     }
 
     const userId = identity.subject;
-    console.info(`[AUTH] listActive query for user: ${userId}`);
+    logger.info({ userId }, "listActive query for user");
 
     // OPTIMIZATION: Use the new composite index to fetch only active jobs.
     // Convex doesn't support 'OR' on index fields, so we run two queries and merge.
-    
+
     const pendingJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_userId_and_status", (q) =>
-        q.eq("userId", userId).eq("status", "pending")
+        q.eq("userId", userId).eq("status", "pending"),
       )
       .order("desc")
       .take(10);
-      
+
     const runningJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_userId_and_status", (q) =>
-        q.eq("userId", userId).eq("status", "running")
+        q.eq("userId", userId).eq("status", "running"),
       )
       .order("desc")
       .take(10);
@@ -50,21 +58,21 @@ export const listActive = query({
     const blockedJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_userId_and_status", (q) =>
-        q.eq("userId", userId).eq("status", "blocked")
+        q.eq("userId", userId).eq("status", "blocked"),
       )
       .order("desc")
       .filter((q) =>
         q.or(
           q.eq(q.field("blockedUntil"), undefined),
-          q.gte(q.field("blockedUntil"), now - 60 * 1000) // ignore stale blocked jobs older than 1 minute
-        )
+          q.gte(q.field("blockedUntil"), now - 60 * 1000), // ignore stale blocked jobs older than 1 minute
+        ),
       )
       .take(10);
-      
+
     // Merge, sort, and take the most recent 10 active jobs
     const combined = [...pendingJobs, ...runningJobs, ...blockedJobs];
     combined.sort((a, b) => b.createdAt - a.createdAt);
-    
+
     return combined.slice(0, 10);
   },
 });
@@ -291,7 +299,7 @@ export const dismiss = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       const error = `[${ErrorCode.NOT_AUTHENTICATED}] User not authenticated`;
-      console.error(error);
+      logger.error(error);
       throw new Error(error);
     }
 
@@ -300,7 +308,7 @@ export const dismiss = mutation({
     // Verify ownership
     if (!job || job.userId !== identity.subject) {
       const error = `[${ErrorCode.UNAUTHORIZED}] User ${identity.subject} unauthorized to dismiss job ${args.jobId}`;
-      console.error(error);
+      logger.error({ userId: identity.subject, jobId: args.jobId }, error);
       throw new Error(error);
     }
 
@@ -340,8 +348,8 @@ export const findStuckBlockedJobs = internalQuery({
       .filter((q) =>
         q.and(
           q.neq(q.field("blockedUntil"), undefined),
-          q.lt(q.field("blockedUntil"), now)
-        )
+          q.lt(q.field("blockedUntil"), now),
+        ),
       )
       .take(100); // Limit to prevent "Array too long" errors
 
@@ -351,7 +359,7 @@ export const findStuckBlockedJobs = internalQuery({
 
 /**
  * Cleanup completed/failed jobs to prevent table explosion.
- * 
+ *
  * Deletes jobs older than 1 hour that are in a terminal state.
  * Limits to 1000 deletions per run to avoid timeouts.
  * Can be scheduled recursively if needed.
@@ -389,15 +397,15 @@ export const clearCompletedJobs = internalMutation({
       }
     }
 
-    console.log(`[clearCompletedJobs] Deleted ${deletedCount} old jobs.`);
-    
+    logger.info({ deletedCount }, "Deleted old jobs");
+
     return deletedCount;
   },
 });
 
 /**
  * Find and fail "zombie" jobs that have been running for too long without an update.
- * 
+ *
  * This handles cases where a server process died or a job hung indefinitely.
  * Checks for jobs in "running" state with lastUpdatedAt > 10 minutes ago.
  */
@@ -405,35 +413,41 @@ export const cleanupStuckJobs = internalMutation({
   args: {},
   handler: async (ctx) => {
     const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
-    
+
     // Convex doesn't support complex filtering on non-indexed fields efficiently for large datasets,
     // but active "running" jobs should be few.
     // We'll query by status "running" and filter in memory (safe if active job count is low).
-    
+
     const runningJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_status", (q) => q.eq("status", "running"))
       .collect();
-      
+
     let fixedCount = 0;
-    
+
     for (const job of runningJobs) {
-       // Check if lastUpdatedAt is old, OR if it's missing and createdAt is old
-       const lastActivity = job.lastUpdatedAt ?? job.createdAt;
-       
-       if (lastActivity < tenMinutesAgo) {
-          console.warn(`[cleanupStuckJobs] Failing zombie job ${job._id} (Repo: ${job.repoFullName})`);
-          
-          await ctx.db.patch(job._id, {
-             status: "failed",
-             errorMessage: "Job timed out (zombie detection)",
-             completedAt: Date.now(),
-             blockedUntil: undefined,
-          });
-          fixedCount++;
-       }
+      // Check if lastUpdatedAt is old, OR if it's missing and createdAt is old
+      const lastActivity = job.lastUpdatedAt ?? job.createdAt;
+
+      if (lastActivity < tenMinutesAgo) {
+        logger.warn(
+          {
+            jobId: job._id,
+            repoFullName: job.repoFullName,
+          },
+          "Failing zombie job",
+        );
+
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          errorMessage: "Job timed out (zombie detection)",
+          completedAt: Date.now(),
+          blockedUntil: undefined,
+        });
+        fixedCount++;
+      }
     }
-    
+
     return fixedCount;
   },
 });
@@ -447,19 +461,19 @@ export const cleanOldBlockedJobs = internalMutation({
   handler: async (ctx) => {
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const limit = 1000;
-    
+
     const oldBlockedJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_status", (q) => q.eq("status", "blocked"))
       .filter((q) => q.lt(q.field("createdAt"), oneDayAgo))
       .take(limit);
-      
+
     let deletedCount = 0;
     for (const job of oldBlockedJobs) {
-       await ctx.db.delete(job._id);
-       deletedCount++;
+      await ctx.db.delete(job._id);
+      deletedCount++;
     }
-    
+
     return deletedCount;
   },
 });
@@ -482,8 +496,8 @@ export const purgeExpiredBlocked = internalMutation({
         .filter((q) =>
           q.and(
             q.neq(q.field("blockedUntil"), undefined),
-            q.lt(q.field("blockedUntil"), cutoff)
-          )
+            q.lt(q.field("blockedUntil"), cutoff),
+          ),
         )
         .take(1000);
 
@@ -497,7 +511,10 @@ export const purgeExpiredBlocked = internalMutation({
       batch++;
       // safety valve to avoid infinite loop
       if (batch > 50) {
-        console.warn("[purgeExpiredBlocked] Stopping after 50k deletions to avoid runaway.");
+        logger.warn(
+          { deleted },
+          "Stopping after 50k deletions to avoid runaway",
+        );
         break;
       }
     }
@@ -514,23 +531,23 @@ export const forceDelete2025Jobs = internalMutation({
   handler: async (ctx) => {
     // January 1, 2025
     const year2025 = new Date("2025-01-01").getTime();
-    
+
     const futureBlockedJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_status", (q) => q.eq("status", "blocked"))
       .filter((q) => q.gte(q.field("blockedUntil"), year2025))
       .take(100); // Lower limit to avoid read overflow
-      
+
     let deletedCount = 0;
     for (const job of futureBlockedJobs) {
-       await ctx.db.delete(job._id);
-       deletedCount++;
+      await ctx.db.delete(job._id);
+      deletedCount++;
     }
-    
+
     if (deletedCount > 0) {
-       console.log(`[forceDelete2025Jobs] Deleted ${deletedCount} jobs stuck in 2025.`);
+      logger.info({ deletedCount }, "Deleted jobs stuck in 2025");
     }
-    
+
     return deletedCount;
   },
 });
