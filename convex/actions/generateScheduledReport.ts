@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { api } from "../_generated/api";
 import { generateReportForUser } from "../lib/reportOrchestrator";
+import { logger } from "../lib/logger.js";
 
 // Removed deprecated callGemini function - now using LLMClient abstraction
 
@@ -32,7 +33,10 @@ export const generateDailyReport = internalAction({
     });
 
     if (!user || !user.githubUsername) {
-      console.warn(`User ${args.userId} not found or missing GitHub username`);
+      logger.warn(
+        { userId: args.userId },
+        "User not found or missing GitHub username",
+      );
       return;
     }
 
@@ -47,7 +51,10 @@ export const generateDailyReport = internalAction({
       endDate,
     });
 
-    console.log(`Generated daily report for ${user.githubUsername}`);
+    logger.info(
+      { githubUsername: user.githubUsername },
+      "Generated daily report",
+    );
   },
 });
 
@@ -66,7 +73,10 @@ export const generateWeeklyReport = internalAction({
     });
 
     if (!user || !user.githubUsername) {
-      console.warn(`User ${args.userId} not found or missing GitHub username`);
+      logger.warn(
+        { userId: args.userId },
+        "User not found or missing GitHub username",
+      );
       return;
     }
 
@@ -81,6 +91,9 @@ export const generateWeeklyReport = internalAction({
       endDate,
     });
 
-    console.log(`Generated weekly report for ${user.githubUsername}`);
+    logger.info(
+      { githubUsername: user.githubUsername },
+      "Generated weekly report",
+    );
   },
 });

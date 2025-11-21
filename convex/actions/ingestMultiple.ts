@@ -13,6 +13,7 @@ import { action } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 import { BatchIngestionResult, ErrorCode } from "../lib/types";
+import { logger } from "../lib/logger.js";
 
 /**
  * Ingest multiple GitHub repositories sequentially
@@ -43,22 +44,28 @@ export const ingestMultipleRepos = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       const error = `[${ErrorCode.NOT_AUTHENTICATED}] User not authenticated for batch ingestion`;
-      console.error(error);
+      logger.error(error);
       throw new Error(error);
     }
     const userId = identity.subject;
-    console.info(`[INGESTION] Starting batch ingestion for user ${userId}: ${repoFullNames.length} repos`);
+    logger.info(
+      { userId, repoCount: repoFullNames.length },
+      "Starting batch ingestion for user",
+    );
 
     // Create ingestion job record
-    const jobId: Id<"ingestionJobs"> = await ctx.runMutation(internal.ingestionJobs.create, {
-      userId,
-      repoFullName: metadata?.username
-        ? `batch:${metadata.username}`
-        : `batch:${repoFullNames.length}-repos`,
-      since: new Date(sinceISO).getTime(),
-      status: "running",
-      progress: 0,
-    });
+    const jobId: Id<"ingestionJobs"> = await ctx.runMutation(
+      internal.ingestionJobs.create,
+      {
+        userId,
+        repoFullName: metadata?.username
+          ? `batch:${metadata.username}`
+          : `batch:${repoFullNames.length}-repos`,
+        since: new Date(sinceISO).getTime(),
+        status: "running",
+        progress: 0,
+      },
+    );
 
     const results: {
       repoFullName: string;
@@ -78,10 +85,13 @@ export const ingestMultipleRepos = action({
 
         try {
           // Call existing ingestRepository action
-          const result = await ctx.runAction(api.actions.ingestRepo.ingestRepository, {
-            repoFullName,
-            sinceISO,
-          });
+          const result = await ctx.runAction(
+            api.actions.ingestRepo.ingestRepository,
+            {
+              repoFullName,
+              sinceISO,
+            },
+          );
 
           results.push({
             repoFullName,
@@ -112,8 +122,9 @@ export const ingestMultipleRepos = action({
           failed++;
 
           // Continue ingesting remaining repos even if one fails
-          console.error(
-            `Failed to ingest ${repoFullName}: ${errorMessage}`
+          logger.error(
+            { repoFullName, errorMessage },
+            "Failed to ingest repository",
           );
 
           // Still update progress to show we've processed this repo
