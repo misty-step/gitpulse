@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 export default function Error({
   error,
@@ -11,8 +12,8 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log error to console in development
-    console.error("Application error:", error);
+    // Capture error in Sentry
+    Sentry.captureException(error);
   }, [error]);
 
   return (
@@ -39,8 +40,8 @@ export default function Error({
         </h1>
 
         <p className="text-gray-600 mb-6">
-          We encountered an unexpected error. This has been logged and we&apos;ll look
-          into it.
+          We encountered an unexpected error. This has been logged and
+          we&apos;ll look into it.
         </p>
 
         {error.digest && (
