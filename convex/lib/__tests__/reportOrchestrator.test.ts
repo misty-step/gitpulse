@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import type { Doc, Id } from "../../_generated/dataModel";
 import * as reportOrchestrator from "../reportOrchestrator";
 import { isEventCited, CoverageValidationError } from "../coverage";
+import * as loggerModule from "../logger";
 
 const { buildCacheKey, generateReportForUser, normalizeUrl } =
   reportOrchestrator;
@@ -50,11 +51,11 @@ jest.mock("../metrics", () => ({
   emitMetric: jest.fn(),
 }));
 
-const reportContextModule = jest.requireMock(
-  "../reportContext"
-) as jest.Mocked<typeof import("../reportContext")>;
+const reportContextModule = jest.requireMock("../reportContext") as jest.Mocked<
+  typeof import("../reportContext")
+>;
 const reportGeneratorModule = jest.requireMock(
-  "../reportGenerator"
+  "../reportGenerator",
 ) as jest.Mocked<typeof import("../reportGenerator")>;
 const metricsModule = jest.requireMock("../metrics") as jest.Mocked<
   typeof import("../metrics")
@@ -112,10 +113,10 @@ describe("reportOrchestrator helpers", () => {
 
   it("normalizeUrl trims whitespace and drops trailing slash", () => {
     expect(normalizeUrl(" https://example.com/path ")).toBe(
-      "https://example.com/path"
+      "https://example.com/path",
     );
     expect(normalizeUrl("https://example.com/path/")).toBe(
-      "https://example.com/path"
+      "https://example.com/path",
     );
     expect(normalizeUrl(undefined)).toBeUndefined();
   });
@@ -136,7 +137,10 @@ describe("reportOrchestrator helpers", () => {
       createdAt: 0,
     } as Doc<"events">;
 
-    const cited = isEventCited(event, new Set(["https://github.com/acme/gitpulse/pull/1"]));
+    const cited = isEventCited(
+      event,
+      new Set(["https://github.com/acme/gitpulse/pull/1"]),
+    );
     expect(cited).toBe(true);
   });
 });
@@ -185,7 +189,13 @@ describe("generateReportForUser", () => {
     const startDate = 0;
     const endDate = 1000;
 
-    const cacheKey = buildCacheKey("daily", "clerk_user", startDate, endDate, events);
+    const cacheKey = buildCacheKey(
+      "daily",
+      "clerk_user",
+      startDate,
+      endDate,
+      events,
+    );
 
     (buildReportContext as jest.Mock).mockReturnValueOnce({
       context: {
@@ -214,11 +224,11 @@ describe("generateReportForUser", () => {
         coverageBreakdown: [
           { scopeKey: "repo:acme/gitpulse", used: 1, total: 1 },
         ],
-      })
+      }),
     );
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.cache_miss",
-      expect.objectContaining({ cacheKey: expect.any(String) })
+      expect.objectContaining({ cacheKey: expect.any(String) }),
     );
   });
 
@@ -257,7 +267,7 @@ describe("generateReportForUser", () => {
     expect(buildReportContext).not.toHaveBeenCalled();
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.cache_hit",
-      expect.objectContaining({ cacheKey: expect.any(String) })
+      expect.objectContaining({ cacheKey: expect.any(String) }),
     );
   });
 
@@ -280,7 +290,9 @@ describe("generateReportForUser", () => {
       },
     ];
 
-    const cachedDoc = { _id: "cached-report" as Id<"reports"> } as Doc<"reports">;
+    const cachedDoc = {
+      _id: "cached-report" as Id<"reports">,
+    } as Doc<"reports">;
 
     const runQuery = createAsyncMock<unknown>();
     runQuery
@@ -319,14 +331,14 @@ describe("generateReportForUser", () => {
         startDate: 0,
         endDate: 10,
       },
-      { forceRegenerate: true }
+      { forceRegenerate: true },
     );
 
     expect(result).toBe("new-report");
     expect(generateDailyReportFromContext).toHaveBeenCalledTimes(1);
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.cache_miss",
-      expect.objectContaining({ cacheKey: expect.any(String) })
+      expect.objectContaining({ cacheKey: expect.any(String) }),
     );
   });
 
@@ -360,8 +372,12 @@ describe("generateReportForUser", () => {
 
     const runMutation = jest.fn(async (identifier: any, args: any) => {
       if (identifier === internal.reports.create) {
-        const reportId = `report-${reportsByCacheKey.size + 1}` as Id<"reports">;
-        const doc = { _id: reportId, cacheKey: args.cacheKey } as Doc<"reports">;
+        const reportId =
+          `report-${reportsByCacheKey.size + 1}` as Id<"reports">;
+        const doc = {
+          _id: reportId,
+          cacheKey: args.cacheKey,
+        } as Doc<"reports">;
         reportsByCacheKey.set(args.cacheKey, doc);
         return reportId;
       }
@@ -404,7 +420,9 @@ describe("generateReportForUser", () => {
     expect(generateDailyReportFromContext).toHaveBeenCalledTimes(1);
     expect(runMutation).toHaveBeenCalledTimes(1);
 
-    const metricNames = metricsModule.emitMetric.mock.calls.map((call) => call[0]);
+    const metricNames = metricsModule.emitMetric.mock.calls.map(
+      (call) => call[0],
+    );
     expect(metricNames).toContain("report.cache_miss");
     expect(metricNames).toContain("report.cache_hit");
   });
@@ -514,7 +532,9 @@ describe("generateReportForUser", () => {
     ];
 
     const runQuery = createAsyncMock<unknown>();
-    runQuery.mockResolvedValueOnce(events).mockResolvedValueOnce(events.length + 5);
+    runQuery
+      .mockResolvedValueOnce(events)
+      .mockResolvedValueOnce(events.length + 5);
 
     const runMutation = createAsyncMock<Id<"reports">>();
     const ctx = createMockActionCtx({ runQuery, runMutation });
@@ -529,7 +549,7 @@ describe("generateReportForUser", () => {
         kind: "daily",
         startDate: 0,
         endDate: 10,
-      })
+      }),
     ).rejects.toThrow("Event count mismatch");
 
     expect(generateDailyReportFromContext).not.toHaveBeenCalled();
@@ -539,7 +559,7 @@ describe("generateReportForUser", () => {
       expect.objectContaining({
         expected: events.length + 5,
         seen: events.length,
-      })
+      }),
     );
   });
 
@@ -594,7 +614,7 @@ describe("generateReportForUser", () => {
         kind: "daily",
         startDate: 0,
         endDate: 10,
-      })
+      }),
     ).rejects.toThrow("Event count mismatch");
 
     expect(generateDailyReportFromContext).not.toHaveBeenCalled();
@@ -604,7 +624,7 @@ describe("generateReportForUser", () => {
       expect.objectContaining({
         expected: events.length - 1,
         seen: events.length,
-      })
+      }),
     );
   });
 
@@ -656,14 +676,14 @@ describe("generateReportForUser", () => {
       expect(reportId).toBe("report-10k");
 
       expect(buildReportContext).toHaveBeenCalledWith(
-        expect.objectContaining({ events })
+        expect.objectContaining({ events }),
       );
 
       expect(runMutation).toHaveBeenCalledWith(
         internal.reports.create,
         expect.objectContaining({
           coverageScore: 1,
-        })
+        }),
       );
     } finally {
       if (originalEstimate === undefined) {
@@ -692,7 +712,9 @@ describe("generateReportForUser", () => {
     const runMutation = createAsyncMock<Id<"reports">>();
     runMutation.mockResolvedValueOnce("report1" as Id<"reports">);
 
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = jest
+      .spyOn(loggerModule.logger, "warn")
+      .mockImplementation(() => {});
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
     const user = {
@@ -717,11 +739,17 @@ describe("generateReportForUser", () => {
     });
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Estimated token usage")
+      expect.objectContaining({
+        estimatedTokens: expect.any(Number),
+        kind: "daily",
+        tokenHardLimit: expect.any(Number),
+        eventCount: expect.any(Number),
+      }),
+      expect.stringContaining("Estimated token usage"),
     );
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.token_budget_warning",
-      expect.objectContaining({ estimatedTokens: expect.any(Number) })
+      expect.objectContaining({ estimatedTokens: expect.any(Number) }),
     );
     warnSpy.mockRestore();
   });
@@ -755,14 +783,14 @@ describe("generateReportForUser", () => {
         kind: "daily",
         startDate: 0,
         endDate: 10,
-      })
+      }),
     ).rejects.toThrow("Estimated token usage");
 
     expect(generateDailyReportFromContext).not.toHaveBeenCalled();
     expect(runMutation).not.toHaveBeenCalled();
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.token_budget_exceeded",
-      expect.objectContaining({ estimatedTokens: expect.any(Number) })
+      expect.objectContaining({ estimatedTokens: expect.any(Number) }),
     );
   });
 
@@ -817,19 +845,19 @@ describe("generateReportForUser", () => {
         kind: "daily",
         startDate: 0,
         endDate: 10,
-      })
+      }),
     ).rejects.toThrow(CoverageValidationError);
 
     expect(metricsModule.emitMetric).toHaveBeenCalledWith(
       "report.coverage_failed",
-      expect.objectContaining({ userId: "clerk_user", kind: "daily" })
+      expect.objectContaining({ userId: "clerk_user", kind: "daily" }),
     );
   });
 });
 
 function createBulkEvents(
   count: number,
-  repoId: Id<"repos">
+  repoId: Id<"repos">,
 ): Array<Doc<"events">> {
   return Array.from({ length: count }, (_, index) => ({
     _id: `evt-bulk-${index}` as Id<"events">,

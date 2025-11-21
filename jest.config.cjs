@@ -7,6 +7,7 @@ module.exports = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^.+/_generated/server$": "<rootDir>/tests/mocks/convexServer.ts",
+    "^(.*)\\.js$": "$1", // Map .js imports to .ts files (ESM compatibility)
   },
   setupFilesAfterEnv: ["<rootDir>/tests/jest.setup.ts"],
   transform: {
