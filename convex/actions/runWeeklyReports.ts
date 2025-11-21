@@ -16,6 +16,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { logger } from "../lib/logger.js";
 
 export const run = internalAction({
   args: {
@@ -24,23 +25,34 @@ export const run = internalAction({
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
-    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const dayNames = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
     const dayName = dayNames[args.dayUTC];
 
-    console.log(
-      `[Weekly Reports] Starting for ${dayName} UTC hour ${args.hourUTC}`
+    logger.info(
+      { dayUTC: args.dayUTC, hourUTC: args.hourUTC, dayName },
+      "Starting weekly reports",
     );
 
     // Query users who want weekly reports at this day/hour
-    const users: Array<{ clerkId?: string; githubUsername?: string }> = await ctx.runQuery(internal.users.getUsersByWeeklySchedule, {
-      weeklyDayUTC: args.dayUTC,
-      reportHourUTC: args.hourUTC,
-      weeklyEnabled: true,
-    });
+    const users: Array<{ clerkId?: string; githubUsername?: string }> =
+      await ctx.runQuery(internal.users.getUsersByWeeklySchedule, {
+        weeklyDayUTC: args.dayUTC,
+        reportHourUTC: args.hourUTC,
+        weeklyEnabled: true,
+      });
 
     if (users.length === 0) {
-      console.log(
-        `[Weekly Reports] No users scheduled for ${dayName} UTC hour ${args.hourUTC}`
+      logger.info(
+        { dayName, hourUTC: args.hourUTC },
+        "No users scheduled for weekly reports",
       );
       await ctx.runMutation(internal.reportJobHistory.logRun, {
         type: "weekly",
@@ -53,11 +65,17 @@ export const run = internalAction({
         startedAt: startTime,
         completedAt: Date.now(),
       });
-      return { usersProcessed: 0, reportsGenerated: 0, errors: 0, durationMs: 0 };
+      return {
+        usersProcessed: 0,
+        reportsGenerated: 0,
+        errors: 0,
+        durationMs: 0,
+      };
     }
 
-    console.log(
-      `[Weekly Reports] Found ${users.length} users for ${dayName} UTC hour ${args.hourUTC}`
+    logger.info(
+      { userCount: users.length, dayName, hourUTC: args.hourUTC },
+      "Found users for weekly reports",
     );
 
     let reportsGenerated = 0;
@@ -66,28 +84,38 @@ export const run = internalAction({
     // Generate report for each user
     for (const user of users) {
       try {
-        console.log(
-          `[Weekly Reports] Generating for user ${user.clerkId} (@${user.githubUsername})`
+        logger.info(
+          { userId: user.clerkId, githubUsername: user.githubUsername },
+          "Generating weekly report for user",
         );
 
-        await ctx.runAction(internal.actions.generateScheduledReport.generateWeeklyReport, {
-          userId: user.clerkId!,
-        });
+        await ctx.runAction(
+          internal.actions.generateScheduledReport.generateWeeklyReport,
+          {
+            userId: user.clerkId!,
+          },
+        );
 
         reportsGenerated++;
       } catch (error) {
-        console.error(
-          `[Weekly Reports] Error for user ${user.clerkId}:`,
-          error instanceof Error ? error.message : error
+        logger.error(
+          { err: error, userId: user.clerkId },
+          "Error generating weekly report for user",
         );
         errors++;
       }
     }
 
     const duration = Date.now() - startTime;
-    console.log(
-      `[Weekly Reports] Completed for ${dayName} UTC hour ${args.hourUTC}: ` +
-        `${reportsGenerated} generated, ${errors} errors, ${duration}ms`
+    logger.info(
+      {
+        dayName,
+        hourUTC: args.hourUTC,
+        reportsGenerated,
+        errors,
+        durationMs: duration,
+      },
+      "Completed weekly reports",
     );
 
     await ctx.runMutation(internal.reportJobHistory.logRun, {

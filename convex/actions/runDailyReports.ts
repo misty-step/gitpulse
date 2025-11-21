@@ -16,6 +16,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
+import { logger } from "../lib/logger.js";
 
 export const run = internalAction({
   args: {
@@ -23,16 +24,20 @@ export const run = internalAction({
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
-    console.log(`[Daily Reports] Starting for UTC hour ${args.hourUTC}`);
+    logger.info({ hourUTC: args.hourUTC }, "Starting daily reports");
 
     // Query users who want daily reports at this UTC hour
-    const users: Array<{ clerkId?: string; githubUsername?: string }> = await ctx.runQuery(internal.users.getUsersByReportHour, {
-      reportHourUTC: args.hourUTC,
-      dailyEnabled: true,
-    });
+    const users: Array<{ clerkId?: string; githubUsername?: string }> =
+      await ctx.runQuery(internal.users.getUsersByReportHour, {
+        reportHourUTC: args.hourUTC,
+        dailyEnabled: true,
+      });
 
     if (users.length === 0) {
-      console.log(`[Daily Reports] No users scheduled for UTC hour ${args.hourUTC}`);
+      logger.info(
+        { hourUTC: args.hourUTC },
+        "No users scheduled for daily reports",
+      );
       await ctx.runMutation(internal.reportJobHistory.logRun, {
         type: "daily",
         hourUTC: args.hourUTC,
@@ -44,11 +49,17 @@ export const run = internalAction({
         startedAt: startTime,
         completedAt: Date.now(),
       });
-      return { usersProcessed: 0, reportsGenerated: 0, errors: 0, durationMs: 0 };
+      return {
+        usersProcessed: 0,
+        reportsGenerated: 0,
+        errors: 0,
+        durationMs: 0,
+      };
     }
 
-    console.log(
-      `[Daily Reports] Found ${users.length} users for UTC hour ${args.hourUTC}`
+    logger.info(
+      { userCount: users.length, hourUTC: args.hourUTC },
+      "Found users for daily reports",
     );
 
     let reportsGenerated = 0;
@@ -57,28 +68,37 @@ export const run = internalAction({
     // Generate report for each user
     for (const user of users) {
       try {
-        console.log(
-          `[Daily Reports] Generating for user ${user.clerkId} (@${user.githubUsername})`
+        logger.info(
+          { userId: user.clerkId, githubUsername: user.githubUsername },
+          "Generating daily report for user",
         );
 
-        await ctx.runAction(internal.actions.generateScheduledReport.generateDailyReport, {
-          userId: user.clerkId!,
-        });
+        await ctx.runAction(
+          internal.actions.generateScheduledReport.generateDailyReport,
+          {
+            userId: user.clerkId!,
+          },
+        );
 
         reportsGenerated++;
       } catch (error) {
-        console.error(
-          `[Daily Reports] Error for user ${user.clerkId}:`,
-          error instanceof Error ? error.message : error
+        logger.error(
+          { err: error, userId: user.clerkId },
+          "Error generating daily report for user",
         );
         errors++;
       }
     }
 
     const duration = Date.now() - startTime;
-    console.log(
-      `[Daily Reports] Completed for UTC hour ${args.hourUTC}: ` +
-        `${reportsGenerated} generated, ${errors} errors, ${duration}ms`
+    logger.info(
+      {
+        hourUTC: args.hourUTC,
+        reportsGenerated,
+        errors,
+        durationMs: duration,
+      },
+      "Completed daily reports",
     );
 
     await ctx.runMutation(internal.reportJobHistory.logRun, {
