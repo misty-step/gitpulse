@@ -8,10 +8,10 @@
 - ✅ Quality Gates: 5/5 complete
 - ✅ Observability Foundation: 3/3 complete
 
-**P1 High-Priority Infrastructure**: 3/9 completed (33%)
+**P1 High-Priority Infrastructure**: 5/9 completed (56%)
 
 - ✅ Security Fixes: 3/3 complete
-- Observability Stack: 0/5 pending
+- Observability Stack: 2/5 completed
 - Testing: 0/1 pending
 
 **Session Achievements** (infrastructure/production-hardening branch):
@@ -28,6 +28,8 @@
 - Fixed XSS vulnerability in report HTML rendering (DOMPurify sanitization)
 - Fixed broken access control on deleteReport mutation (ownership verification)
 - Added pnpm audit security scanning to CI pipeline (HIGH/CRITICAL alerts)
+- Enabled Vercel Analytics with custom event tracking (pageviews, report actions)
+- Installed Sentry error tracking with simplified configuration (10% sampling)
 
 ## Context
 
@@ -210,28 +212,30 @@
 
 ### Observability Stack
 
-- [ ] Enable Vercel Analytics
+- [x] Enable Vercel Analytics
 
   ```
   Files: app/layout.tsx (add Analytics component), package.json (install @vercel/analytics)
   Architecture: Pageview tracking + custom events for report generation
-  Pseudocode: See BACKLOG.md lines 232-260
-  Success: Pageviews tracked, custom events firing
+  Implementation: Added Analytics component, direct track() calls for custom events
+  Success: Pageviews tracked, custom events firing (report_regenerated, report_deleted)
   Test: Navigate app → events in Vercel dashboard
   Dependencies: None
   Time: 2h
+  Status: COMPLETE (commit 764854e)
   ```
 
-- [ ] Install Sentry Error Tracking
+- [x] Install Sentry Error Tracking
 
   ```
-  Files: app/error.tsx (add Sentry.captureException), convex/lib/sentry.ts (new)
+  Files: app/error.tsx (add Sentry.captureException), sentry.config.ts (new)
   Architecture: Frontend + backend error capture, alerting
-  Pseudocode: See BACKLOG.md lines 369-387
-  Success: Errors tracked in Sentry dashboard
+  Implementation: Simplified config (single file, 10% sampling, 3 build options)
+  Success: Errors tracked in Sentry dashboard via error boundary
   Test: Throw error → appears in Sentry
   Dependencies: None
   Time: 3h
+  Status: COMPLETE (commit 2d90217)
   ```
 
 - [ ] Add Deployment Tracking
