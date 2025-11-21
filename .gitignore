@@ -40,6 +40,9 @@ convex/_generated/
 *.tsbuildinfo
 next-env.d.ts
 
+# eslint cache
+.eslintcache
+
 # logs
 /logs
 *.log
