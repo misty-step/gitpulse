@@ -6,6 +6,7 @@ import type { Id } from "../_generated/dataModel";
 import type { CanonicalEvent } from "./canonicalizeEvent";
 import { computeContentHash } from "./contentHash";
 import { emitMetric } from "./metrics";
+import { logger } from "./logger.js";
 
 interface GitHubRepositoryPayload {
   id?: number;
@@ -44,23 +45,23 @@ interface PersistResult {
 export async function persistCanonicalEvent(
   ctx: ActionCtx,
   canonical: CanonicalEvent,
-  options: PersistOptions = {}
+  options: PersistOptions = {},
 ): Promise<PersistResult> {
   const actorId = await ensureActor(ctx, canonical.actor);
   if (!actorId) {
-    console.warn("[canonical] missing actor metadata, skipping", {
-      type: canonical.type,
-      actor: canonical.actor,
-    });
+    logger.warn(
+      { type: canonical.type, actor: canonical.actor },
+      "Missing actor metadata, skipping event",
+    );
     return { status: "skipped" };
   }
 
   const repoId = await ensureRepo(ctx, canonical, options.repoPayload);
   if (!repoId) {
-    console.warn("[canonical] missing repo metadata, skipping", {
-      type: canonical.type,
-      repo: canonical.repo,
-    });
+    logger.warn(
+      { type: canonical.type, repo: canonical.repo },
+      "Missing repo metadata, skipping event",
+    );
     return { status: "skipped" };
   }
 
@@ -107,7 +108,7 @@ export async function persistCanonicalEvent(
 
 async function ensureActor(
   ctx: ActionCtx,
-  actor: CanonicalEvent["actor"]
+  actor: CanonicalEvent["actor"],
 ): Promise<Id<"users"> | null> {
   if (typeof actor.ghId !== "number" || !actor.ghLogin) {
     return null;
@@ -125,7 +126,7 @@ async function ensureActor(
 async function ensureRepo(
   ctx: ActionCtx,
   canonical: CanonicalEvent,
-  repoPayload?: GitHubRepositoryPayload | null
+  repoPayload?: GitHubRepositoryPayload | null,
 ): Promise<Id<"repos"> | null> {
   if (!repoPayload) {
     return null;
@@ -155,13 +156,17 @@ async function ensureRepo(
     name: repoPayload.name,
     owner: repoPayload.owner?.login ?? canonical.repo.owner ?? "unknown",
     description: repoPayload.description ?? undefined,
-    url: repoPayload.html_url ?? repoPayload.url ?? `https://github.com/${fullName}`,
+    url:
+      repoPayload.html_url ??
+      repoPayload.url ??
+      `https://github.com/${fullName}`,
     homepage: repoPayload.homepage ?? undefined,
     language: repoPayload.language ?? undefined,
     isPrivate: repoPayload.private,
     isFork: repoPayload.fork,
     isArchived: repoPayload.archived,
-    stars: repoPayload.stargazers_count ?? repoPayload.watchers_count ?? undefined,
+    stars:
+      repoPayload.stargazers_count ?? repoPayload.watchers_count ?? undefined,
     forks: repoPayload.forks_count ?? undefined,
     openIssues: repoPayload.open_issues_count ?? undefined,
     watchers: repoPayload.watchers_count ?? undefined,
@@ -183,7 +188,7 @@ function toMillis(value?: string | null): number | undefined {
 async function enqueueEmbedding(
   ctx: ActionCtx,
   eventId: Id<"events">,
-  contentHash: string
+  contentHash: string,
 ) {
   await ctx.runMutation(internal.embeddingQueue.enqueue, {
     eventId,
@@ -193,6 +198,6 @@ async function enqueueEmbedding(
   await ctx.scheduler.runAfter(
     0,
     internal.actions.embeddings.ensureBatch.ensureBatch,
-    {}
+    {},
   );
 }
