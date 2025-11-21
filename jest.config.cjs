@@ -2,7 +2,12 @@
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
-  roots: ["<rootDir>/convex", "<rootDir>/lib", "<rootDir>/tests"],
+  roots: [
+    "<rootDir>/convex",
+    "<rootDir>/lib",
+    "<rootDir>/tests",
+    "<rootDir>/app",
+  ],
   extensionsToTreatAsEsm: [".ts", ".tsx"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
