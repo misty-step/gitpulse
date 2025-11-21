@@ -12,8 +12,12 @@ import { CoverageMeter } from "@/components/CoverageMeter";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { CitationDrawer } from "@/components/CitationDrawer";
 import { handleConvexError, showSuccess } from "@/lib/errors";
-import { needsIntegrationAttention, formatTimestamp } from "@/lib/integrationStatus";
+import {
+  needsIntegrationAttention,
+  formatTimestamp,
+} from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
+import DOMPurify from "isomorphic-dompurify";
 
 export default function ReportViewerPage() {
   const params = useParams();
@@ -21,7 +25,8 @@ export default function ReportViewerPage() {
   const reportId = params.id as Id<"reports">;
   const { clerkUser } = useAuthenticatedConvexUser();
   const createRegeneration = useMutation(api.reportRegenerations.createRequest);
-  const [isRequestingRegeneration, setIsRequestingRegeneration] = useState(false);
+  const [isRequestingRegeneration, setIsRequestingRegeneration] =
+    useState(false);
 
   const report = useQuery(api.reports.getById, { id: reportId });
   const { status: integrationStatus } = useIntegrationStatus();
@@ -29,12 +34,12 @@ export default function ReportViewerPage() {
   // Fetch reports list to find adjacent reports
   const allReports = useQuery(
     api.reports.listByUser,
-    clerkUser?.id ? { userId: clerkUser.id, limit: 100 } : "skip"
+    clerkUser?.id ? { userId: clerkUser.id, limit: 100 } : "skip",
   );
 
   const latestJob = useQuery(
     api.reportRegenerations.latestByReport,
-    report ? { reportId: report._id } : "skip"
+    report ? { reportId: report._id } : "skip",
   );
 
   const reportVersions = useQuery(
@@ -47,7 +52,7 @@ export default function ReportViewerPage() {
           scheduleType: report.scheduleType,
           limit: 10,
         }
-      : "skip"
+      : "skip",
   );
 
   // Find previous and next report IDs
@@ -59,25 +64,34 @@ export default function ReportViewerPage() {
     // Newer report is at lower index (desc order), older at higher index
     return {
       nextReportId: idx > 0 ? allReports[idx - 1]._id : null,
-      prevReportId: idx < allReports.length - 1 ? allReports[idx + 1]._id : null,
+      prevReportId:
+        idx < allReports.length - 1 ? allReports[idx + 1]._id : null,
     };
   }, [allReports, reportId]);
 
   const jobInFlight = Boolean(
-    latestJob && ["queued", "collecting", "generating", "validating", "saving"].includes(latestJob.status)
+    latestJob &&
+      ["queued", "collecting", "generating", "validating", "saving"].includes(
+        latestJob.status,
+      ),
   );
   const jobFailed = latestJob?.status === "failed";
   const jobProgress = Math.round((latestJob?.progress ?? 0) * 100);
   const versionList = reportVersions ?? undefined;
-  const latestVersionId = versionList && versionList.length > 0 ? versionList[0]!._id : null;
+  const latestVersionId =
+    versionList && versionList.length > 0 ? versionList[0]!._id : null;
   const isLatestVersion =
-    report && versionList && versionList.length > 0 ? versionList[0]!._id === report._id : true;
-  const hasNewerVersion = Boolean(latestVersionId && report && latestVersionId !== report._id);
+    report && versionList && versionList.length > 0
+      ? versionList[0]!._id === report._id
+      : true;
+  const hasNewerVersion = Boolean(
+    latestVersionId && report && latestVersionId !== report._id,
+  );
   const regenerateLabel = jobInFlight
     ? "Regenerating..."
     : jobFailed
-    ? "Retry regeneration"
-    : "Regenerate report";
+      ? "Retry regeneration"
+      : "Regenerate report";
   const disableRegenerate = !report || jobInFlight || isRequestingRegeneration;
 
   const handleRegenerate = async () => {
@@ -85,9 +99,15 @@ export default function ReportViewerPage() {
     setIsRequestingRegeneration(true);
     try {
       await createRegeneration({ reportId: report._id });
-      showSuccess("Regeneration started", "We\'ll refresh this page when it\'s ready.");
+      showSuccess(
+        "Regeneration started",
+        "We\'ll refresh this page when it\'s ready.",
+      );
     } catch (error) {
-      const err = error instanceof Error ? error : new Error("Failed to start regeneration");
+      const err =
+        error instanceof Error
+          ? error
+          : new Error("Failed to start regeneration");
       handleConvexError(err, {
         operation: "regenerate report",
         retry: () => handleRegenerate(),
@@ -124,7 +144,11 @@ export default function ReportViewerPage() {
   }, [router, prevReportId, nextReportId]);
 
   useEffect(() => {
-    if (!latestJob || latestJob.status !== "completed" || !latestJob.newReportId) {
+    if (
+      !latestJob ||
+      latestJob.status !== "completed" ||
+      !latestJob.newReportId
+    ) {
       return;
     }
 
@@ -173,7 +197,7 @@ export default function ReportViewerPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-12 pb-24">
       <IntegrationStatusBanner />
-      
+
       {/* Header Section */}
       <header className="space-y-6 border-b border-border pb-8">
         <div className="flex items-center justify-between">
@@ -183,12 +207,12 @@ export default function ReportViewerPage() {
           >
             ← Index
           </Link>
-          
+
           <div className="flex items-center gap-4">
-             {/* Versions Dropdown / List could go here, keeping it simple for now */}
-             <span className="text-xs font-mono text-muted">
-                ID: {report._id.slice(-8)}
-             </span>
+            {/* Versions Dropdown / List could go here, keeping it simple for now */}
+            <span className="text-xs font-mono text-muted">
+              ID: {report._id.slice(-8)}
+            </span>
           </div>
         </div>
 
@@ -196,44 +220,59 @@ export default function ReportViewerPage() {
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
             {report.title}
           </h1>
-          
+
           {/* Spec Sheet Metadata */}
           <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-4 border-t border-border pt-6">
-             <div>
-                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Generated</div>
-                <div className="text-sm font-mono">{new Date(report.generatedAt).toLocaleDateString()}</div>
-             </div>
-             <div>
-                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Range</div>
-                <div className="text-sm font-mono">
-                   {new Date(report.startDate).toLocaleDateString()} — {new Date(report.endDate).toLocaleDateString()}
-                </div>
-             </div>
-             <div>
-                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Model</div>
-                <div className="text-sm font-mono">{report.provider}/{report.model}</div>
-             </div>
-             <div>
-                <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Coverage</div>
-                <div className="text-sm font-mono">{report.coverageScore ?? 0}%</div>
-             </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1">
+                Generated
+              </div>
+              <div className="text-sm font-mono">
+                {new Date(report.generatedAt).toLocaleDateString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1">
+                Range
+              </div>
+              <div className="text-sm font-mono">
+                {new Date(report.startDate).toLocaleDateString()} —{" "}
+                {new Date(report.endDate).toLocaleDateString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1">
+                Model
+              </div>
+              <div className="text-sm font-mono">
+                {report.provider}/{report.model}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1">
+                Coverage
+              </div>
+              <div className="text-sm font-mono">
+                {report.coverageScore ?? 0}%
+              </div>
+            </div>
           </div>
         </div>
-        
+
         <div className="flex gap-3 pt-2">
-            <button
-              onClick={handleDownloadMarkdown}
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-xs font-medium transition-colors hover:bg-surface-muted"
-            >
-              Download MD
-            </button>
-            <button
-              onClick={handleRegenerate}
-              disabled={disableRegenerate}
-              className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {regenerateLabel}
-            </button>
+          <button
+            onClick={handleDownloadMarkdown}
+            className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-xs font-medium transition-colors hover:bg-surface-muted"
+          >
+            Download MD
+          </button>
+          <button
+            onClick={handleRegenerate}
+            disabled={disableRegenerate}
+            className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+          >
+            {regenerateLabel}
+          </button>
         </div>
       </header>
 
@@ -243,11 +282,13 @@ export default function ReportViewerPage() {
 
       {jobInFlight && latestJob && (
         <div className="flex items-center gap-4 border-l-2 border-black pl-4 py-2 bg-surface-muted/30">
-           <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
-           <div>
-              <div className="text-sm font-medium">Regenerating... {jobProgress}%</div>
-              <div className="text-xs text-muted">{latestJob.message}</div>
-           </div>
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-black border-t-transparent" />
+          <div>
+            <div className="text-sm font-medium">
+              Regenerating... {jobProgress}%
+            </div>
+            <div className="text-xs text-muted">{latestJob.message}</div>
+          </div>
         </div>
       )}
 
@@ -255,35 +296,39 @@ export default function ReportViewerPage() {
       <article className="prose prose-zinc max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-p:text-foreground-muted prose-a:text-foreground prose-code:text-xs prose-code:font-mono prose-code:bg-surface-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded-sm">
         <div
           className="markdown-content"
-          dangerouslySetInnerHTML={{ __html: report.html }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.html) }}
         />
       </article>
-      
+
       {/* Footer / Versions */}
-      {(report.scheduleType && versionList && versionList.length > 0) && (
-         <div className="border-t border-border pt-12 mt-12">
-            <h3 className="text-sm font-semibold mb-6">History</h3>
-            <div className="space-y-0">
-               {versionList.map((version) => {
-                  const isCurrent = version._id === report._id;
-                  return (
-                    <Link
-                      key={version._id}
-                      href={`/dashboard/reports/${version._id}`}
-                      className={`flex items-center justify-between py-3 border-b border-border text-sm hover:bg-surface-muted/50 transition-colors ${isCurrent ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}
-                    >
-                       <div className="font-mono">
-                          {new Date(version.generatedAt).toLocaleString()}
-                       </div>
-                       <div className="flex items-center gap-4">
-                          <span className="font-mono text-xs text-muted">Score: {version.coverageScore}%</span>
-                          {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-black" />}
-                       </div>
-                    </Link>
-                  );
-               })}
-            </div>
-         </div>
+      {report.scheduleType && versionList && versionList.length > 0 && (
+        <div className="border-t border-border pt-12 mt-12">
+          <h3 className="text-sm font-semibold mb-6">History</h3>
+          <div className="space-y-0">
+            {versionList.map((version) => {
+              const isCurrent = version._id === report._id;
+              return (
+                <Link
+                  key={version._id}
+                  href={`/dashboard/reports/${version._id}`}
+                  className={`flex items-center justify-between py-3 border-b border-border text-sm hover:bg-surface-muted/50 transition-colors ${isCurrent ? "opacity-100" : "opacity-60 hover:opacity-100"}`}
+                >
+                  <div className="font-mono">
+                    {new Date(version.generatedAt).toLocaleString()}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-xs text-muted">
+                      Score: {version.coverageScore}%
+                    </span>
+                    {isCurrent && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-black" />
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <CitationDrawer citations={report.citations} />
@@ -295,7 +340,8 @@ function IntegrationContextNote({ status }: { status: IntegrationStatus }) {
   let message = "GitHub integration needs attention.";
 
   if (status.kind === "missing_installation") {
-    message = "Install the GitHub App to collect GitHub activity for this report window.";
+    message =
+      "Install the GitHub App to collect GitHub activity for this report window.";
   } else if (status.kind === "no_events") {
     message = "No GitHub events are available for this timeframe yet.";
   } else if (status.kind === "stale_events") {
