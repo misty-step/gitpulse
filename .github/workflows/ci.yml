@@ -75,27 +75,8 @@ jobs:
       - name: Run ${{ matrix.check }}
         run: pnpm ${{ matrix.check }}
 
-  build:
-    name: Build
-    needs: quality-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Deploy Convex
-        run: npx convex deploy --cmd 'pnpm build'
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+  # Build and deployment now handled by Vercel
+  # See: docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md
+  # - Production deployments: Vercel automatically deploys master branch
+  # - Preview deployments: Vercel creates preview deployment for each PR
+  # - Convex deployment: Integrated with Vercel build process via CONVEX_DEPLOY_KEY

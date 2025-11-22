@@ -163,8 +163,15 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 ```
 
-#### Convex Environment (set via `convex env set`)
+#### Convex Environment (set via Convex Dashboard)
 
+**Default Environment Variables** (applies to Preview + Development):
+```bash
+# Clerk (for JWT validation in preview deployments)
+CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
+```
+
+**Development/Production Environment Variables** (set via `convex env set`):
 ```bash
 # GitHub API
 GITHUB_TOKEN=ghp_...
@@ -174,9 +181,11 @@ GOOGLE_API_KEY=AIza...              # Primary (Gemini)
 OPENAI_API_KEY=sk-...               # Fallback (GPT-5)
 VOYAGE_API_KEY=pa-...               # Embeddings (recommended)
 
-# Clerk (for JWT validation)
+# Clerk (already set in defaults for preview, set separately for production)
 CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
 ```
+
+**Note:** Default environment variables automatically apply to all preview and development deployments. Set these in Convex Dashboard → Settings → Environment Variables → Default Variables.
 
 ### Setting Up Services
 
@@ -256,23 +265,71 @@ See `convex/schema.ts` for full schema.
 
 ## 🚀 Deployment
 
-### Deploy to Vercel
+GitPulse uses **Vercel-managed deployments** for automatic preview and production deployments.
 
-1. Push code to GitHub
-2. Import project on [Vercel](https://vercel.com/new)
-3. Set environment variables:
-   - `CONVEX_DEPLOYMENT`
-   - `NEXT_PUBLIC_CONVEX_URL`
-   - Clerk keys
-4. Deploy
+### Quick Setup
 
-### Deploy Convex
+**For detailed step-by-step instructions, see:** [`docs/deployment/VERCEL_SETUP.md`](docs/deployment/VERCEL_SETUP.md)
 
-```bash
-npx convex deploy
+### Overview
+
+```
+PR Created → Vercel → Preview Deployment (with preview Convex backend)
+Merge to master → Vercel → Production Deployment (with production Convex backend)
+GitHub Actions CI → Quality Gates Only (typecheck, lint, test, security)
 ```
 
-This creates a production Convex deployment. Update Vercel env vars with production URLs.
+### Prerequisites
+
+1. **Convex Deploy Keys:**
+   - Generate production deploy key in Convex Dashboard
+   - Generate preview deploy key in Convex Dashboard
+
+2. **Convex Default Environment Variables:**
+   - Set `CLERK_JWT_ISSUER_DOMAIN` for Preview + Development environments
+   - This ensures all preview deployments automatically receive required config
+
+3. **Vercel Configuration:**
+   - Add `CONVEX_DEPLOY_KEY` (production) to Vercel Production environment
+   - Add `CONVEX_DEPLOY_KEY` (preview) to Vercel Preview environment
+   - Set build command: `npx convex deploy --cmd 'pnpm build'`
+
+### Deployment Flow
+
+**Preview Deployments (PRs):**
+- Vercel creates preview deployment for each PR
+- Convex creates isolated preview backend (auto-cleanup after 14 days)
+- Preview URL commented on PR by Vercel bot
+- Perfect for testing changes before merge
+
+**Production Deployments:**
+- Merge to `master` triggers automatic production deployment
+- Convex production backend updated
+- Zero-downtime deployment
+
+### Manual Deployment (Development)
+
+```bash
+# Deploy Convex backend only
+npx convex deploy
+
+# Build and deploy locally (not recommended for production)
+pnpm build
+```
+
+### Monitoring
+
+- **Vercel:** https://vercel.com/dashboard - View deployment status, logs
+- **Convex:** https://dashboard.convex.dev/ - Monitor backend, check logs
+- **GitHub Actions:** Quality gates run on every PR and push
+
+### Troubleshooting
+
+See [`docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md`](docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md) for:
+- Common deployment issues
+- Environment variable setup
+- Preview deployment configuration
+- Production readiness checklist
 
 ## 🐛 Troubleshooting
 
