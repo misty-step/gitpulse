@@ -34,7 +34,7 @@ yarn-error.log*
 
 # Convex
 .convex/
-convex/_generated/
+# convex/_generated/ - Committed to version control per Convex best practices
 
 # typescript
 *.tsbuildinfo

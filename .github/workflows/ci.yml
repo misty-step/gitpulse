@@ -69,10 +69,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Convex types
-        run: npx convex codegen
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      # Convex generated code is committed to version control per best practices
+      # https://docs.convex.dev/understanding/best-practices/other-recommendations#check-generated-code-into-version-control
 
       - name: Run ${{ matrix.check }}
         run: pnpm ${{ matrix.check }}
