@@ -4,7 +4,7 @@
  * Verifies Clerk + Convex authentication integration
  */
 
-import { check, getCurrentIdentity } from "../authHealth";
+import { checkHandler, getCurrentIdentityHandler } from "../authHealth";
 import * as loggerModule from "../logger";
 
 // Mock logger to prevent test output noise
@@ -36,7 +36,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(true);
       expect(result.userId).toBe("user_123abc");
@@ -56,7 +56,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(false);
       expect(result.userId).toBeNull();
@@ -80,7 +80,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(true);
       expect(result.userId).toBe("user_minimal");
@@ -96,7 +96,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      await check.handler(mockCtx as any, {});
+      await checkHandler(mockCtx as any);
 
       expect(warnSpy).toHaveBeenCalledWith(
         "No authentication detected - JWT template may not be configured",
@@ -115,7 +115,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      await check.handler(mockCtx as any, {});
+      await checkHandler(mockCtx as any);
 
       expect(infoSpy).toHaveBeenCalledWith(
         { userId: "user_456" },
@@ -145,7 +145,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await getCurrentIdentity.handler(mockCtx as any, {});
+      const result = await getCurrentIdentityHandler(mockCtx as any);
 
       expect(result).toBeDefined();
       expect(result?.subject).toBe("user_full_123");
@@ -166,7 +166,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await getCurrentIdentity.handler(mockCtx as any, {});
+      const result = await getCurrentIdentityHandler(mockCtx as any);
 
       expect(result).toBeNull();
       expect(mockCtx.auth.getUserIdentity).toHaveBeenCalledTimes(1);
@@ -186,7 +186,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await getCurrentIdentity.handler(mockCtx as any, {});
+      const result = await getCurrentIdentityHandler(mockCtx as any);
 
       expect(result?.raw).toEqual(mockIdentity);
       expect(result?.raw).toHaveProperty("internalField");
@@ -204,7 +204,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      await getCurrentIdentity.handler(mockCtx as any, {});
+      await getCurrentIdentityHandler(mockCtx as any);
 
       expect(infoSpy).toHaveBeenCalledWith(
         { userId: "user_log_test" },
@@ -220,7 +220,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      await getCurrentIdentity.handler(mockCtx as any, {});
+      await getCurrentIdentityHandler(mockCtx as any);
 
       expect(infoSpy).toHaveBeenCalledWith(
         "getCurrentIdentity: Not authenticated",
@@ -238,7 +238,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      await expect(check.handler(mockCtx as any, {})).rejects.toThrow(
+      await expect(checkHandler(mockCtx as any)).rejects.toThrow(
         "JWT validation failed",
       );
     });
@@ -254,7 +254,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(true);
       expect(result.userId).toBeUndefined();
@@ -271,7 +271,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(true);
       expect(result.userId).toBe("");
@@ -289,7 +289,7 @@ describe("Auth Health Check", () => {
         },
       };
 
-      const result = await check.handler(mockCtx as any, {});
+      const result = await checkHandler(mockCtx as any);
 
       expect(result.isAuthenticated).toBe(true);
       expect(result.userId).toBe(longUserId);
