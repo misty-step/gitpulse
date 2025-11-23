@@ -524,18 +524,21 @@ export const purgeExpiredBlocked = internalMutation({
 });
 
 /**
- * HOTFIX: Delete jobs blocked until the year 2025 (likely from GitHub abuse limit bug).
+ * HOTFIX: Delete jobs blocked until absurdly far future (> 1 year ahead).
+ * Targets buggy far-future dates from past GitHub abuse limit incidents
+ * while preserving legitimate rate-limit blocks (hours/days ahead).
  */
 export const forceDelete2025Jobs = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // January 1, 2025
-    const year2025 = new Date("2025-01-01").getTime();
+    // Target only timestamps more than 1 year in the future
+    // Legitimate GitHub rate-limit blocks are typically hours/days ahead, not years
+    const farFuture = Date.now() + 365 * 24 * 60 * 60 * 1000; // > 1 year ahead
 
     const futureBlockedJobs = await ctx.db
       .query("ingestionJobs")
       .withIndex("by_status", (q) => q.eq("status", "blocked"))
-      .filter((q) => q.gte(q.field("blockedUntil"), year2025))
+      .filter((q) => q.gt(q.field("blockedUntil"), farFuture))
       .take(100); // Lower limit to avoid read overflow
 
     let deletedCount = 0;
@@ -545,7 +548,10 @@ export const forceDelete2025Jobs = internalMutation({
     }
 
     if (deletedCount > 0) {
-      logger.info({ deletedCount }, "Deleted jobs stuck in 2025");
+      logger.info(
+        { deletedCount, farFutureThreshold: new Date(farFuture).toISOString() },
+        "Deleted jobs blocked until absurdly far future",
+      );
     }
 
     return deletedCount;

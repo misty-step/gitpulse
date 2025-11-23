@@ -195,7 +195,7 @@ export class LLMClient {
     maxTokens: number,
     structured?: {
       responseMimeType?: string;
-      responseSchema?: Record<string, unknown>;
+      responseSchema?: Record<string, unknown>; // JSON Schema format (from zod-to-json-schema)
     },
   ): Promise<string> {
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -227,7 +227,7 @@ export class LLMClient {
     }
 
     if (structured?.responseSchema) {
-      generationConfig["response_schema"] = structured.responseSchema;
+      generationConfig["response_json_schema"] = structured.responseSchema;
     }
 
     const response = await fetch(`${url}?key=${apiKey}`, {

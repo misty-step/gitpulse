@@ -26,7 +26,7 @@ tags = ["key", "GitHub"]
 [[rules]]
 id = "convex-deploy-key"
 description = "Convex Deploy Key"
-regex = '''prod:[a-z0-9]{64}|dev:[a-z0-9]{64}'''
+regex = '''(prod|dev|preview|admin|project):[a-z0-9\-:]+\|[A-Za-z0-9+/=]{40,}'''
 tags = ["key", "Convex"]
 
 [[rules]]
@@ -38,7 +38,7 @@ tags = ["key", "Clerk"]
 [[rules]]
 id = "openai-api-key"
 description = "OpenAI API Key"
-regex = '''sk-[a-zA-Z0-9]{48}'''
+regex = '''sk-(proj-|admin-)?[A-Za-z0-9]{20,}'''
 tags = ["key", "OpenAI"]
 
 [[rules]]

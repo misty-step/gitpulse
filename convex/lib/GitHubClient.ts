@@ -87,20 +87,22 @@ export class GitHubClient {
       throw new Error("GitHub OAuth not configured - missing credentials");
     }
 
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: user.githubRefreshToken,
+    });
+
     const response = await fetch(
       "https://github.com/login/oauth/access_token",
       {
         method: "POST",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          refresh_token: user.githubRefreshToken,
-          grant_type: "refresh_token",
-        }),
+        body: params.toString(),
       },
     );
 

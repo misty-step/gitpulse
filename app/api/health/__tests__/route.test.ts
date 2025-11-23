@@ -6,6 +6,9 @@
 
 import { GET } from "../route";
 
+// Save original fetch before mocking
+const originalFetch = global.fetch;
+
 // Mock fetch globally
 global.fetch = jest.fn();
 
@@ -14,6 +17,11 @@ describe("/api/health", () => {
     jest.clearAllMocks();
     // Reset environment
     process.env.NEXT_PUBLIC_CONVEX_URL = "https://test.convex.cloud";
+  });
+
+  // Restore original fetch to prevent pollution of other test suites
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   it("returns 200 when all systems are healthy", async () => {
