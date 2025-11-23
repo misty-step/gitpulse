@@ -24,7 +24,7 @@ for (let hour = 0; hour < 24; hour++) {
     `daily-reports-utc-${hour.toString().padStart(2, "0")}`,
     { hourUTC: hour, minuteUTC: 0 },
     internal.actions.runDailyReports.run,
-    { hourUTC: hour }
+    { hourUTC: hour },
   );
 }
 
@@ -50,7 +50,7 @@ for (const day of daysOfWeek) {
       `weekly-reports-${dayAbbrev}-utc-${hour.toString().padStart(2, "0")}`,
       { dayOfWeek: day.name, hourUTC: hour, minuteUTC: 0 },
       internal.actions.runWeeklyReports.run,
-      { dayUTC: day.dayUTC, hourUTC: hour }
+      { dayUTC: day.dayUTC, hourUTC: hour },
     );
   }
 }
@@ -63,7 +63,7 @@ crons.hourly(
   "webhook-pending-retry",
   { minuteUTC: 10 },
   internal.actions.github.scheduler.processPendingWebhooks,
-  {}
+  {},
 );
 
 // Resume any stuck blocked backfill jobs (safety net)
@@ -72,7 +72,7 @@ crons.interval(
   "backfill-stuck-job-recovery",
   { minutes: 5 },
   internal.actions.github.scheduler.resumeStuckBackfills,
-  {}
+  {},
 );
 
 // Cleanup zombie jobs (running > 10m without update)
@@ -80,28 +80,28 @@ crons.interval(
   "cleanup-zombie-jobs",
   { minutes: 10 },
   internal.ingestionJobs.cleanupStuckJobs,
-  {}
+  {},
 );
 
 crons.daily(
   "installation-reconcile",
   { hourUTC: 2, minuteUTC: 15 },
   internal.actions.github.maintenance.reconcileInstallations,
-  {}
+  {},
 );
 
 crons.daily(
   "sync-catch-up",
   { hourUTC: 4, minuteUTC: 30 },
   internal.actions.github.maintenance.runCatchUpSync,
-  {}
+  {},
 );
 
 crons.weekly(
   "secret-rotation-placeholder",
   { dayOfWeek: "sunday", hourUTC: 3, minuteUTC: 30 },
   internal.actions.github.maintenance.rotateSecrets,
-  {}
+  {},
 );
 
 export default crons;

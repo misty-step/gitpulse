@@ -69,7 +69,7 @@ describe("report schemas", () => {
         bulletPoints: [],
         citationUrls: [],
       })).map((section, index) =>
-        index === 0 ? { ...section, title: "Wins" } : section
+        index === 0 ? { ...section, title: "Wins" } : section,
       ),
       citations: [],
     } as unknown as WeeklyReportPayload;

@@ -14,8 +14,11 @@ export async function GET() {
 
   if (!clientId) {
     return NextResponse.json(
-      { error: "GitHub OAuth not configured. Set GITHUB_CLIENT_ID environment variable." },
-      { status: 500 }
+      {
+        error:
+          "GitHub OAuth not configured. Set GITHUB_CLIENT_ID environment variable.",
+      },
+      { status: 500 },
     );
   }
 

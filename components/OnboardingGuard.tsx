@@ -30,7 +30,8 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   }, [convexUser, isLoading, router, pathname]);
 
   // Determine if we should show loading overlay
-  const showLoading = isLoading || !convexUser || !convexUser.onboardingCompleted;
+  const showLoading =
+    isLoading || !convexUser || !convexUser.onboardingCompleted;
 
   // ALWAYS render children to maintain stable component tree and hook order
   // Show loading overlay when needed, but children remain mounted
@@ -42,9 +43,7 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
         </div>
       )}
       {/* Children always render to maintain hook stability */}
-      <div className={showLoading ? "invisible" : ""}>
-        {children}
-      </div>
+      <div className={showLoading ? "invisible" : ""}>{children}</div>
     </div>
   );
 }

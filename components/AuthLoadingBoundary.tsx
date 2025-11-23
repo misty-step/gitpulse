@@ -34,7 +34,7 @@ interface AuthLoadingBoundaryProps {
  */
 function AuthLoadingCheck({
   children,
-  fallback
+  fallback,
 }: {
   children: ReactNode;
   fallback?: ReactNode;
@@ -109,9 +109,7 @@ class AuthErrorBoundary extends Component<
           <div className="flex items-start gap-3">
             <div className="text-red-600 text-xl">⚠️</div>
             <div className="flex-1">
-              <h3 className="font-medium text-red-900">
-                Authentication Error
-              </h3>
+              <h3 className="font-medium text-red-900">Authentication Error</h3>
               <p className="text-sm text-red-700 mt-1">
                 {this.state.error.message}
               </p>
@@ -141,9 +139,7 @@ export function AuthLoadingBoundary({
 }: AuthLoadingBoundaryProps) {
   return (
     <AuthErrorBoundary errorFallback={errorFallback}>
-      <AuthLoadingCheck fallback={fallback}>
-        {children}
-      </AuthLoadingCheck>
+      <AuthLoadingCheck fallback={fallback}>{children}</AuthLoadingCheck>
     </AuthErrorBoundary>
   );
 }

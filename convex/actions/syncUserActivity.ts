@@ -19,6 +19,7 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 import { GitHubClient } from "../lib/GitHubClient";
+import { logger } from "../lib/logger.js";
 
 /**
  * Sync user's GitHub activity (repos + events)
@@ -36,9 +37,9 @@ export const syncUserActivity = action({
     const github = await GitHubClient.forUser(ctx, args.userId);
 
     // 1. Discover all accessible repositories
-    console.log(`Discovering repos for user ${args.userId}...`);
+    logger.info({ userId: args.userId }, "Discovering repos for user");
     const repos = await github.listAllRepos();
-    console.log(`Found ${repos.length} repositories`);
+    logger.info({ count: repos.length }, "Found repositories");
 
     // 2. Upsert repos to database
     const repoIds: string[] = [];
@@ -64,20 +65,28 @@ export const syncUserActivity = action({
           size: repo.size,
           ghCreatedAt: new Date(repo.created_at).getTime(),
           ghUpdatedAt: new Date(repo.updated_at).getTime(),
-          ghPushedAt: repo.pushed_at ? new Date(repo.pushed_at).getTime() : undefined,
+          ghPushedAt: repo.pushed_at
+            ? new Date(repo.pushed_at).getTime()
+            : undefined,
         });
         repoIds.push(repoId);
       } catch (error) {
-        console.error(`Failed to upsert repo ${repo.full_name}:`, error);
+        logger.error(
+          { err: error, repoFullName: repo.full_name },
+          "Failed to upsert repo",
+        );
         // Continue with other repos - don't let one failure block everything
       }
     }
 
     // 3. Fetch user events (commits, PRs, reviews, issues, etc.)
     const sinceDate = args.since ? new Date(args.since) : undefined;
-    console.log(`Fetching events since ${sinceDate?.toISOString() || "beginning"}...`);
+    logger.info(
+      { since: sinceDate?.toISOString() || "beginning" },
+      "Fetching events",
+    );
     const events = await github.getUserEvents(sinceDate);
-    console.log(`Found ${events.length} events`);
+    logger.info({ count: events.length }, "Found events");
 
     // 4. Extract lightweight context from events
     const eventDocs = events.map((event) => {
@@ -110,7 +119,7 @@ export const syncUserActivity = action({
       // Note: We need to create individual events since we don't have actorId/repoId yet
       // This is a limitation - we'd need to query for user/repo IDs first
       // For now, store with GitHub IDs and we'll link them later if needed
-      console.log(`Storing ${eventDocs.length} events...`);
+      logger.info({ count: eventDocs.length }, "Storing events");
       // TODO: Implement event storage - need to handle actorId/repoId lookup
       // For MVP, we can skip event storage and just focus on repo discovery
       eventsStored = 0; // Placeholder

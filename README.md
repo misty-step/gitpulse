@@ -53,6 +53,7 @@ Navigate to **Repositories** → Click **"Add Repository"**
 ### 2. Watch Ingestion Progress
 
 Real-time progress banner shows:
+
 - Current progress percentage
 - Events ingested count
 - Estimated time remaining
@@ -60,6 +61,7 @@ Real-time progress banner shows:
 ### 3. View Analytics
 
 Click **"View Details"** on any repo to see:
+
 - Activity charts (PRs, commits, reviews over time)
 - KPI cards (total counts, trends)
 - Event breakdown table
@@ -74,6 +76,7 @@ Navigate to **Reports** → **"Generate Report"**
 4. Wait 30-60 seconds for AI generation
 
 Reports include:
+
 - Activity summary with key highlights
 - Citation-backed analysis
 - GitHub URL references for every claim
@@ -96,6 +99,7 @@ pnpm reports:generate -- \
 ```
 
 Arguments:
+
 - `--ghLogin` or `--clerkId` (required – pick one)
 - `--kind` (`daily` | `weekly`)
 - `--endDate` (optional, defaults to now)
@@ -108,16 +112,19 @@ The command calls `actions/reports/regenerate` under the hood, persists the new 
 ### Tech Stack
 
 **Frontend**:
+
 - Next.js 16 with App Router + React 19
 - TypeScript 5.7
 - Tailwind CSS 4
 - Sonner for toast notifications
 
 **Backend**:
+
 - Convex (serverless functions + database + vector search)
 - Clerk (authentication + session management)
 
 **AI/ML**:
+
 - Voyage AI (1024-dim embeddings, $0.10/1M tokens)
 - Gemini 2.5 Flash (report generation, $0.15-0.60/1M tokens)
 - OpenAI GPT-5 Mini (fallback)
@@ -163,7 +170,16 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
 NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 ```
 
-#### Convex Environment (set via `convex env set`)
+#### Convex Environment (set via Convex Dashboard)
+
+**Default Environment Variables** (applies to Preview + Development):
+
+```bash
+# Clerk (for JWT validation in preview deployments)
+CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
+```
+
+**Development/Production Environment Variables** (set via `convex env set`):
 
 ```bash
 # GitHub API
@@ -174,9 +190,11 @@ GOOGLE_API_KEY=AIza...              # Primary (Gemini)
 OPENAI_API_KEY=sk-...               # Fallback (GPT-5)
 VOYAGE_API_KEY=pa-...               # Embeddings (recommended)
 
-# Clerk (for JWT validation)
+# Clerk (already set in defaults for preview, set separately for production)
 CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
 ```
+
+**Note:** Default environment variables automatically apply to all preview and development deployments. Set these in Convex Dashboard → Settings → Environment Variables → Default Variables.
 
 ### Setting Up Services
 
@@ -196,6 +214,7 @@ npx convex dev      # Creates deployment, pushes schema
 #### 3. API Keys
 
 Get API keys from:
+
 - **Voyage AI**: https://www.voyageai.com/
 - **Google AI Studio**: https://ai.google.dev/
 - **GitHub**: https://github.com/settings/tokens (needs `repo` scope)
@@ -209,6 +228,7 @@ pnpm dev
 ```
 
 This starts:
+
 - Next.js dev server (http://localhost:3000)
 - Convex dev watcher (syncs functions on file changes)
 
@@ -223,6 +243,35 @@ pnpm typecheck
 ```bash
 pnpm build
 ```
+
+### Git Hooks (Lefthook)
+
+This project uses [Lefthook](https://github.com/evilmartians/lefthook) for fast, parallel git hooks.
+
+**Pre-commit** (runs automatically on `git commit`):
+
+- Format code with Prettier
+- Lint code with ESLint
+- Scan for secrets with Gitleaks
+
+**Pre-push** (runs automatically on `git push`):
+
+- Type check with TypeScript
+- Run tests
+- Verify Convex types
+- **Build check** - ensures `pnpm build:app` succeeds
+
+**Bypass build check:**
+
+```bash
+# Temporarily skip build check (use sparingly)
+SKIP_BUILD_CHECK=true git push
+
+# Or skip all hooks
+git push --no-verify
+```
+
+**Note:** Build checks catch deployment failures before pushing. Only skip when absolutely necessary (e.g., urgent hotfix, WIP branch).
 
 ### Convex Dashboard
 
@@ -256,23 +305,74 @@ See `convex/schema.ts` for full schema.
 
 ## 🚀 Deployment
 
-### Deploy to Vercel
+GitPulse uses **Vercel-managed deployments** for automatic preview and production deployments.
 
-1. Push code to GitHub
-2. Import project on [Vercel](https://vercel.com/new)
-3. Set environment variables:
-   - `CONVEX_DEPLOYMENT`
-   - `NEXT_PUBLIC_CONVEX_URL`
-   - Clerk keys
-4. Deploy
+### Quick Setup
 
-### Deploy Convex
+**For detailed step-by-step instructions, see:** [`docs/deployment/VERCEL_SETUP.md`](docs/deployment/VERCEL_SETUP.md)
 
-```bash
-npx convex deploy
+### Overview
+
+```
+PR Created → Vercel → Preview Deployment (with preview Convex backend)
+Merge to master → Vercel → Production Deployment (with production Convex backend)
+GitHub Actions CI → Quality Gates Only (typecheck, lint, test, security)
 ```
 
-This creates a production Convex deployment. Update Vercel env vars with production URLs.
+### Prerequisites
+
+1. **Convex Deploy Keys:**
+   - Generate production deploy key in Convex Dashboard
+   - Generate preview deploy key in Convex Dashboard
+
+2. **Convex Default Environment Variables:**
+   - Set `CLERK_JWT_ISSUER_DOMAIN` for Preview + Development environments
+   - This ensures all preview deployments automatically receive required config
+
+3. **Vercel Configuration:**
+   - Add `CONVEX_DEPLOY_KEY` (production) to Vercel Production environment
+   - Add `CONVEX_DEPLOY_KEY` (preview) to Vercel Preview environment
+   - Set build command: `npx convex deploy --cmd 'pnpm build:app'`
+
+### Deployment Flow
+
+**Preview Deployments (PRs):**
+
+- Vercel creates preview deployment for each PR
+- Convex creates isolated preview backend (auto-cleanup after 14 days)
+- Preview URL commented on PR by Vercel bot
+- Perfect for testing changes before merge
+
+**Production Deployments:**
+
+- Merge to `master` triggers automatic production deployment
+- Convex production backend updated
+- Zero-downtime deployment
+
+### Manual Deployment (Development)
+
+```bash
+# Deploy Convex backend only
+npx convex deploy
+
+# Build and deploy locally (not recommended for production)
+pnpm build
+```
+
+### Monitoring
+
+- **Vercel:** https://vercel.com/dashboard - View deployment status, logs
+- **Convex:** https://dashboard.convex.dev/ - Monitor backend, check logs
+- **GitHub Actions:** Quality gates run on every PR and push
+
+### Troubleshooting
+
+See [`docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md`](docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md) for:
+
+- Common deployment issues
+- Environment variable setup
+- Preview deployment configuration
+- Production readiness checklist
 
 ## 🐛 Troubleshooting
 
@@ -288,6 +388,7 @@ npx convex dashboard
 ### API Rate Limits
 
 GitHub enforces 5000 requests/hour. GitPulse handles this with:
+
 - Exponential backoff (1s → 2s → 4s → 8s)
 - Automatic retry on 403/429 errors
 - Rate limit header parsing
@@ -338,6 +439,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgments
 
 Built with:
+
 - [Next.js](https://nextjs.org/) - React framework
 - [Convex](https://www.convex.dev/) - Backend platform
 - [Clerk](https://clerk.com/) - Authentication
@@ -345,7 +447,7 @@ Built with:
 - [Google Gemini](https://ai.google.dev/) - LLM
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
 
-Inspired by John Ousterhout's *A Philosophy of Software Design* - fighting complexity through deep modules and information hiding.
+Inspired by John Ousterhout's _A Philosophy of Software Design_ - fighting complexity through deep modules and information hiding.
 
 ---
 

@@ -22,18 +22,58 @@ const TASK_CANDIDATES: Record<"daily" | "weekly", CandidateModel[]> = {
   // cost-first ordering, all within approved list
   // temperature=0 for deterministic caching (cache key depends on prompt content, not randomness)
   daily: [
-    { provider: "openai", model: "gpt-5.1-mini", temperature: 0, maxTokens: 1200 },
-    { provider: "google", model: "gemini-2.5-flash", temperature: 0, maxTokens: 1200 },
+    {
+      provider: "openai",
+      model: "gpt-5.1-mini",
+      temperature: 0,
+      maxTokens: 1200,
+    },
+    {
+      provider: "google",
+      model: "gemini-2.5-flash",
+      temperature: 0,
+      maxTokens: 1200,
+    },
     { provider: "openai", model: "gpt-5.1", temperature: 0, maxTokens: 1400 },
-    { provider: "google", model: "gemini-3-pro-preview", temperature: 0, maxTokens: 1400 },
-    { provider: "google", model: "gemini-2.5-pro", temperature: 0, maxTokens: 1400 },
+    {
+      provider: "google",
+      model: "gemini-3-pro-preview",
+      temperature: 0,
+      maxTokens: 1400,
+    },
+    {
+      provider: "google",
+      model: "gemini-2.5-pro",
+      temperature: 0,
+      maxTokens: 1400,
+    },
   ],
   weekly: [
     { provider: "openai", model: "gpt-5.1", temperature: 0, maxTokens: 2400 },
-    { provider: "google", model: "gemini-3-pro-preview", temperature: 0, maxTokens: 2400 },
-    { provider: "google", model: "gemini-2.5-pro", temperature: 0, maxTokens: 2400 },
-    { provider: "openai", model: "gpt-5.1-mini", temperature: 0, maxTokens: 1600 },
-    { provider: "google", model: "gemini-2.5-flash", temperature: 0, maxTokens: 1600 },
+    {
+      provider: "google",
+      model: "gemini-3-pro-preview",
+      temperature: 0,
+      maxTokens: 2400,
+    },
+    {
+      provider: "google",
+      model: "gemini-2.5-pro",
+      temperature: 0,
+      maxTokens: 2400,
+    },
+    {
+      provider: "openai",
+      model: "gpt-5.1-mini",
+      temperature: 0,
+      maxTokens: 1600,
+    },
+    {
+      provider: "google",
+      model: "gemini-2.5-flash",
+      temperature: 0,
+      maxTokens: 1600,
+    },
   ],
 };
 
@@ -45,23 +85,40 @@ type ProviderErrorCategory =
   | "other";
 
 function categorizeOpenAIError(message: string): ProviderErrorCategory {
-  if (message.includes("No API key") || message.includes("OPENAI_API_KEY not configured")) {
+  if (
+    message.includes("No API key") ||
+    message.includes("OPENAI_API_KEY not configured")
+  ) {
     return "missing_key";
   }
-  if (message.includes("invalid_api_key") || message.includes("api_key") || message.includes("Unauthorized")) {
+  if (
+    message.includes("invalid_api_key") ||
+    message.includes("api_key") ||
+    message.includes("Unauthorized")
+  ) {
     return "auth_expired";
   }
-  if (message.includes("unsupported") || message.includes("Unsupported value") || message.includes("Unsupported parameter")) {
+  if (
+    message.includes("unsupported") ||
+    message.includes("Unsupported value") ||
+    message.includes("Unsupported parameter")
+  ) {
     return "invalid_param";
   }
   return "other";
 }
 
 function categorizeGeminiError(message: string): ProviderErrorCategory {
-  if (message.includes("API key expired") || message.includes("API_KEY_INVALID")) {
+  if (
+    message.includes("API key expired") ||
+    message.includes("API_KEY_INVALID")
+  ) {
     return "auth_expired";
   }
-  if (message.includes("API key not valid") || message.includes("Missing or invalid credential")) {
+  if (
+    message.includes("API key not valid") ||
+    message.includes("Missing or invalid credential")
+  ) {
     return "missing_key";
   }
   if (message.includes("Quota") || message.includes("rate limit")) {
@@ -72,7 +129,7 @@ function categorizeGeminiError(message: string): ProviderErrorCategory {
 
 async function callOpenAI(
   payload: PromptPayload,
-  candidate: CandidateModel
+  candidate: CandidateModel,
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -102,7 +159,9 @@ async function callOpenAI(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(
+      `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+    );
   }
 
   const data = await response.json();
@@ -115,7 +174,7 @@ async function callOpenAI(
 
 async function callGemini(
   payload: PromptPayload,
-  candidate: CandidateModel
+  candidate: CandidateModel,
 ): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
@@ -141,12 +200,14 @@ async function callGemini(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }
+    },
   );
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Google Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new Error(
+      `Google Gemini API error: ${response.status} ${response.statusText} - ${errorText}`,
+    );
   }
 
   const data = await response.json();
@@ -159,7 +220,7 @@ async function callGemini(
 
 export async function generateWithOrchestrator(
   kind: "daily" | "weekly",
-  prompt: PromptPayload
+  prompt: PromptPayload,
 ): Promise<GenerateResult> {
   const candidates = TASK_CANDIDATES[kind];
   const seenErrors: string[] = [];
@@ -197,12 +258,15 @@ export async function generateWithOrchestrator(
 
   throw new Error(
     `LLM generation failed across all candidates for ${kind}. Errors: ${seenErrors.join(
-      " | "
-    )}`
+      " | ",
+    )}`,
   );
 }
 
-export function validateLLMMarkdown(markdown: string, prompt: PromptPayload): string[] {
+export function validateLLMMarkdown(
+  markdown: string,
+  prompt: PromptPayload,
+): string[] {
   const errors: string[] = [];
   const trimmed = markdown.trim();
 
@@ -227,7 +291,7 @@ export function validateLLMMarkdown(markdown: string, prompt: PromptPayload): st
 
 export function filterCitations(
   citations: string[],
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): string[] {
   if (allowedUrls.length === 0) {
     return [];
@@ -250,7 +314,7 @@ export function filterCitations(
 export function buildGeneratedReport(markdown: string, allowedUrls: string[]) {
   const citations = filterCitations(
     Array.from(markdown.matchAll(/\((https?:\/\/[^\s)]+)\)/g)).map((m) => m[1]),
-    allowedUrls
+    allowedUrls,
   );
 
   return {

@@ -10,7 +10,7 @@ export interface MockActionCtx {
 }
 
 export function createMockActionCtx(
-  overrides: Partial<MockActionCtx> = {}
+  overrides: Partial<MockActionCtx> = {},
 ): ActionCtx {
   const base: MockActionCtx = {
     runQuery: jest.fn() as any,

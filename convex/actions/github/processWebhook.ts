@@ -12,6 +12,7 @@ import {
   type IssueCommentWebhookEvent,
 } from "../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../lib/canonicalFactService";
+import { logger } from "../../lib/logger.js";
 
 /**
  * GitHub Installation webhook payload types
@@ -41,9 +42,20 @@ interface InstallationPayload {
 }
 
 interface InstallationWebhookEvent {
-  action: "created" | "deleted" | "suspend" | "unsuspend" | "new_permissions_accepted";
+  action:
+    | "created"
+    | "deleted"
+    | "suspend"
+    | "unsuspend"
+    | "new_permissions_accepted";
   installation: InstallationPayload;
-  repositories?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
+  repositories?: Array<{
+    id: number;
+    node_id: string;
+    name: string;
+    full_name: string;
+    private: boolean;
+  }>;
   sender: {
     id: number;
     login: string;
@@ -57,8 +69,20 @@ interface InstallationRepositoriesWebhookEvent {
   action: "added" | "removed";
   installation: InstallationPayload;
   repository_selection: "all" | "selected";
-  repositories_added?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
-  repositories_removed?: Array<{ id: number; node_id: string; name: string; full_name: string; private: boolean }>;
+  repositories_added?: Array<{
+    id: number;
+    node_id: string;
+    name: string;
+    full_name: string;
+    private: boolean;
+  }>;
+  repositories_removed?: Array<{
+    id: number;
+    node_id: string;
+    name: string;
+    full_name: string;
+    private: boolean;
+  }>;
   sender: {
     id: number;
     login: string;
@@ -89,13 +113,15 @@ export const processWebhook = internalAction({
     const startTime = Date.now();
 
     try {
-      const webhookEvent = await ctx.runQuery(
-        internal.webhookEvents.getById,
-        { id: args.webhookEventId }
-      );
+      const webhookEvent = await ctx.runQuery(internal.webhookEvents.getById, {
+        id: args.webhookEventId,
+      });
 
       if (!webhookEvent) {
-        console.error("Webhook event not found", { webhookEventId: args.webhookEventId });
+        logger.error(
+          { webhookEventId: args.webhookEventId },
+          "Webhook event not found",
+        );
         return;
       }
 
@@ -108,22 +134,30 @@ export const processWebhook = internalAction({
 
       // Handle installation events separately (they create installation records, not events)
       if (event === "installation" || event === "installation_repositories") {
-        const result = await handleInstallationEvent(ctx, event, payload, deliveryId);
+        const result = await handleInstallationEvent(
+          ctx,
+          event,
+          payload,
+          deliveryId,
+        );
         await ctx.runMutation(internal.webhookEvents.updateStatus, {
           id: args.webhookEventId,
           status: "completed",
         });
-        console.log("Installation event processed", {
-          deliveryId,
-          event,
-          ...result,
-        });
+        logger.info(
+          {
+            deliveryId,
+            event,
+            ...result,
+          },
+          "Installation event processed",
+        );
         return;
       }
 
       const canonicalInputs = buildCanonicalInputs(event, payload);
       if (canonicalInputs.length === 0) {
-        console.warn("Unsupported webhook event", { event, deliveryId });
+        logger.warn({ event, deliveryId }, "Unsupported webhook event");
         await ctx.runMutation(internal.webhookEvents.updateStatus, {
           id: args.webhookEventId,
           status: "completed",
@@ -160,19 +194,26 @@ export const processWebhook = internalAction({
         status: "completed",
       });
 
-      console.log("Webhook processed", {
-        deliveryId,
-        event,
-        inserted,
-        duplicates,
-      });
+      logger.info(
+        {
+          deliveryId,
+          event,
+          inserted,
+          duplicates,
+        },
+        "Webhook processed",
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
 
-      console.error("Webhook processing failed", {
-        webhookEventId: args.webhookEventId,
-        error: errorMessage,
-      });
+      logger.error(
+        {
+          err: error,
+          webhookEventId: args.webhookEventId,
+        },
+        "Webhook processing failed",
+      );
 
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
@@ -182,17 +223,20 @@ export const processWebhook = internalAction({
       });
     } finally {
       const elapsed = Date.now() - startTime;
-      console.log("Webhook processing finished", {
-        webhookEventId: args.webhookEventId,
-        elapsed,
-      });
+      logger.info(
+        {
+          webhookEventId: args.webhookEventId,
+          elapsedMs: elapsed,
+        },
+        "Webhook processing finished",
+      );
     }
   },
 });
 
 function buildCanonicalInputs(
   event: string,
-  payload: unknown
+  payload: unknown,
 ): CanonicalizeInput[] {
   switch (event) {
     case "pull_request":
@@ -238,7 +282,7 @@ async function handleInstallationEvent(
   ctx: ActionCtx,
   event: string,
   payload: unknown,
-  deliveryId: string
+  deliveryId: string,
 ): Promise<{ action: string; installationId: number; linkedToUser: boolean }> {
   if (event === "installation") {
     const installationPayload = payload as InstallationWebhookEvent;
@@ -264,24 +308,33 @@ async function handleInstallationEvent(
         status: "active",
       });
 
-      console.log("Installation created", {
-        installationId: installation.id,
-        account: installation.account.login,
-        sender: sender.login,
-        clerkUserId,
-        repoCount: repoNames.length,
-      });
+      logger.info(
+        {
+          installationId: installation.id,
+          account: installation.account.login,
+          sender: sender.login,
+          clerkUserId,
+          repoCount: repoNames.length,
+        },
+        "Installation created",
+      );
 
       // Automatically start backfill if we identified the user
       if (clerkUserId && repoNames.length > 0) {
         const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
-        await ctx.runAction(internal.actions.github.startBackfill.adminStartBackfill, {
-          installationId: installation.id,
-          clerkUserId,
-          repositories: repoNames,
-          since: ninetyDaysAgo,
-        });
-        console.log("Auto-triggered backfill for new installation", { installationId: installation.id });
+        await ctx.runAction(
+          internal.actions.github.startBackfill.adminStartBackfill,
+          {
+            installationId: installation.id,
+            clerkUserId,
+            repositories: repoNames,
+            since: ninetyDaysAgo,
+          },
+        );
+        logger.info(
+          { installationId: installation.id },
+          "Auto-triggered backfill for new installation",
+        );
       }
 
       return {
@@ -299,10 +352,13 @@ async function handleInstallationEvent(
         status: "deleted",
       });
 
-      console.log("Installation deleted", {
-        installationId: installation.id,
-        account: installation.account.login,
-      });
+      logger.info(
+        {
+          installationId: installation.id,
+          account: installation.account.login,
+        },
+        "Installation deleted",
+      );
 
       return {
         action,
@@ -336,7 +392,8 @@ async function handleInstallationEvent(
 
   if (event === "installation_repositories") {
     const reposPayload = payload as InstallationRepositoriesWebhookEvent;
-    const { action, installation, repositories_added, repositories_removed } = reposPayload;
+    const { action, installation, repositories_added, repositories_removed } =
+      reposPayload;
 
     // Get current installation to update its repository list
     const existing = await ctx.runQuery(api.installations.getByInstallationId, {
@@ -351,8 +408,12 @@ async function handleInstallationEvent(
     }
 
     if (action === "removed" && repositories_removed) {
-      const removedNames = new Set(repositories_removed.map((r) => r.full_name));
-      updatedRepos = updatedRepos.filter((name: string) => !removedNames.has(name));
+      const removedNames = new Set(
+        repositories_removed.map((r) => r.full_name),
+      );
+      updatedRepos = updatedRepos.filter(
+        (name: string) => !removedNames.has(name),
+      );
     }
 
     await ctx.runMutation(api.installations.upsert, {
@@ -362,13 +423,16 @@ async function handleInstallationEvent(
       repositories: updatedRepos,
     });
 
-    console.log("Installation repositories updated", {
-      installationId: installation.id,
-      action,
-      added: repositories_added?.length || 0,
-      removed: repositories_removed?.length || 0,
-      total: updatedRepos.length,
-    });
+    logger.info(
+      {
+        installationId: installation.id,
+        action,
+        added: repositories_added?.length || 0,
+        removed: repositories_removed?.length || 0,
+        total: updatedRepos.length,
+      },
+      "Installation repositories updated",
+    );
 
     return {
       action,
@@ -378,7 +442,7 @@ async function handleInstallationEvent(
   }
 
   // Unknown installation event type
-  console.warn("Unknown installation event type", { event, deliveryId });
+  logger.warn({ event, deliveryId }, "Unknown installation event type");
   return {
     action: "unknown",
     installationId: 0,

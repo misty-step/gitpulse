@@ -1,0 +1,32 @@
+name: Sentry Release Tracking
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  create-sentry-release:
+    name: Create Sentry Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for Sentry release commits
+
+      - name: Create Sentry release
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: misty-step
+          SENTRY_PROJECT: gitpulse
+        with:
+          environment: production
+          version: ${{ github.sha }}
+          set_commits: auto # Automatically associate commits with the release

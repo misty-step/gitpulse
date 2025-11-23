@@ -19,6 +19,7 @@
 
 import { ActionCtx } from "../_generated/server";
 import { api } from "../_generated/api";
+import { logger } from "./logger.js";
 import { Doc } from "../_generated/dataModel";
 
 export class GitHubClient {
@@ -28,7 +29,7 @@ export class GitHubClient {
   private constructor(
     private ctx: ActionCtx,
     private user: Doc<"users">,
-    private accessToken: string
+    private accessToken: string,
   ) {}
 
   /**
@@ -39,14 +40,18 @@ export class GitHubClient {
    */
   static async forUser(ctx: ActionCtx, userId: string): Promise<GitHubClient> {
     // Get user from database
-    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: userId });
+    const user = await ctx.runQuery(api.users.getByClerkId, {
+      clerkId: userId,
+    });
 
     if (!user) {
       throw new Error(`User not found: ${userId}`);
     }
 
     if (!user.githubAccessToken) {
-      throw new Error("GitHub not connected. User must authorize via OAuth first.");
+      throw new Error(
+        "GitHub not connected. User must authorize via OAuth first.",
+      );
     }
 
     // Check token expiry
@@ -67,11 +72,11 @@ export class GitHubClient {
    */
   private static async refreshToken(
     ctx: ActionCtx,
-    user: Doc<"users">
+    user: Doc<"users">,
   ): Promise<string> {
     if (!user.githubRefreshToken) {
       throw new Error(
-        "Cannot refresh token - no refresh token available. User must re-authorize."
+        "Cannot refresh token - no refresh token available. User must re-authorize.",
       );
     }
 
@@ -82,19 +87,24 @@ export class GitHubClient {
       throw new Error("GitHub OAuth not configured - missing credentials");
     }
 
-    const response = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: user.githubRefreshToken,
-        grant_type: "refresh_token",
-      }),
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: user.githubRefreshToken,
     });
+
+    const response = await fetch(
+      "https://github.com/login/oauth/access_token",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to refresh GitHub token: ${response.statusText}`);
@@ -103,7 +113,9 @@ export class GitHubClient {
     const data = await response.json();
 
     if (data.error) {
-      throw new Error(`GitHub token refresh error: ${data.error_description || data.error}`);
+      throw new Error(
+        `GitHub token refresh error: ${data.error_description || data.error}`,
+      );
     }
 
     const { access_token, expires_in } = data;
@@ -145,7 +157,9 @@ export class GitHubClient {
    * Automatically adds authorization header and GitHub API version header.
    */
   async fetch(path: string, options?: RequestInit): Promise<Response> {
-    const url = path.startsWith("http") ? path : `https://api.github.com${path}`;
+    const url = path.startsWith("http")
+      ? path
+      : `https://api.github.com${path}`;
 
     const response = await fetch(url, {
       ...options,
@@ -174,11 +188,13 @@ export class GitHubClient {
 
     while (true) {
       const response = await this.fetch(
-        `/user/repos?per_page=100&page=${page}&affiliation=owner,collaborator,organization_member&sort=updated&direction=desc`
+        `/user/repos?per_page=100&page=${page}&affiliation=owner,collaborator,organization_member&sort=updated&direction=desc`,
       );
 
       if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `GitHub API error: ${response.status} ${response.statusText}`,
+        );
       }
 
       const batch = await response.json();
@@ -192,7 +208,10 @@ export class GitHubClient {
 
       // Safety limit - GitHub caps at 300 repos per user in practice
       if (page > 50) {
-        console.warn("GitHubClient: Hit pagination safety limit (5000 repos)");
+        logger.warn(
+          { page, repoCount: repos.length },
+          "Hit pagination safety limit",
+        );
         break;
       }
     }
@@ -221,7 +240,7 @@ export class GitHubClient {
     while (page <= 10) {
       // Max 10 pages = 1000 events (well above GitHub's 300 limit)
       const response = await this.fetch(
-        `/users/${this.user.githubUsername}/events?per_page=100&page=${page}`
+        `/users/${this.user.githubUsername}/events?per_page=100&page=${page}`,
       );
 
       if (!response.ok) {
@@ -229,7 +248,9 @@ export class GitHubClient {
         if (response.status === 404) {
           break;
         }
-        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `GitHub API error: ${response.status} ${response.statusText}`,
+        );
       }
 
       const batch = await response.json();
@@ -264,7 +285,7 @@ export class GitHubClient {
 
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch repository ${fullName}: ${response.status} ${response.statusText}`
+        `Failed to fetch repository ${fullName}: ${response.status} ${response.statusText}`,
       );
     }
 

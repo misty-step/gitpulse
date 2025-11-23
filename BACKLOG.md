@@ -13,288 +13,30 @@ Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high 
 
 ## Now (Sprint-Ready, <2 weeks)
 
-### [CRITICAL] Fix Build Command - Add Convex Deploy
-**Files**: `package.json:8`, `vercel.json:3`
-**Perspectives**: architecture-guardian
-**Impact**: Prevents production runtime failures from missing Convex schema/functions
+### [CI/CD] Investigate Claude Review Action Failures
 
-**Problem**: Build script only runs `next build` without deploying Convex backend first. Next.js imports generated Convex types, so backend must deploy before frontend builds.
+**Files**: `.github/workflows/claude-code-review.yml`
+**Perspectives**: maintainability-maven
+**Impact**: Enable automated code review feedback on PRs
 
-**Current (BROKEN)**:
-```json
-// package.json
-"build": "next build"
-```
+**Problem**: Claude Code Review action failing with generic error "I'll analyze this and get back to you" (Run ID: 19576735656). No detailed error logs available in PR comments.
 
-**Fix**:
-```json
-// package.json
-"build": "npx convex deploy && next build"
-```
+**Investigation Steps**:
 
-**Why Critical**: Convex generates `convex/_generated/` types that Next.js imports. If Convex doesn't deploy first, build fails or uses stale types.
+1. Check Claude action logs via `gh run view 19576735656 --log-failed`
+2. Verify `ANTHROPIC_API_KEY` secret exists and is valid
+3. Check action configuration (model, token limits, custom instructions)
+4. Validate PR diff size doesn't exceed Claude's context window
+5. Test with minimal PR to isolate issue
 
-**Effort**: 5m | **Priority**: P0
-**Acceptance**: `pnpm build` deploys Convex then builds Next.js, production builds succeed
-
----
-
-### [INFRASTRUCTURE] Install Lefthook Pre-Commit Quality Gates
-**Files**: Create `.lefthook.yml`, update `package.json`
-**Perspectives**: architecture-guardian
-**Impact**: Catch issues locally before CI (saves 5+ min per failed push), prevents 80%+ of regression bugs
-
-**Problem**: No git hooks configured. Type errors, lint violations, failing tests, and secrets reach main branch. CI failures discovered after push waste time.
-
-**Fix**: Install Lefthook (3-5x faster than Husky, parallel execution)
-```yaml
-# .lefthook.yml
-pre-commit:
-  parallel: true
-  commands:
-    format:
-      glob: "*.{ts,tsx,md}"
-      run: pnpm prettier --write {staged_files}
-    lint:
-      glob: "*.{ts,tsx,js,jsx}"
-      run: pnpm lint --fix --cache {staged_files}
-    secrets:
-      run: gitleaks protect --staged
-
-pre-push:
-  commands:
-    typecheck:
-      run: pnpm typecheck
-    test:
-      run: pnpm test --bail --findRelatedTests $(git diff --name-only --cached)
-    convex:
-      run: npx convex typecheck
-```
-
-```json
-// package.json - add prepare script
-"scripts": {
-  "prepare": "lefthook install"
-}
-```
-
-**Performance Budget**: pre-commit <5s, pre-push <15s (if >20% of commits use --no-verify, hooks too slow)
-
-**Effort**: 2h (install + configure + test) | **Priority**: P0
-**Acceptance**: Commits blocked on format/lint/secrets violations, pushes blocked on type/test failures
-
----
-
-### [INFRASTRUCTURE] Create CI/CD Quality Pipeline
-**Files**: Create `.github/workflows/ci.yml`
-**Perspectives**: architecture-guardian, maintainability-maven
-**Impact**: Automated quality gates catch broken builds, type errors, test failures before merge
-
-**Problem**: No CI/CD checks. 3 workflows exist (enforce-pnpm, claude, claude-code-review) but none run typecheck/lint/test/build. Broken code can reach main branch.
-
-**Fix**: Create comprehensive CI pipeline
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on:
-  pull_request:
-  push:
-    branches: [main, master]
-
-jobs:
-  quality-gates:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        check: [typecheck, lint, test]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Run ${{ matrix.check }}
-        run: pnpm ${{ matrix.check }}
-
-  build:
-    needs: quality-gates
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - run: pnpm install --frozen-lockfile
-
-      # CRITICAL: Convex deploy BEFORE Next.js build
-      - name: Deploy Convex
-        run: npx convex deploy
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-
-      - name: Build Next.js
-        run: pnpm build
-```
-
-**Effort**: 1.5h | **Priority**: P0
-**Acceptance**: PRs require passing CI (typecheck, lint, test, build), parallel execution
-
----
-
-### [SECURITY] Add Gitleaks Secrets Scanning
-**Files**: Create `.gitleaks.toml`, update `.lefthook.yml` and `.github/workflows/ci.yml`
-**Perspectives**: security-sentinel, architecture-guardian
-**Impact**: Prevents API keys, tokens, passwords from being committed
-
-**Problem**: No secrets detection. 121 console.* calls with no PII redaction. API keys could be committed to git history.
-
-**Fix**: Install Gitleaks with pre-commit hook + CI check
-```toml
-# .gitleaks.toml
-[extend]
-useDefault = true
-
-[allowlist]
-description = "Allowlist for false positives"
-paths = [
-  '''\.env\.example$''',
-  '''\.env\.local\.example$''',
-]
-
-[[rules]]
-description = "GitHub Token"
-regex = '''ghp_[0-9a-zA-Z]{36}'''
-tags = ["key", "GitHub"]
-
-[[rules]]
-description = "Convex Deploy Key"
-regex = '''prod:[a-z0-9]{64}'''
-tags = ["key", "Convex"]
-```
-
-```yaml
-# .lefthook.yml (already shown in Lefthook item above)
-pre-commit:
-  commands:
-    secrets:
-      run: gitleaks protect --staged
-```
-
-```yaml
-# .github/workflows/ci.yml (add job)
-  gitleaks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-**Effort**: 30m | **Priority**: P0
-**Acceptance**: Commits with secrets blocked, CI scans full git history
-
----
-
-### [TESTING] Add Coverage Tracking & Thresholds
-**Files**: `package.json` (jest config section)
-**Perspectives**: maintainability-maven, architecture-guardian
-**Impact**: Visibility into test coverage, prevent coverage regressions
-
-**Problem**: 12 test files, 76 tests total, but no coverage tracking. Don't know what's untested or if coverage is dropping.
-
-**Fix**: Add Jest coverage configuration
-```json
-// package.json
-{
-  "jest": {
-    "preset": "ts-jest",
-    "testEnvironment": "node",
-    "collectCoverageFrom": [
-      "convex/lib/**/*.ts",
-      "convex/actions/**/*.ts",
-      "lib/**/*.ts",
-      "!**/__tests__/**",
-      "!**/*.test.ts",
-      "!convex/_generated/**"
-    ],
-    "coverageThresholds": {
-      "global": {
-        "lines": 60,
-        "functions": 60,
-        "branches": 55,
-        "statements": 60
-      }
-    },
-    "coverageReporters": ["text", "lcov", "html"]
-  },
-  "scripts": {
-    "test:coverage": "jest --coverage"
-  }
-}
-```
-
-**Philosophy**: Google research shows 60% = acceptable, 75% = commendable, 90% = exemplary. Focus on delta, not absolute percentage.
-
-**Effort**: 30m | **Priority**: P1
-**Acceptance**: `pnpm test:coverage` generates report, CI fails if coverage drops below 60%
-
----
-
-### [SECURITY] Enable GitHub Dependabot
-**Files**: Create `.github/dependabot.yml`
-**Perspectives**: security-sentinel
-**Impact**: Automated dependency updates, vulnerability patches
-
-**Problem**: No automated dependency management. Vulnerable dependencies unpatched, manual version bumps error-prone.
-
-**Fix**: Configure Dependabot for weekly PRs
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "automated"
-    reviewers:
-      - "misty-step"
-    assignees:
-      - "misty-step"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    # Group patch updates to reduce PR noise
-    groups:
-      patch-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "patch"
-```
-
-**Effort**: 15m | **Priority**: P1
-**Acceptance**: Weekly automated PRs for dependency updates, grouped by type
+**Effort**: 2h investigation + 1h fix | **Priority**: P2
+**Acceptance**: Claude review action completes successfully, provides constructive feedback on PRs
+**Deferral Rationale**: Non-blocking for MVP - human code reviews sufficient, automated review is enhancement
 
 ---
 
 ### [TESTING] Add Auth Integration Tests
+
 **Files**: Create `convex/lib/__tests__/auth.test.ts`
 **Perspectives**: maintainability-maven, security-sentinel
 **Impact**: Confidence in Clerk authentication, catch JWT validation regressions
@@ -302,6 +44,7 @@ updates:
 **Problem**: Clerk auth = critical path, 0% test coverage. JWT validation, user identity, auth boundary conditions untested.
 
 **Fix**: Add comprehensive auth integration tests
+
 ```typescript
 // convex/lib/__tests__/auth.test.ts
 import { describe, expect, it } from "@jest/globals";
@@ -350,6 +93,7 @@ describe("Clerk + Convex Auth Integration", () => {
 ---
 
 ### [SECURITY] Add pnpm audit to CI
+
 **Files**: `.github/workflows/ci.yml`
 **Perspectives**: security-sentinel
 **Impact**: Catch vulnerable dependencies before merge
@@ -357,23 +101,24 @@ describe("Clerk + Convex Auth Integration", () => {
 **Problem**: No security audit in CI. Vulnerable dependencies can be introduced and deployed to production.
 
 **Fix**: Add audit job to CI pipeline
+
 ```yaml
 # .github/workflows/ci.yml (add job)
-  security-audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
+security-audit:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: "pnpm"
 
-      - run: pnpm install --frozen-lockfile
+    - run: pnpm install --frozen-lockfile
 
-      - name: Security audit
-        run: pnpm audit --audit-level=high
-        continue-on-error: false
+    - name: Security audit
+      run: pnpm audit --audit-level=high
+      continue-on-error: false
 ```
 
 **Effort**: 15m | **Priority**: P1
@@ -382,43 +127,55 @@ describe("Clerk + Convex Auth Integration", () => {
 ---
 
 ### [INFRASTRUCTURE] Replace console.log with Pino Structured Logger
+
 **Files**: `convex/lib/metrics.ts` (23 lines), 61 `console.*` calls across codebase
 **Perspectives**: architecture-guardian, maintainability-maven
 **Impact**: Proper observability, correlation tracing, performance gain
 
 **Problem**: Primitive logging - no levels, no correlation IDs, no error serialization
+
 ```typescript
 // Current: convex/lib/metrics.ts:18-23
-export function emitMetric(metric: MetricName, fields: Record<string, unknown> = {}) {
-  console.log(JSON.stringify({ metric, timestamp: new Date().toISOString(), ...fields }));
+export function emitMetric(
+  metric: MetricName,
+  fields: Record<string, unknown> = {},
+) {
+  console.log(
+    JSON.stringify({ metric, timestamp: new Date().toISOString(), ...fields }),
+  );
 }
 ```
 
 **Fix**: Install Pino
+
 ```typescript
 // convex/lib/logger.ts
-import pino from 'pino';
+import pino from "pino";
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  base: { service: 'gitpulse' },
+  level: process.env.LOG_LEVEL || "info",
+  base: { service: "gitpulse" },
   serializers: {
     err: pino.stdSerializers.err,
     req: pino.stdSerializers.req,
   },
 });
 
-export function emitMetric(metric: MetricName, fields: Record<string, unknown> = {}) {
+export function emitMetric(
+  metric: MetricName,
+  fields: Record<string, unknown> = {},
+) {
   logger.info({ metric, ...fields }, `metric:${metric}`);
 }
 ```
 
 **Effort**: 4h (install + migrate 61 call sites) | **Priority**: P0
-**Acceptance**: Structured JSON logs with levels, no raw console.* in production
+**Acceptance**: Structured JSON logs with levels, no raw console.\* in production
 
 ---
 
 ### [INFRASTRUCTURE] Add PII Redaction to Logging
+
 **Files**: `convex/lib/logger.ts` (extend Pino logger)
 **Perspectives**: architecture-guardian, security-sentinel
 **Impact**: GDPR Article 32 compliance, prevents accidental PII leakage
@@ -426,26 +183,27 @@ export function emitMetric(metric: MetricName, fields: Record<string, unknown> =
 **Problem**: Current logging has no PII redaction. GitHub emails, usernames, tokens could leak to log aggregators.
 
 **Fix**: Add Pino redaction middleware
+
 ```typescript
 // convex/lib/logger.ts
-import pino from 'pino';
+import pino from "pino";
 
 const REDACT_PATHS = [
-  'email',
-  'githubEmail',
-  'accessToken',
-  'refreshToken',
-  'clerkId',
-  'req.headers.authorization',
+  "email",
+  "githubEmail",
+  "accessToken",
+  "refreshToken",
+  "clerkId",
+  "req.headers.authorization",
   'res.headers["set-cookie"]',
 ];
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  base: { service: 'gitpulse' },
+  level: process.env.LOG_LEVEL || "info",
+  base: { service: "gitpulse" },
   redact: {
     paths: REDACT_PATHS,
-    censor: '[REDACTED]',
+    censor: "[REDACTED]",
   },
   serializers: {
     err: pino.stdSerializers.err,
@@ -460,6 +218,7 @@ export const logger = pino({
 ---
 
 ### [INFRASTRUCTURE] Add Health Check Endpoints
+
 **Files**: `app/api/health/route.ts` (new), `convex/http.ts` (add health endpoint)
 **Perspectives**: architecture-guardian
 **Impact**: Uptime monitoring, incident detection, deployment verification
@@ -467,19 +226,22 @@ export const logger = pino({
 **Problem**: No programmatic health check. Cannot monitor uptime, detect database issues, or verify deployments.
 
 **Fix**: Add health endpoints for Next.js + Convex
+
 ```typescript
 // app/api/health/route.ts
 export async function GET() {
   const checks = {
-    server: 'ok',
+    server: "ok",
     convex: await checkConvexHealth(),
     timestamp: Date.now(),
   };
 
-  const allHealthy = Object.values(checks).every(v => v === 'ok' || typeof v === 'number');
+  const allHealthy = Object.values(checks).every(
+    (v) => v === "ok" || typeof v === "number",
+  );
 
   return Response.json(checks, {
-    status: allHealthy ? 200 : 503
+    status: allHealthy ? 200 : 503,
   });
 }
 
@@ -504,6 +266,7 @@ http.route({
 ---
 
 ### [INFRASTRUCTURE] Enable Vercel Analytics
+
 **Files**: `app/layout.tsx`, `package.json`
 **Perspectives**: product-visionary, architecture-guardian
 **Impact**: Product analytics, funnel tracking, user behavior insights
@@ -511,6 +274,7 @@ http.route({
 **Problem**: Zero analytics. Cannot answer: "How many users visit reports page?", "Where do users drop off?", "Which features drive retention?"
 
 **Fix**: Install Vercel Analytics + custom events
+
 ```typescript
 // app/layout.tsx
 import { Analytics } from '@vercel/analytics/react';
@@ -547,6 +311,7 @@ track('report_generated', {
 ---
 
 ### [INFRASTRUCTURE] Add Deployment Tracking
+
 **Files**: `.github/workflows/deploy.yml` (new), `convex/lib/sentry.ts`
 **Perspectives**: architecture-guardian
 **Impact**: Release correlation, error spike detection, rollback decisions
@@ -554,6 +319,7 @@ track('report_generated', {
 **Problem**: No deployment tracking. When errors spike, cannot correlate to releases. No release markers in Sentry.
 
 **Fix**: Auto-track deployments to Sentry
+
 ```yaml
 # .github/workflows/deploy.yml (add to existing workflow)
 - name: Notify Sentry of deployment
@@ -573,6 +339,7 @@ track('report_generated', {
 ---
 
 ### [INFRASTRUCTURE] Add Performance Monitoring (APM)
+
 **Files**: `sentry.client.config.ts`, `sentry.server.config.ts`
 **Perspectives**: performance-pathfinder, architecture-guardian
 **Impact**: Slow endpoint detection, database query analysis, user-facing latency visibility
@@ -580,6 +347,7 @@ track('report_generated', {
 **Problem**: No APM. Cannot identify slow API routes, database bottlenecks, or client-side performance issues.
 
 **Fix**: Enable Sentry Performance + Vercel Speed Insights
+
 ```typescript
 // sentry.client.config.ts
 Sentry.init({
@@ -606,6 +374,7 @@ const report = await startSpan({ name: 'generate-report' }, async () => {
 ---
 
 ### [INFRASTRUCTURE] Add Infrastructure Alert Automation
+
 **Files**: `.github/workflows/alerts.yml` (new), `docs/runbooks/` (new)
 **Perspectives**: architecture-guardian
 **Impact**: Incident detection, on-call automation, mean-time-to-resolution
@@ -613,6 +382,7 @@ const report = await startSpan({ name: 'generate-report' }, async () => {
 **Problem**: No automated alerting. Production errors/downtime detected manually or via user reports.
 
 **Fix**: Configure alert channels + runbooks
+
 ```yaml
 # Sentry alert rules (configured via UI, version-controlled in code)
 alerts:
@@ -640,7 +410,92 @@ docs/runbooks/
 
 ---
 
+### [INFRASTRUCTURE] Infrastructure as Code for Environment Variables
+
+**Files**: Create `infrastructure/` directory with Pulumi/Terraform configs
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Single source of truth for all env vars, eliminate drift, automate deployment config
+
+**Problem**: 6 sources of environment variable configuration (.env.local, Convex dev, Convex prod, Convex defaults, Vercel production, Vercel preview). Manual sync error-prone, no validation, documentation drift.
+
+**Fix**: Infrastructure as Code
+
+```typescript
+// infrastructure/convex-env.ts
+export const convexEnvironment = {
+  development: {
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+    GITHUB_APP_ID: githubAppId,
+    // ... all dev vars
+  },
+  production: {
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+    GITHUB_TOKEN: secret(githubToken),
+    // ... all prod vars
+  },
+  defaults: {
+    // Applied to all preview deployments
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+  },
+};
+
+// infrastructure/vercel-env.ts
+export const vercelEnvironment = {
+  production: {
+    CONVEX_DEPLOY_KEY: secret(convexProdKey),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPubKey,
+  },
+  preview: {
+    CONVEX_DEPLOY_KEY: secret(convexPreviewKey),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPubKey,
+  },
+};
+```
+
+**Effort**: 1 week (3d config + 2d validation + 2d migration) | **Priority**: P1
+**Acceptance**: All env vars defined in code, deployment script applies them, drift detection automated
+
+---
+
+### [TESTING] Add Deployment Integration Tests
+
+**Files**: Create `tests/integration/deployment.test.ts`
+**Perspectives**: maintainability-maven, architecture-guardian
+**Impact**: Catch deployment config issues before production
+
+**Problem**: No automated testing of deployment flow. Configuration mismatches discovered in production (vercel.json vs package.json vs docs).
+
+**Fix**: Integration tests for deployment
+
+```typescript
+describe("Deployment Configuration", () => {
+  it("vercel.json buildCommand should match expected", () => {
+    const vercelConfig = JSON.parse(fs.readFileSync("vercel.json"));
+    expect(vercelConfig.buildCommand).toBe(
+      "npx convex deploy --cmd 'pnpm build:app'",
+    );
+  });
+
+  it("package.json build:app should exist", () => {
+    const pkg = JSON.parse(fs.readFileSync("package.json"));
+    expect(pkg.scripts["build:app"]).toBeDefined();
+  });
+
+  it("required env vars should be documented", () => {
+    const readme = fs.readFileSync("README.md", "utf-8");
+    expect(readme).toContain("CONVEX_DEPLOY_KEY");
+    expect(readme).toContain("CLERK_JWT_ISSUER_DOMAIN");
+  });
+});
+```
+
+**Effort**: 4h | **Priority**: P1
+**Acceptance**: CI fails if deployment config drifts from expected
+
+---
+
 ### [INFRASTRUCTURE] Install Sentry Error Tracking
+
 **Files**: `app/error.tsx`, `convex/lib/sentry.ts` (new files)
 **Perspectives**: architecture-guardian, user-experience-advocate
 **Impact**: Production error visibility, alerting, user impact tracking
@@ -648,11 +503,12 @@ docs/runbooks/
 **Problem**: Frontend errors lost, backend errors buried in logs. No centralized error capture or alerting.
 
 **Fix**: Install Sentry for Next.js + Convex
+
 ```typescript
 // app/error.tsx
-'use client';
-import * as Sentry from '@sentry/nextjs';
-import { useEffect } from 'react';
+"use client";
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
 
 export default function Error({ error }: { error: Error }) {
   useEffect(() => {
@@ -662,7 +518,10 @@ export default function Error({ error }: { error: Error }) {
 }
 
 // convex/lib/sentry.ts
-export function captureConvexError(error: Error, context: Record<string, unknown>) {
+export function captureConvexError(
+  error: Error,
+  context: Record<string, unknown>,
+) {
   Sentry.captureException(error, { extra: context });
   throw error;
 }
@@ -674,11 +533,13 @@ export function captureConvexError(error: Error, context: Record<string, unknown
 ---
 
 ### [SECURITY] Fix XSS Vulnerability in Report HTML Rendering
+
 **File**: `app/dashboard/reports/[id]/page.tsx:258`
 **Perspectives**: security-sentinel (HIGH severity)
 **Impact**: Prevents session hijacking, account takeover, data exfiltration
 
 **Vulnerable Code**:
+
 ```tsx
 <div
   className="markdown-content"
@@ -689,13 +550,14 @@ export function captureConvexError(error: Error, context: Record<string, unknown
 **Attack Scenario**: If LLM generates malicious HTML, attacker can inject JavaScript
 
 **Fix**: Add DOMPurify sanitization
+
 ```tsx
-import DOMPurify from 'isomorphic-dompurify';
+import DOMPurify from "isomorphic-dompurify";
 
 <div
   className="markdown-content"
   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.html) }}
-/>
+/>;
 ```
 
 **Effort**: 1h | **Severity**: HIGH
@@ -704,11 +566,13 @@ import DOMPurify from 'isomorphic-dompurify';
 ---
 
 ### [SECURITY] Fix Broken Access Control on deleteReport
+
 **File**: `convex/reports.ts:159-164`
 **Perspectives**: security-sentinel (MEDIUM severity)
 **Impact**: Prevents unauthorized data deletion, privacy violation
 
 **Vulnerable Code**:
+
 ```typescript
 export const deleteReport = mutation({
   args: { id: v.id("reports") },
@@ -721,6 +585,7 @@ export const deleteReport = mutation({
 **Attack**: Any authenticated user can delete any report by ID
 
 **Fix**: Add ownership verification
+
 ```typescript
 export const deleteReport = mutation({
   args: { id: v.id("reports") },
@@ -746,6 +611,7 @@ export const deleteReport = mutation({
 ---
 
 ### [SECURITY] Update Vulnerable js-yaml Dependency
+
 **File**: `package.json`
 **Perspectives**: security-sentinel (MEDIUM-HIGH severity)
 **Impact**: Removes prototype pollution vulnerability
@@ -753,6 +619,7 @@ export const deleteReport = mutation({
 **Problem**: js-yaml@3.14.1 via @istanbuljs/load-nyc-config has known CVE
 
 **Fix**: Force resolution
+
 ```json
 // package.json
 "pnpm": {
@@ -768,11 +635,13 @@ export const deleteReport = mutation({
 ---
 
 ### [PERFORMANCE] Fix N+1 Ingestion Mutations
+
 **File**: `convex/actions/ingestRepo.ts:77-133`
 **Perspectives**: performance-pathfinder (CRITICAL priority)
 **Impact**: 14s → 50ms (280x improvement) for repo ingestion
 
 **Problem**: Serial mutations in nested loops - 700 sequential roundtrips for 100 PRs with 5 reviews each
+
 ```typescript
 for (const pr of prs) {
   const actorId = await ctx.runMutation(api.users.upsert, { ... });  // N+1
@@ -786,6 +655,7 @@ for (const pr of prs) {
 ```
 
 **Fix**: Batch upserts using `Promise.all()`
+
 ```typescript
 // Collect all actors first
 const allActors = [...prs.map(pr => pr.user), ...reviews.flatMap(r => r.user)];
@@ -813,16 +683,19 @@ await ctx.runMutation(api.events.createBatch, {
 ---
 
 ### [PERFORMANCE] Fix Unbounded events.listWithoutEmbeddings Query
+
 **File**: `convex/events.ts:350-371`
 **Perspectives**: performance-pathfinder (CRITICAL priority)
 **Impact**: 5s → <10ms (500x improvement) for embedding queue
 
 **Problem**: `.collect()` loads ALL embeddings into memory - 100k embeddings → ~50MB payload
+
 ```typescript
 const allEmbeddings = await ctx.db.query("embeddings").collect(); // UNBOUNDED!
 ```
 
 **Fix**: Use existing `embeddingQueue` table
+
 ```typescript
 export const listWithoutEmbeddings = internalQuery({
   handler: async (ctx, args) => {
@@ -831,10 +704,8 @@ export const listWithoutEmbeddings = internalQuery({
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .take(args.limit);
 
-    return Promise.all(
-      pending.map(job => ctx.db.get(job.eventId))
-    );
-  }
+    return Promise.all(pending.map((job) => ctx.db.get(job.eventId)));
+  },
 });
 ```
 
@@ -844,30 +715,33 @@ export const listWithoutEmbeddings = internalQuery({
 ---
 
 ### [PERFORMANCE] Fix Unbounded KPI Queries
+
 **Files**: `convex/kpis.ts:46-49`, `convex/kpis.ts:142-150`
 **Perspectives**: performance-pathfinder (HIGH priority)
 **Impact**: 3s → 50ms (60x improvement) for dashboard KPI cards
 
 **Problem**: `.collect()` fetches entire user/repo history - 10k events → 2MB query
+
 ```typescript
 const allEvents = await ctx.db
   .query("events")
   .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id))
-  .collect();  // UNBOUNDED!
+  .collect(); // UNBOUNDED!
 
 const eventsInRange = allEvents.filter(
-  (e) => e.ts >= startDate && e.ts <= endDate
+  (e) => e.ts >= startDate && e.ts <= endDate,
 );
 ```
 
 **Fix**: Use index range filters
+
 ```typescript
 let query = ctx.db
   .query("events")
   .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id));
 
-if (startDate) query = query.filter(q => q.gte(q.field("ts"), startDate));
-if (endDate) query = query.filter(q => q.lte(q.field("ts"), endDate));
+if (startDate) query = query.filter((q) => q.gte(q.field("ts"), startDate));
+if (endDate) query = query.filter((q) => q.lte(q.field("ts"), endDate));
 
 const events = await query.take(10000); // reasonable cap
 ```
@@ -878,6 +752,7 @@ const events = await query.take(10000); // reasonable cap
 ---
 
 ### [UX] Translate Backend Errors to User-Friendly Messages
+
 **Files**: 70+ `throw new Error()` statements across `convex/lib/`
 **Perspectives**: user-experience-advocate (CRITICAL priority), maintainability-maven
 **Impact**: 80% reduction in "broken app" perception
@@ -885,20 +760,25 @@ const events = await query.take(10000); // reasonable cap
 **Problem**: Users see cryptic error messages like "GOOGLE_API_KEY not configured"
 
 **Fix**: Extend `lib/errors.ts` ERROR_MESSAGES
+
 ```typescript
 const ERROR_MESSAGES: Record<string, string> = {
   // LLM errors
-  "GOOGLE_API_KEY not configured": "AI service configuration error. Please contact support.",
-  "No response from": "AI service temporarily unavailable. Please try again in a few minutes.",
+  "GOOGLE_API_KEY not configured":
+    "AI service configuration error. Please contact support.",
+  "No response from":
+    "AI service temporarily unavailable. Please try again in a few minutes.",
 
   // GitHub errors
-  "Failed to mint installation token": "Unable to connect to GitHub. Please reconnect your account in Settings.",
+  "Failed to mint installation token":
+    "Unable to connect to GitHub. Please reconnect your account in Settings.",
 
   // Embedding errors
-  "Both Voyage and OpenAI embedding failed": "Report generation temporarily unavailable. Retrying automatically.",
+  "Both Voyage and OpenAI embedding failed":
+    "Report generation temporarily unavailable. Retrying automatically.",
 
   // Add 40+ more patterns...
-}
+};
 ```
 
 **Effort**: 3h | **Impact**: Users self-resolve instead of abandoning
@@ -907,16 +787,19 @@ const ERROR_MESSAGES: Record<string, string> = {
 ---
 
 ### [UX] Add Strong Confirmation for Report Deletion
+
 **File**: `app/dashboard/reports/page.tsx:84`
 **Perspectives**: user-experience-advocate (CRITICAL priority)
 **Impact**: Prevents 95% of accidental deletions
 
 **Problem**: Native `confirm()` is easy to accidentally click, no undo
+
 ```typescript
 if (!confirm("Are you sure you want to delete this report?")) return;
 ```
 
 **Fix**: Custom modal with stronger confirmation
+
 ```typescript
 {deleteConfirmation && (
   <Modal onClose={() => setDeleteConfirmation(null)}>
@@ -947,17 +830,20 @@ if (!confirm("Are you sure you want to delete this report?")) return;
 ---
 
 ### [DESIGN SYSTEM] Migrate Hardcoded Colors to Semantic Tokens
+
 **Files**: `Skeleton.tsx` (16 instances), `CitationDrawer.tsx` (8), `ThemeToggle.tsx` (6), `CoverageMeter.tsx` (5), `MinimalHeader.tsx` (12)
 **Perspectives**: design-systems-architect (HIGH impact)
 **Impact**: Single-source-of-truth theming, instant brand pivots
 
 **Problem**: 47 instances of `gray-200`, `neutral-800`, `blue-600` bypass semantic token system
+
 ```tsx
 // Current: components/Skeleton.tsx:11
 bg-gray-200 dark:bg-neutral-700  // Should be bg-surface-muted
 ```
 
 **Fix**: Add missing tokens + migrate components
+
 ```css
 /* app/globals.css - Add missing semantic tokens */
 @theme inline {
@@ -968,6 +854,7 @@ bg-gray-200 dark:bg-neutral-700  // Should be bg-surface-muted
 ```
 
 Then migrate all hardcoded colors:
+
 - `bg-gray-200 dark:bg-neutral-700` → `bg-skeleton`
 - `border-gray-200 dark:border-neutral-800` → `border-border`
 - `text-blue-600` → `text-foreground`
@@ -977,9 +864,296 @@ Then migrate all hardcoded colors:
 
 ---
 
+## P2 Quality Improvements (From PR #1 Review Feedback)
+
+*Added: 2025-11-23 | Source: CodeRabbit/Codex automated review of infrastructure/production-hardening PR*
+
+These are lower-priority refinements identified during PR review. All are valid improvements but deferred to avoid blocking the critical infrastructure changes.
+
+### [TESTING] Enrich Error Context in ingestMultiple Logging
+
+**File**: `convex/actions/ingestMultiple.ts:46-68`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Better debugging for multi-repo ingestion failures
+
+Currently logs error message strings, but not full Error objects. Add full error object to logger calls:
+
+```diff
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    // ...
+
+-   logger.error(
+-     { repoFullName, errorMessage },
+-     "Failed to ingest repository",
+-   );
++   logger.error(
++     { repoFullName, errorMessage, err: error },
++     "Failed to ingest repository",
++   );
+```
+
+**Benefit**: Preserves stack traces and error types in structured logs
+
+**Effort**: 15min | **Priority**: P2
+
+---
+
+### [LOGGING] Prevent metric Field Override in emitMetric
+
+**File**: `convex/lib/logger.ts:78-83`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Defense against accidental metric field clobbering
+
+Current implementation allows callers to override the canonical `metric` field if they pass `{ metric: "foo" }` in fields object:
+
+```diff
+ export function emitMetric(
+   metric: string,
+   fields: Record<string, unknown> = {},
+ ) {
+-  logger.info({ metric, ...fields }, `metric:${metric}`);
++  // Ensure canonical metric field cannot be overridden by callers
++  logger.info({ ...fields, metric }, `metric:${metric}`);
+ }
+```
+
+**Benefit**: Guarantees metric field integrity in telemetry data
+
+**Effort**: 5min | **Priority**: P2
+
+---
+
+### [LOGGING] Truncate LLM Error Messages to Prevent Log Bloat
+
+**File**: `convex/lib/LLMClient.ts:233-262`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Prevent excessive log volume from large API error responses
+
+While OpenAI/Gemini APIs return structured errors and don't echo prompts, truncating error bodies is a defensive practice:
+
+```typescript
+const errorText =
+  error instanceof Error
+    ? error.message.slice(0, 1024)  // Truncate to 1KB
+    : String(error).slice(0, 1024);
+```
+
+**Benefits**:
+- Prevents log storage bloat from malformed/proxy responses
+- Guards against edge cases (gateways, custom error middleware)
+- Follows security-conscious logging practices
+
+**Effort**: 10min | **Priority**: P2
+
+---
+
+### [TESTING] Import REDACT_PATHS from Production Logger
+
+**File**: `convex/lib/__tests__/logger.test.ts:25-64`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Keep test redaction config in sync with production
+
+Test duplicates `REDACT_PATHS` array from `convex/lib/logger.ts`. If production config changes, tests could pass with incorrect assertions.
+
+**Fix**:
+1. Export `REDACT_PATHS` from `convex/lib/logger.ts`
+2. Import in test file instead of hardcoding
+
+**Benefit**: Single source of truth for PII redaction rules
+
+**Effort**: 5min | **Priority**: P2
+
+---
+
+### [DOCS] Fix Markdown Linting Issues
+
+**Files**: Multiple documentation files
+**Reviewer**: markdownlint (automated)
+**Impact**: Clean linter output, better link clickability
+
+**TODO.md** (lines 9, 23):
+- Convert bare URLs to markdown links
+- `https://gitpulse-c6gb7npgp-misty-step.vercel.app` → `[Preview](https://...)`
+
+**docs/runbooks/sentry-alerts.md** (lines 9, 23, 35, 150, 197):
+- Wrap URLs in angle brackets: `<https://sentry.io/...>`
+
+**docs/deployment/QUICK_START.md** (lines 14, 113-114):
+- Same URL formatting
+
+**docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md** (lines 9, 28, 87, 93):
+- Add language identifiers to fenced code blocks (```text, ```bash, ```env)
+
+**Effort**: 20min | **Priority**: P2
+
+---
+
+### [CODE QUALITY] Use else-if for Mutual Exclusivity in instrumentation.ts
+
+**File**: `instrumentation.ts:1-9`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Prevent theoretical race condition, clarify intent
+
+```diff
+ export async function register() {
+   if (process.env.NEXT_RUNTIME === "nodejs") {
+     await import("./sentry.server.config");
+-  }
+-
+-  if (process.env.NEXT_RUNTIME === "edge") {
++  } else if (process.env.NEXT_RUNTIME === "edge") {
+     await import("./sentry.edge.config");
+   }
+ }
+```
+
+**Benefit**: Makes mutual exclusivity explicit, prevents both imports if NEXT_RUNTIME changes mid-execution (unlikely but defensive)
+
+**Effort**: 2min | **Priority**: P2
+
+---
+
+### [SECURITY] Add 1:1 Clerk↔GitHub Invariant Validation
+
+**File**: `convex/users.ts:135-150`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Prevent cross-account token overwrites
+
+Current `updateGitHubAuth` logic can overwrite tokens if:
+- A `users` row matched by `clerkId` already has different GitHub identity
+- A row matched by GitHub identity already has different `clerkId`
+
+**Enhancement**: Add strict 1:1 mapping validation:
+
+```typescript
+if (user.clerkId && user.clerkId !== args.clerkId) {
+  throw new Error(
+    "Clerk account mismatch for GitHub auth; refusing to overwrite tokens.",
+  );
+}
+
+if (user.clerkId === args.clerkId && user.ghId && user.ghId !== args.githubProfile.id) {
+  // Decide policy: allow "migrating" Clerk user to new GitHub identity?
+}
+```
+
+**Trade-off**: Prevents confusing bugs vs. reduces flexibility for account migrations
+
+**Effort**: 30min | **Priority**: P2
+
+---
+
+### [SCRIPTS] Add jq Prerequisite Check and Remove Hard-Coded Path
+
+**File**: `scripts/setup-deployment.sh:80-144`
+**Reviewer**: CodeRabbit (Nitpick), ShellCheck SC2155
+**Impact**: Better portability, clearer error messages
+
+**Issue 1**: Script uses `jq` but doesn't validate installation:
+
+```bash
+# Add to check_prerequisites()
+if command_exists jq; then
+    print_success "jq installed: $(jq --version)"
+else
+    print_error "jq not found. Install: brew install jq"
+    all_good=false
+fi
+```
+
+**Issue 2**: Error message hard-codes developer path:
+
+```diff
+- print_error "Not in project root. Please run from: /Users/phaedrus/Development/gitpulse"
++ print_error "Not in project root. Expected package.json at: $PROJECT_DIR"
+```
+
+**Issue 3**: ShellCheck SC2155 - split local declarations from command substitutions:
+
+```bash
+# Before
+local node_version=$(node --version)
+
+# After
+local node_version
+node_version=$(node --version)
+```
+
+**Effort**: 15min | **Priority**: P2
+
+---
+
+### [CI/CD] Pin TruffleHog Version for Stability
+
+**File**: `.github/workflows/ci.yml:9-25`
+**Reviewer**: CodeRabbit (Nitpick)
+**Impact**: Prevent unexpected CI breakage from upstream changes
+
+```diff
+       - name: Run TruffleHog
+-        uses: trufflesecurity/trufflehog@main
++        uses: trufflesecurity/trufflehog@v3.82.13
+```
+
+Check [TruffleHog releases](https://github.com/trufflesecurity/trufflehog/releases) for latest stable version.
+
+**Effort**: 2min | **Priority**: P2
+
+---
+
+### [ARCHITECTURE] Reconsider Infrastructure as Code Complexity
+
+**File**: `BACKLOG.md:382-424`
+**Reviewer**: CodeRabbit (Strategic concern)
+**Impact**: Avoid premature abstraction, align on config management approach
+
+Current tension:
+1. **Vercel-Managed Approach** (docs): Use Vercel dashboard for env vars
+2. **IaC Proposal** (BACKLOG): Use Pulumi/Terraform for env vars in code
+3. **Drift Detection** (BACKLOG): Assumes dashboard is source of truth
+
+**Alternatives**:
+- **Simpler**: Consolidated `.env.example` with validation scripts (already in PR)
+- **Hybrid**: Use Vercel API to export config, version control exports, detect drift
+- **Defer IaC**: Focus on observability/drift detection first, evaluate IaC necessity later
+
+**Recommendation**: Defer full IaC migration until config sprawl becomes unmanageable
+
+**Effort**: N/A (discussion item) | **Priority**: P2
+
+---
+
+### [ARCHITECTURE] DeploymentService Abstraction May Be Premature
+
+**File**: `BACKLOG.md:869-899`
+**Reviewer**: CodeRabbit (Strategic concern)
+**Impact**: Avoid unnecessary complexity layer
+
+**Current state**: Vercel handles deployment automatically via `npx convex deploy --cmd 'pnpm build:app'`
+
+**Proposed abstraction**: New `lib/deployment/` module with `deployPreview()`, `deployProduction()`, `validateConfig()`, `rollback()` methods (2-week effort)
+
+**Concerns**:
+- Vercel already provides deployment APIs and UI
+- Abstraction doesn't reduce complexity, just relocates it
+- Rollback available via Vercel dashboard
+- Conflicts with "Vercel-Managed" approach
+
+**Alternative**: Focus on deployment **observability** (monitoring, alerting, health checks) before adding abstraction layers. PR already includes health check endpoints.
+
+**Recommendation**: Defer service abstraction until deployment logic becomes complex enough to warrant it
+
+**Effort**: N/A (discussion item) | **Priority**: P2
+
+---
+
 ## Next (This Quarter, <3 months)
 
 ### [MONETIZATION] Add Stripe Payment Infrastructure
+
 **Scope**: New feature - subscription management, usage limits, plan upgrade flows
 **Perspectives**: product-visionary (CRITICAL for business viability)
 **Business Case**: Currently $0 revenue. With 1000 free users, 10% conversion = 100 Pro users × $15 = **$1500 MRR**
@@ -987,6 +1161,7 @@ Then migrate all hardcoded colors:
 **Why**: Cannot monetize current users. Freemium conversion unlocks revenue stream.
 
 **Implementation**:
+
 - Install Stripe SDK, create customer/subscription webhooks
 - Add `subscriptions` table (workspaceId, plan, status, stripeCustomerId)
 - Add `usageMetering` table (date, reportsGenerated, apiCalls)
@@ -994,6 +1169,7 @@ Then migrate all hardcoded colors:
 - Build upgrade flows in UI
 
 **Pricing Tiers**:
+
 - Free: 1 user, 3 repos, daily reports only, web-only
 - Pro ($15/month): Unlimited repos, daily+weekly, Slack+email, 1-year retention
 - Team ($40/user/month): Everything in Pro + team dashboards, workspaces, webhooks
@@ -1004,6 +1180,7 @@ Then migrate all hardcoded colors:
 ---
 
 ### [DISTRIBUTION] Add Slack Integration
+
 **Scope**: New feature - Slack bot posts reports to channels
 **Perspectives**: product-visionary (CRITICAL for retention)
 **Business Case**: Users who receive Slack reports have 5x higher retention. Slack has 20M+ daily active users.
@@ -1011,6 +1188,7 @@ Then migrate all hardcoded colors:
 **Why**: Reports live only in web app. Users must remember to check (low engagement). Slack integration meets users where they work.
 
 **Implementation**:
+
 - Slack OAuth flow for workspace connection
 - Add `deliveryChannels` table (userId, type: "slack", config: channel ID)
 - Bot posts daily/weekly reports to configured channels
@@ -1018,6 +1196,7 @@ Then migrate all hardcoded colors:
 - Message formatting with rich cards, citations as thread
 
 **Use Cases**:
+
 - "Post daily standup to #engineering at 9am"
 - "Share this report with #executive-updates"
 
@@ -1027,6 +1206,7 @@ Then migrate all hardcoded colors:
 ---
 
 ### [COLLABORATION] Add Team Workspaces
+
 **Scope**: New feature - shared workspaces, team dashboards, permissions
 **Perspectives**: product-visionary (CRITICAL for B2B revenue)
 **Business Case**: Unlocks team pricing tier - $40/user/month for 10-person team = $400/mo vs $15 individual
@@ -1034,6 +1214,7 @@ Then migrate all hardcoded colors:
 **Why**: Single-user reports only. Engineering managers can't see team activity. Teams can't collaborate on retrospectives. **This is table-stakes for B2B sales.**
 
 **Implementation**:
+
 - Add `workspaces` table (name, ownerUserId, plan, memberIds)
 - Add `workspaceMembers` table (workspaceId, userId, role: admin/member/viewer)
 - Update `reports` table with `workspaceId`, `scope`: personal/team/project
@@ -1041,6 +1222,7 @@ Then migrate all hardcoded colors:
 - Invite flow, permissions middleware
 
 **Use Cases**:
+
 - "See what my team shipped this week"
 - "Share retrospective with whole engineering org"
 
@@ -1049,7 +1231,63 @@ Then migrate all hardcoded colors:
 
 ---
 
+### [ARCHITECTURE] Create Deployment Service Module
+
+**Files**: Create `lib/deployment/` directory
+**Perspectives**: complexity-archaeologist, architecture-guardian
+**Impact**: Deep module hiding all deployment complexity
+
+**Problem**: Deployment knowledge scattered across vercel.json, package.json, CI workflows, setup scripts, documentation. Violates single source of truth, obscurity around "how to deploy correctly".
+
+**Fix**: Deployment service with clean interface
+
+```typescript
+// lib/deployment/DeploymentService.ts
+export class DeploymentService {
+  // Hide: Convex deploy keys, build commands, env var validation
+  // Expose: Simple deploy methods
+
+  async deployPreview(branch: string): Promise<DeploymentResult>;
+  async deployProduction(): Promise<DeploymentResult>;
+  async validateConfig(): Promise<ValidationResult>;
+  async rollback(deploymentId: string): Promise<RollbackResult>;
+}
+
+// Usage
+const deployment = new DeploymentService();
+const result = await deployment.deployPreview("feature-branch");
+if (!result.success) {
+  console.error(result.error);
+}
+```
+
+**Effort**: 2 weeks | **Impact**: Single source of truth, testable deployment logic
+**Strategic Value**: Enables automated deployment testing, rollback automation, multi-cloud future
+
+---
+
+### [INFRASTRUCTURE] Add Staging Environment
+
+**Files**: Convex staging deployment, Vercel staging project
+**Perspectives**: architecture-guardian
+**Impact**: Safe testing ground between preview and production
+
+**Problem**: Only dev and production environments. Risky changes tested directly in production preview deployments. No place to test infrastructure changes (env var updates, build command changes).
+
+**Fix**: Add staging environment
+
+- Convex staging deployment (separate from dev/prod)
+- Vercel staging project with staging branch auto-deploy
+- Smoke tests run against staging before production promotion
+- Database migrations tested in staging first
+
+**Effort**: 1 week | **Priority**: P1
+**Acceptance**: Staging environment exists, auto-deploys from staging branch, smoke tests pass
+
+---
+
 ### [DISTRIBUTION] Add Export Functionality
+
 **Scope**: New feature - PDF, Markdown, CSV exports
 **Perspectives**: product-visionary, user-experience-advocate
 **Business Case**: Removes adoption barrier ("try before commit"), shareability drives inbound
@@ -1057,12 +1295,14 @@ Then migrate all hardcoded colors:
 **Why**: Reports viewable in web UI only. Can't share with non-users (executives, investors). No offline access.
 
 **Implementation**:
+
 - PDF export using puppeteer
 - Markdown export (simple template)
 - CSV export (tabular event data)
 - Download button with format dropdown
 
 **Use Cases**:
+
 - "Export weekly retro as PDF for 1:1 with manager"
 - "Download all data as CSV for analysis in Excel"
 
@@ -1072,16 +1312,26 @@ Then migrate all hardcoded colors:
 ---
 
 ### [ARCHITECTURE] Extract Report Generation Stages
+
 **File**: `convex/lib/reportOrchestrator.ts:53-261`
 **Perspectives**: complexity-archaeologist (temporal decomposition)
 **Why**: 209-line function organized by execution order (collecting → generating → validating → saving) makes it difficult to extract/test individual stages
 
 **Approach**: Extract stages into separate functions
+
 ```typescript
-async function collectEvents(ctx, params) { /* lines 76-153 */ }
-async function generateContent(context, allowedUrls) { /* lines 155-171 */ }
-async function validateOutput(events, generated) { /* lines 173-205 */ }
-async function persistReport(ctx, reportData) { /* lines 207-258 */ }
+async function collectEvents(ctx, params) {
+  /* lines 76-153 */
+}
+async function generateContent(context, allowedUrls) {
+  /* lines 155-171 */
+}
+async function validateOutput(events, generated) {
+  /* lines 173-205 */
+}
+async function persistReport(ctx, reportData) {
+  /* lines 207-258 */
+}
 ```
 
 **Effort**: 3h | **Impact**: 209-line function → 4 focused 30-50 line functions, enables isolated testing
@@ -1090,11 +1340,13 @@ async function persistReport(ctx, reportData) { /* lines 207-258 */ }
 ---
 
 ### [ARCHITECTURE] Split canonicalizeEvent.ts by Event Type
+
 **File**: `convex/lib/canonicalizeEvent.ts:1-627`
 **Perspectives**: complexity-archaeologist (god object), architecture-guardian
 **Why**: 627 lines, 16 functions, 5+ event types in single file. High coupling between event types.
 
 **Approach**: Split by event type
+
 ```
 convex/lib/canonicalize/
 ├── index.ts              # Export unified canonicalizeEvent() dispatcher
@@ -1112,11 +1364,13 @@ convex/lib/canonicalize/
 ---
 
 ### [ARCHITECTURE] Consolidate LLM Provider Logic
+
 **Files**: `convex/lib/llmOrchestrator.ts:73-114`, `convex/lib/LLMClient.ts:282-349`
 **Perspectives**: architecture-guardian (responsibility violation)
 **Why**: Duplicate OpenAI/Gemini API calls in 2 files with different retry logic. Which is canonical?
 
 **Approach**: Consolidate to single LLM abstraction
+
 - Keep `LLMClient.ts` as canonical provider logic
 - Delete duplicate `callOpenAI`/`callGemini` from `llmOrchestrator.ts`
 - Orchestrator uses LLMClient with fallback chain
@@ -1126,32 +1380,36 @@ convex/lib/canonicalize/
 ---
 
 ### [TESTING] Add Test Coverage for Business Logic
+
 **Files**: `convex/lib/reportOrchestrator.ts:311-348` (cost estimation), `convex/lib/llmOrchestrator.ts:160-203` (provider fallback)
 **Perspectives**: maintainability-maven (CRITICAL test gap)
 **Why**: Financial logic (cost estimation, token budgets) has zero tests. Target cost is ≤$0.02/user-day but no validation.
 
 **Approach**: Add test suites
+
 ```typescript
 // convex/lib/__tests__/reportOrchestrator.test.ts
-describe('estimateCost', () => {
-  it('should calculate Google cost at $0.0005 per event', () => {
-    expect(estimateCost('google', 'gemini-2.5-flash', 100)).toBe(0.05)
-  })
+describe("estimateCost", () => {
+  it("should calculate Google cost at $0.0005 per event", () => {
+    expect(estimateCost("google", "gemini-2.5-flash", 100)).toBe(0.05);
+  });
 
-  it('should not exceed $0.02/day target for typical usage', () => {
-    const typicalEvents = 25
-    expect(estimateCost('google', 'gemini-2.5-flash', typicalEvents)).toBeLessThanOrEqual(0.02)
-  })
-})
+  it("should not exceed $0.02/day target for typical usage", () => {
+    const typicalEvents = 25;
+    expect(
+      estimateCost("google", "gemini-2.5-flash", typicalEvents),
+    ).toBeLessThanOrEqual(0.02);
+  });
+});
 
-describe('generateWithOrchestrator', () => {
-  it('should fallback to second candidate if first fails', async () => {
-    mockOpenAI.mockRejectedValueOnce(new Error('rate limit'))
-    mockGemini.mockResolvedValueOnce('report markdown')
-    const result = await generateWithOrchestrator('daily', mockPrompt)
-    expect(result.provider).toBe('google')
-  })
-})
+describe("generateWithOrchestrator", () => {
+  it("should fallback to second candidate if first fails", async () => {
+    mockOpenAI.mockRejectedValueOnce(new Error("rate limit"));
+    mockGemini.mockResolvedValueOnce("report markdown");
+    const result = await generateWithOrchestrator("daily", mockPrompt);
+    expect(result.provider).toBe("google");
+  });
+});
 ```
 
 **Effort**: 3h | **Impact**: Confidence in production fallback behavior, financial correctness
@@ -1159,11 +1417,13 @@ describe('generateWithOrchestrator', () => {
 ---
 
 ### [TESTING] Add Component Tests (React Testing Library)
+
 **Files**: 11 components need test coverage
 **Perspectives**: design-systems-architect (HIGH impact)
 **Why**: Zero component tests. Refactoring risk, no regression safety net, dark mode untested.
 
 **Approach**: Set up RTL + test all components
+
 ```typescript
 // components/KPICard.test.tsx
 describe('KPICard', () => {
@@ -1185,11 +1445,13 @@ describe('KPICard', () => {
 ---
 
 ### [UX] Add Interactive Analytics Dashboard
+
 **Scope**: New feature - charts, filters, drill-downs
 **Perspectives**: product-visionary (workflow gap), user-experience-advocate
 **Why**: Reports are static documents. Managers can't answer ad-hoc questions without regenerating.
 
 **Approach**: Add chart components + filter system
+
 - ActivityTimeline chart (events over time)
 - PRVelocityChart (open/merged PRs)
 - ReviewLatencyChart (time to first review)
@@ -1198,6 +1460,7 @@ describe('KPICard', () => {
 **Libraries**: recharts, date-fns, @tanstack/react-table
 
 **Use Cases**:
+
 - "Show me all PRs stuck in review >3 days"
 - "Compare my team's velocity to last quarter"
 
@@ -1207,17 +1470,20 @@ describe('KPICard', () => {
 ---
 
 ### [UX] Add Smart Alerts / Anomaly Detection
+
 **Scope**: New feature - proactive notifications
 **Perspectives**: product-visionary (productivity enhancement)
 **Why**: Passive reporting only. Users must check reports to find issues. Alerts drive daily active usage.
 
 **Approach**: Rule engine + anomaly detection
+
 - Add `alertRules` table (type, condition, channels)
 - Add `alertHistory` table (triggeredAt, message, acknowledged)
 - Detection cron job (hourly)
 - Alert delivery via Slack/email
 
 **Use Cases**:
+
 - "Alert me when a PR has been in review >72 hours"
 - "Notify team when velocity drops 30% week-over-week"
 
@@ -1227,21 +1493,23 @@ describe('KPICard', () => {
 ---
 
 ### [MAINTAINABILITY] Standardize Error Handling Pattern
+
 **Files**: Multiple across `convex/actions/`, `convex/lib/`
 **Perspectives**: maintainability-maven (inconsistent patterns)
 **Why**: 3 error patterns (throw exceptions, return ActionResult<T>, silent failures with console.warn). Developers must handle different patterns.
 
 **Approach**: Standardize on ActionResult<T> everywhere
+
 ```typescript
 // Update all actions to return ActionResult<T>
 export async function mintInstallationToken(
-  installationId: number
+  installationId: number,
 ): Promise<ActionResult<InstallationToken>> {
   try {
     // ... existing logic ...
-    return success(token)
+    return success(token);
   } catch (error) {
-    return failure(createError(ErrorCode.GITHUB_API_ERROR, error.message))
+    return failure(createError(ErrorCode.GITHUB_API_ERROR, error.message));
   }
 }
 ```
@@ -1251,6 +1519,7 @@ export async function mintInstallationToken(
 ---
 
 ### [INFRASTRUCTURE] Install Changesets for Changelog Automation
+
 **Files**: Create `.changeset/config.json`, update `package.json`
 **Perspectives**: maintainability-maven
 **Impact**: Automated version bumps + changelog generation, eliminate manual release process
@@ -1258,6 +1527,7 @@ export async function mintInstallationToken(
 **Problem**: Manual versioning (stuck at 0.1.0), no changelog, 30-minute manual release process. Breaking changes buried in commits.
 
 **Fix**: Install Changesets (best for apps vs semantic-release for libraries)
+
 ```bash
 pnpm add -D @changesets/cli
 pnpm changeset init
@@ -1287,6 +1557,7 @@ pnpm changeset init
 ```
 
 **Workflow**:
+
 1. Developer runs `pnpm changeset` when making changes (creates `.changeset/*.md`)
 2. CI creates PR with version bump + CHANGELOG.md
 3. Merge PR → automated release
@@ -1297,6 +1568,7 @@ pnpm changeset init
 ---
 
 ### [INFRASTRUCTURE] Add Environment Validation Script
+
 **Files**: Create `scripts/validate-env.sh`, update `vercel.json`
 **Perspectives**: architecture-guardian
 **Impact**: Catch missing env vars before deploy, prevent silent preview deploy failures
@@ -1304,6 +1576,7 @@ pnpm changeset init
 **Problem**: Preview deploys may fail silently if env vars missing (NEXT_PUBLIC_CONVEX_URL, CONVEX_DEPLOY_KEY). Discovered only when users report bugs.
 
 **Fix**: Pre-build env validation script
+
 ```bash
 #!/bin/bash
 # scripts/validate-env.sh
@@ -1345,6 +1618,7 @@ echo "✅ Environment validation passed"
 ---
 
 ### [INFRASTRUCTURE] Track Convex Action Errors with Structured IDs
+
 **Files**: `convex/lib/errors.ts`, all `convex/actions/**`
 **Perspectives**: architecture-guardian, maintainability-maven
 **Impact**: Error correlation, debugging velocity, production incident analysis
@@ -1352,16 +1626,17 @@ echo "✅ Environment validation passed"
 **Problem**: Convex action errors lack correlation IDs. Cannot trace error through logs, link frontend error to backend cause, or group related failures.
 
 **Approach**: Add structured error wrapper with correlation tracking
+
 ```typescript
 // convex/lib/errors.ts
 import { v } from "convex/values";
 import { nanoid } from "nanoid";
 
 export interface StructuredError {
-  errorId: string;        // Unique ID for this error instance
-  code: string;           // Error type (GITHUB_API_ERROR, LLM_TIMEOUT, etc.)
-  message: string;        // User-friendly message
-  details?: unknown;      // Technical details
+  errorId: string; // Unique ID for this error instance
+  code: string; // Error type (GITHUB_API_ERROR, LLM_TIMEOUT, etc.)
+  message: string; // User-friendly message
+  details?: unknown; // Technical details
   timestamp: number;
   correlationId?: string; // Trace across multiple actions
 }
@@ -1370,7 +1645,7 @@ export function createError(
   code: string,
   message: string,
   details?: unknown,
-  correlationId?: string
+  correlationId?: string,
 ): StructuredError {
   return {
     errorId: nanoid(),
@@ -1388,26 +1663,32 @@ export const generateDaily = action({
     const correlationId = nanoid();
 
     try {
-      logger.info({ correlationId, userId: args.userId }, 'Starting daily report generation');
+      logger.info(
+        { correlationId, userId: args.userId },
+        "Starting daily report generation",
+      );
 
-      const events = await ctx.runQuery(api.events.listByUser, { userId, correlationId });
+      const events = await ctx.runQuery(api.events.listByUser, {
+        userId,
+        correlationId,
+      });
       const report = await generateWithOrchestrator(events, correlationId);
 
       return success(report);
     } catch (error) {
       const structuredError = createError(
-        'REPORT_GENERATION_FAILED',
-        'Unable to generate daily report',
+        "REPORT_GENERATION_FAILED",
+        "Unable to generate daily report",
         { originalError: error.message },
-        correlationId
+        correlationId,
       );
 
-      logger.error(structuredError, 'Report generation failed');
+      logger.error(structuredError, "Report generation failed");
       Sentry.captureException(error, { extra: structuredError });
 
       return failure(structuredError);
     }
-  }
+  },
 });
 ```
 
@@ -1417,6 +1698,7 @@ export const generateDaily = action({
 ---
 
 ### [INFRASTRUCTURE] Add Session Replay (Privacy-Compliant)
+
 **Files**: `sentry.client.config.ts`, `app/layout.tsx`
 **Perspectives**: user-experience-advocate, security-sentinel
 **Impact**: Bug reproduction, UX issue discovery, rage-click detection
@@ -1424,9 +1706,10 @@ export const generateDaily = action({
 **Problem**: Cannot reproduce user-reported bugs. "Report generation failed" → No video of what user did, which buttons clicked, what state existed.
 
 **Approach**: Enable Sentry Session Replay with PII masking
+
 ```typescript
 // sentry.client.config.ts
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -1438,20 +1721,18 @@ Sentry.init({
       maskAllText: false,
       maskAllInputs: true,
       block: [
-        '.user-email',          // PII elements
-        '[data-sensitive]',     // Custom sensitive markers
-        '.github-token',
+        ".user-email", // PII elements
+        "[data-sensitive]", // Custom sensitive markers
+        ".github-token",
       ],
-      mask: [
-        '.user-name',
-        '.repo-name',
-      ],
+      mask: [".user-name", ".repo-name"],
     }),
   ],
 });
 ```
 
 **Privacy Considerations**:
+
 - Mask all form inputs (passwords, API keys)
 - Block sensitive DOM elements (emails, tokens)
 - Network request bodies redacted by default
@@ -1463,11 +1744,13 @@ Sentry.init({
 ---
 
 ### [ACCESSIBILITY] Add ARIA Labels and Alt Text
+
 **Files**: All UI components in `app/` directory
 **Perspectives**: user-experience-advocate (WCAG 2.1 AA compliance)
 **Why**: Zero ARIA labels or alt text. Screen reader users cannot navigate app.
 
 **Approach**: Add ARIA labels to all interactive elements
+
 ```tsx
 // Interactive buttons
 <button
@@ -1504,6 +1787,64 @@ Sentry.init({
 - **[Integration] Webhooks API** - Send reports to external systems (2 days)
 - **[Design] OKLCH Color Space** - Perceptually uniform colors across themes (2h)
 
+### [ARCHITECTURE] Deployment Observability Dashboard
+
+**Files**: Create `app/admin/deployments/page.tsx`
+**Perspectives**: architecture-guardian
+**Impact**: Visibility into deployment history, health, rollback capability
+
+**Problem**: No visibility into deployment history, current deployment health, or ability to quickly rollback. Must check Vercel/Convex dashboards separately.
+
+**Fix**: Unified deployment dashboard
+
+- Show last 20 deployments with status, timing, committer
+- Health checks for current production deployment
+- One-click rollback to previous deployment
+- Deployment annotations (which PR, which features)
+
+**Effort**: 1 week | **Impact**: Faster incident response, deployment confidence
+**Acceptance**: Dashboard shows deployment history, health status, supports rollback
+
+---
+
+### [ARCHITECTURE] Automated Deployment Drift Detection
+
+**Files**: Create `.github/workflows/drift-detection.yml`
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Catch configuration drift before it causes failures
+
+**Problem**: Documentation can drift from actual configuration. No automated way to detect when vercel.json doesn't match docs, or when env vars are missing.
+
+**Fix**: Scheduled drift detection
+
+```yaml
+# .github/workflows/drift-detection.yml
+name: Configuration Drift Detection
+on:
+  schedule:
+    - cron: "0 0 * * *" # Daily
+  workflow_dispatch:
+
+jobs:
+  detect-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Vercel config matches expected
+        run: ./scripts/verify-deployment-config.sh
+
+      - name: Validate documentation matches actual config
+        run: ./scripts/validate-docs.sh
+
+      - name: Check env vars exist in all environments
+        run: |
+          # Query Vercel API for env vars
+          # Compare against infrastructure/vercel-env.ts
+          # Fail if drift detected
+```
+
+**Effort**: 1 week | **Impact**: Proactive drift detection, prevent configuration issues
+**Acceptance**: Daily drift detection runs, alerts on mismatches, clear remediation steps
+
 ---
 
 ## Later (Someday/Maybe, 6+ months)
@@ -1522,8 +1863,9 @@ Sentry.init({
 **From this grooming session:**
 
 **Observability Insights (Added 2025-11-20):**
+
 - **CRITICAL gap**: Zero production error tracking (no Sentry), zero analytics (no Vercel Analytics), zero health checks
-- **121 console.* calls** across codebase with no structured logging, PII redaction, or log levels
+- **121 console.\* calls** across codebase with no structured logging, PII redaction, or log levels
 - **Primitive metrics.ts wrapper** (23 lines, console.log only) - need Pino with correlation IDs
 - **Error boundary exists** but only logs to console - no Sentry integration
 - **No deployment tracking** - cannot correlate error spikes to releases
@@ -1535,10 +1877,11 @@ Sentry.init({
 - **Privacy compliance**: PII redaction required for GDPR Article 32 (current logging unsafe)
 
 **Quality Infrastructure Insights (Added 2025-11-20):**
+
 - **CRITICAL gap**: Zero CI/CD pipeline, no pre-commit hooks, **broken build command** (missing `npx convex deploy`)
 - **Build risk**: `package.json` only runs `next build` → production failures inevitable (Convex types not generated)
 - **Test coverage**: 12 files, 76 tests on backend logic but 0% auth coverage (Clerk untested), no coverage tracking configured
-- **Security**: No Gitleaks, no Dependabot, no `pnpm audit` in CI, 121 console.* calls with PII risk
+- **Security**: No Gitleaks, no Dependabot, no `pnpm audit` in CI, 121 console.\* calls with PII risk
 - **Good foundation**: Tests focus on business logic (LLM, reports, coverage math), not just shallow UI tests
 - **Lint discipline**: Only 2 `eslint-disable` comments across entire codebase (not abused ✅)
 - **Secrets management**: Proper .gitignore, no `NEXT_PUBLIC_` misuse for secrets, env vars correctly scoped
@@ -1550,38 +1893,60 @@ Sentry.init({
 - **CI/CD gap**: 3 workflows exist (enforce-pnpm, claude, claude-code-review) but none run typecheck/lint/test/build
 - **Changesets rationale**: Best for apps (vs semantic-release for libraries), automated changelog + version bumps
 
+**Deployment Infrastructure Insights (Added 2025-11-22):**
+
+- **Root cause of Vercel failure**: `vercel.json` buildCommand was `pnpm build` instead of `npx convex deploy --cmd 'pnpm build'`
+- **Why it matters**: Without Convex wrapping the build, `NEXT_PUBLIC_CONVEX_URL` never gets injected, causing deployment to fail
+- **Documentation drift**: Docs correctly described `npx convex deploy --cmd 'pnpm build'` but actual config didn't match
+- **Quality gate gap**: Pre-push hooks don't run build verification - could push code that won't deploy
+- **Configuration sprawl**: 6 different sources of env var configuration (local, Convex dev/prod/defaults, Vercel prod/preview)
+- **Shallow module anti-pattern**: Build command defined in 3 places (package.json, vercel.json, docs) with no single source of truth
+- **CLI automation limits**: Convex CLI can't set default env vars or generate deploy keys (dashboard only) - hybrid approach required
+- **Quick fixes**: Fix vercel.json (5m), add build to pre-push (30m), create verification script (2h)
+- **Strategic fixes**: Deployment service module (2w), Infrastructure as Code for env vars (1w), staging environment (1w)
+- **Ousterhout violations**: Information leakage (env vars spread across 6 places), shallow modules (build definitions everywhere), obscurity (no config validation)
+- **Key learning**: "Can we deploy this?" should be answered before merge, not in production Vercel logs
+- **Prevention strategy**: Deployment config integration tests + drift detection + staging environment + build verification in pre-push
+
 **Architecture Insights:**
+
 - Codebase has excellent deep module design (Canonical Fact Service, Report Orchestrator) but lacks production infrastructure
 - Content-addressed architecture prevents duplicate work - this is a strategic strength, preserve it
 - Temporal decomposition in `reportOrchestrator.ts` is main complexity issue - extract stages before adding features
 
 **Business Model Insights:**
+
 - Current backlog optimized for scale (10k+ events) when MVP needs business viability (revenue, teams, distribution)
 - Missing table-stakes B2B features (team collaboration, Slack) blocks team adoption
 - No payment infrastructure = $0 revenue with 100% feature-complete product
 - 80/20 rule: Team tier (collaboration + distribution) drives 80% of revenue potential
 
 **Performance Insights:**
+
 - N+1 queries in ingestion (14s → 50ms fix) and unbounded `.collect()` calls (5s → 10ms fix) are low-hanging fruit
 - Performance issues are user-facing (slow dashboards, slow ingestion) not speculative
 - Fix performance bottlenecks before scale optimizations (map-reduce)
 
 **Security Insights:**
+
 - Strong foundation (Clerk auth, Convex type-safety) but missing access control checks
 - XSS in report rendering is HIGH severity but easy fix (1h with DOMPurify)
 - Secret management is correct (gitignored .env files, no tracked secrets)
 
 **UX/Product Insights:**
+
 - Backend errors lack user-friendly translations (70+ throw statements with jargon)
 - Distribution is key gap - reports trapped in web app, need Slack/email
 - Users want interactive analytics, not just static reports (LinearB/Jellyfish competitive gap)
 
 **Design System Insights:**
+
 - Intentional "Luminous Precision" aesthetic (not generic AI) - monochrome + pulse red
 - Tailwind 4 @theme foundation is excellent but 47 hardcoded colors bypass it
 - Component architecture is solid (deep modules) with one acceptable shallow module (ThemeToggle)
 
 **Strategic Recommendation:**
+
 - Phase 1 (2 weeks): Infrastructure + security + critical performance (production-ready)
 - Phase 2 (7 weeks): Payments + Slack + teams + exports (revenue-generating SaaS)
 - Phase 3 (3 months): Analytics dashboard + alerts + templates (competitive differentiation)
@@ -1590,6 +1955,7 @@ Sentry.init({
 ---
 
 **Backlog Health Check:**
+
 - ✅ Forward-only (no completed/archived section)
 - ✅ Ruthlessly curated (every item has business justification)
 - ✅ Time-organized (detail matches proximity: rich Now, light Later)

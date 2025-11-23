@@ -12,9 +12,14 @@ import { CoverageMeter } from "@/components/CoverageMeter";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
+import { track } from "@vercel/analytics";
 
 export default function ReportsPage() {
-  const { clerkUser, convexUser, isLoading: isAuthLoading } = useAuthenticatedConvexUser();
+  const {
+    clerkUser,
+    convexUser,
+    isLoading: isAuthLoading,
+  } = useAuthenticatedConvexUser();
   const [loadMoreCount, setLoadMoreCount] = useState(1);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const { status: integrationStatus } = useIntegrationStatus();
@@ -28,20 +33,22 @@ export default function ReportsPage() {
   // Try to fetch reports by Clerk ID first
   const reportsByClerkId = useQuery(
     api.reports.listByUser,
-    userId ? { userId, limit: currentLimit } : "skip"
+    userId ? { userId, limit: currentLimit } : "skip",
   );
 
   // Fallback: fetch reports by GitHub login (for test data or GitHub-only users)
   const reportsByGhLogin = useQuery(
     api.reports.listByGhLogin,
-    githubUsername ? { ghLogin: githubUsername, limit: currentLimit } : "skip"
+    githubUsername ? { ghLogin: githubUsername, limit: currentLimit } : "skip",
   );
 
   // Only wait for queries that are actually running (not skipped)
   const isLoadingClerkReports = userId && reportsByClerkId === undefined;
-  const isLoadingGithubReports = githubUsername && reportsByGhLogin === undefined;
+  const isLoadingGithubReports =
+    githubUsername && reportsByGhLogin === undefined;
 
-  const isLoading = isAuthLoading || isLoadingClerkReports || isLoadingGithubReports;
+  const isLoading =
+    isAuthLoading || isLoadingClerkReports || isLoadingGithubReports;
 
   // Determine which reports to show:
   // 1. If Clerk ID query has results, use those (primary path)
@@ -53,9 +60,9 @@ export default function ReportsPage() {
       isLoading
         ? undefined
         : reportsByClerkId && reportsByClerkId.length > 0
-        ? reportsByClerkId
-        : reportsByGhLogin || [],
-    [isLoading, reportsByClerkId, reportsByGhLogin]
+          ? reportsByClerkId
+          : reportsByGhLogin || [],
+    [isLoading, reportsByClerkId, reportsByGhLogin],
   );
 
   // Infinite scroll with intersection observer
@@ -69,7 +76,7 @@ export default function ReportsPage() {
           setLoadMoreCount((prev) => prev + 1);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(loadMoreRef.current);
@@ -83,12 +90,25 @@ export default function ReportsPage() {
   const handleDelete = async (reportId: Id<"reports">) => {
     if (!confirm("Are you sure you want to delete this report?")) return;
 
+    // Find report for tracking before deletion
+    const report = reports?.find((r) => r._id === reportId);
+
     setDeletingId(reportId);
     try {
       await deleteReport({ id: reportId });
+
+      // Track report deletion event
+      if (report) {
+        track("report_deleted", {
+          reportId,
+          kind: report.scheduleType || "daily",
+        });
+      }
+
       showSuccess("Report deleted successfully");
     } catch (error) {
-      const err = error instanceof Error ? error : new Error("Failed to delete report");
+      const err =
+        error instanceof Error ? error : new Error("Failed to delete report");
       handleConvexError(err, {
         operation: "delete report",
         retry: () => handleDelete(reportId),
@@ -136,7 +156,7 @@ export default function ReportsPage() {
               // Clean Editorial Badges
               const isDaily = report.scheduleType === "daily";
               const isWeekly = report.scheduleType === "weekly";
-              
+
               return (
                 <Link
                   key={report._id}
@@ -147,10 +167,14 @@ export default function ReportsPage() {
                   <div className="flex-1 space-y-3">
                     {/* Metadata Line */}
                     <div className="flex items-center gap-3 text-[11px] font-mono text-muted uppercase tracking-wider">
-                      <span className={`h-1.5 w-1.5 rounded-full ${isDaily ? 'bg-foreground' : 'bg-muted'}`} />
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${isDaily ? "bg-foreground" : "bg-muted"}`}
+                      />
                       <span>{report.scheduleType}</span>
                       <span>•</span>
-                      <span>{new Date(report.generatedAt).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(report.generatedAt).toLocaleDateString()}
+                      </span>
                     </div>
 
                     {/* Title */}
@@ -160,26 +184,32 @@ export default function ReportsPage() {
 
                     {/* Description */}
                     {report.description && (
-                      <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed max-w-2xl">{report.description}</p>
+                      <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed max-w-2xl">
+                        {report.description}
+                      </p>
                     )}
                   </div>
 
                   {/* Metrics / Actions */}
                   <div className="flex items-center gap-6 sm:flex-col sm:items-end sm:gap-2">
-                     <div className="text-right">
-                        <div className="text-2xl font-semibold tracking-tight">{report.coverageScore ?? 0}%</div>
-                        <div className="text-[10px] font-mono text-muted uppercase tracking-widest">Coverage</div>
-                     </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-semibold tracking-tight">
+                        {report.coverageScore ?? 0}%
+                      </div>
+                      <div className="text-[10px] font-mono text-muted uppercase tracking-widest">
+                        Coverage
+                      </div>
+                    </div>
 
                     <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleDelete(report._id);
-                        }}
-                        disabled={deletingId === report._id}
-                        className="mt-2 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
-                      >
-                        {deletingId === report._id ? "Deleting..." : "Delete"}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDelete(report._id);
+                      }}
+                      disabled={deletingId === report._id}
+                      className="mt-2 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
+                    >
+                      {deletingId === report._id ? "Deleting..." : "Delete"}
                     </button>
                   </div>
                 </Link>
@@ -199,14 +229,17 @@ export default function ReportsPage() {
   );
 }
 
-function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }) {
+function ReportsEmptyState({
+  status,
+}: {
+  status: IntegrationStatus | undefined;
+}) {
   const installUrl = getGithubInstallUrl();
   const isActionable =
-    status && !["healthy", "missing_user", "unauthenticated"].includes(status.kind);
+    status &&
+    !["healthy", "missing_user", "unauthenticated"].includes(status.kind);
 
-  const title = isActionable
-    ? "Connect GitHub"
-    : "No reports yet";
+  const title = isActionable ? "Connect GitHub" : "No reports yet";
 
   let guidance: ReactNode = (
     <p className="text-foreground-muted">
@@ -219,7 +252,10 @@ function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }
       guidance = (
         <p className="text-amber-700 dark:text-amber-200">
           Install the GitHub App to begin ingesting activity.{" "}
-          <a href={installUrl} className="font-medium underline hover:text-amber-900">
+          <a
+            href={installUrl}
+            className="font-medium underline hover:text-amber-900"
+          >
             Open GitHub
           </a>
           .
@@ -229,7 +265,10 @@ function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }
       guidance = (
         <p className="text-amber-700 dark:text-amber-200">
           We haven’t ingested any GitHub activity yet. Add repositories in{" "}
-          <Link href="/dashboard/settings/repositories" className="font-medium underline hover:text-amber-900">
+          <Link
+            href="/dashboard/settings/repositories"
+            className="font-medium underline hover:text-amber-900"
+          >
             Settings
           </Link>{" "}
           to kick off your first backfill.
@@ -238,9 +277,12 @@ function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }
     } else if (status.kind === "stale_events") {
       guidance = (
         <p className="text-amber-700 dark:text-amber-200">
-          No new events have arrived since {formatTimestamp(status.lastEventTs)}. Review your GitHub
-          connection in{" "}
-          <Link href="/dashboard/settings/repositories" className="font-medium underline hover:text-amber-900">
+          No new events have arrived since {formatTimestamp(status.lastEventTs)}
+          . Review your GitHub connection in{" "}
+          <Link
+            href="/dashboard/settings/repositories"
+            className="font-medium underline hover:text-amber-900"
+          >
             Settings
           </Link>{" "}
           to resume ingestion.
@@ -257,10 +299,10 @@ function ReportsEmptyState({ status }: { status: IntegrationStatus | undefined }
           : "border-border bg-surface border-dashed"
       }`}
     >
-      <h3 className="text-xl font-semibold tracking-tight text-foreground mb-4">{title}</h3>
-      <div className="max-w-md mx-auto text-sm leading-relaxed">
-         {guidance}
-      </div>
+      <h3 className="text-xl font-semibold tracking-tight text-foreground mb-4">
+        {title}
+      </h3>
+      <div className="max-w-md mx-auto text-sm leading-relaxed">{guidance}</div>
     </div>
   );
 }

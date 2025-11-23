@@ -150,11 +150,11 @@ export default defineSchema({
         additions: v.optional(v.number()),
         deletions: v.optional(v.number()),
         filesChanged: v.optional(v.number()),
-      })
+      }),
     ),
     contentHash: v.optional(v.string()),
     contentScope: v.optional(
-      v.union(v.literal("event"), v.literal("timeslice"))
+      v.union(v.literal("event"), v.literal("timeslice")),
     ),
 
     // Timestamps
@@ -248,8 +248,8 @@ export default defineSchema({
           scopeKey: v.string(),
           used: v.number(),
           total: v.number(),
-        })
-      )
+        }),
+      ),
     ),
     sections: v.optional(
       v.array(
@@ -257,8 +257,8 @@ export default defineSchema({
           title: v.string(),
           bullets: v.array(v.string()),
           citations: v.array(v.string()),
-        })
-      )
+        }),
+      ),
     ),
 
     // Automated standup fields
@@ -293,7 +293,7 @@ export default defineSchema({
       v.literal("validating"),
       v.literal("saving"),
       v.literal("completed"),
-      v.literal("failed")
+      v.literal("failed"),
     ),
     progress: v.number(),
     message: v.optional(v.string()),
@@ -302,7 +302,7 @@ export default defineSchema({
         message: v.string(),
         stage: v.optional(v.string()),
         stack: v.optional(v.string()),
-      })
+      }),
     ),
     newReportId: v.optional(v.id("reports")),
     createdAt: v.number(),
@@ -408,7 +408,11 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_installationId", ["installationId"])
-    .index("by_user_installation_repo", ["userId", "installationId", "repoFullName"]),
+    .index("by_user_installation_repo", [
+      "userId",
+      "installationId",
+      "repoFullName",
+    ]),
 
   /**
    * userRepoAccessCache table - Caches the list of repositories a user has access to for a given installation.
@@ -487,6 +491,5 @@ export default defineSchema({
     startedAt: v.number(),
     completedAt: v.number(),
     createdAt: v.number(),
-  })
-    .index("by_type_and_createdAt", ["type", "createdAt"]),
+  }).index("by_type_and_createdAt", ["type", "createdAt"]),
 });

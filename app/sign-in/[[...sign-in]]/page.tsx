@@ -11,7 +11,10 @@ export default function SignInPage() {
       </div>
       <div className="flex min-h-[calc(100vh-120px)] items-center justify-center px-4 pb-12">
         <div className="rounded-3xl border border-gray-200 bg-white/80 p-6 shadow-2xl backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80 sm:p-10">
-          <SignIn signUpUrl="/sign-up" appearance={{ elements: { card: "bg-transparent shadow-none" } }} />
+          <SignIn
+            signUpUrl="/sign-up"
+            appearance={{ elements: { card: "bg-transparent shadow-none" } }}
+          />
         </div>
       </div>
     </div>

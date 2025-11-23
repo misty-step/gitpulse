@@ -25,15 +25,22 @@ export async function GET(req: NextRequest) {
 
     // Handle GitHub authorization errors
     if (error) {
-      const errorDescription = searchParams.get("error_description") || "Unknown error";
+      const errorDescription =
+        searchParams.get("error_description") || "Unknown error";
       return NextResponse.redirect(
-        new URL(`/dashboard/settings?github=error&message=${encodeURIComponent(errorDescription)}`, req.url)
+        new URL(
+          `/dashboard/settings?github=error&message=${encodeURIComponent(errorDescription)}`,
+          req.url,
+        ),
       );
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=Missing authorization code", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=Missing authorization code",
+          req.url,
+        ),
       );
     }
 
@@ -41,7 +48,10 @@ export async function GET(req: NextRequest) {
     const storedState = req.cookies.get("github_oauth_state")?.value;
     if (!storedState || storedState !== state) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=Invalid state token", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=Invalid state token",
+          req.url,
+        ),
       );
     }
 
@@ -51,26 +61,35 @@ export async function GET(req: NextRequest) {
 
     if (!clientId || !clientSecret) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=GitHub OAuth not configured", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=GitHub OAuth not configured",
+          req.url,
+        ),
       );
     }
 
-    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
+    const tokenResponse = await fetch(
+      "https://github.com/login/oauth/access_token",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+        }),
       },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-      }),
-    });
+    );
 
     if (!tokenResponse.ok) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=Failed to exchange code for token", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=Failed to exchange code for token",
+          req.url,
+        ),
       );
     }
 
@@ -78,7 +97,10 @@ export async function GET(req: NextRequest) {
 
     if (tokenData.error) {
       return NextResponse.redirect(
-        new URL(`/dashboard/settings?github=error&message=${encodeURIComponent(tokenData.error_description || tokenData.error)}`, req.url)
+        new URL(
+          `/dashboard/settings?github=error&message=${encodeURIComponent(tokenData.error_description || tokenData.error)}`,
+          req.url,
+        ),
       );
     }
 
@@ -87,14 +109,17 @@ export async function GET(req: NextRequest) {
     // Fetch GitHub user profile
     const userResponse = await fetch("https://api.github.com/user", {
       headers: {
-        "Authorization": `Bearer ${access_token}`,
-        "Accept": "application/vnd.github+json",
+        Authorization: `Bearer ${access_token}`,
+        Accept: "application/vnd.github+json",
       },
     });
 
     if (!userResponse.ok) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=Failed to fetch GitHub user profile", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=Failed to fetch GitHub user profile",
+          req.url,
+        ),
       );
     }
 
@@ -104,7 +129,10 @@ export async function GET(req: NextRequest) {
     const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
     if (!convexUrl) {
       return NextResponse.redirect(
-        new URL("/dashboard/settings?github=error&message=Convex not configured", req.url)
+        new URL(
+          "/dashboard/settings?github=error&message=Convex not configured",
+          req.url,
+        ),
       );
     }
 
@@ -114,7 +142,9 @@ export async function GET(req: NextRequest) {
       clerkId: userId,
       githubAccessToken: access_token,
       githubRefreshToken: refresh_token || undefined,
-      githubTokenExpiry: expires_in ? Date.now() + expires_in * 1000 : Date.now() + 8 * 60 * 60 * 1000, // Default 8 hours
+      githubTokenExpiry: expires_in
+        ? Date.now() + expires_in * 1000
+        : Date.now() + 8 * 60 * 60 * 1000, // Default 8 hours
       githubUsername: githubUser.login,
       githubProfile: {
         id: githubUser.id,
@@ -136,14 +166,19 @@ export async function GET(req: NextRequest) {
     });
 
     // Clear state cookie and redirect to settings with success
-    const response = NextResponse.redirect(new URL("/dashboard/settings?github=connected", req.url));
+    const response = NextResponse.redirect(
+      new URL("/dashboard/settings?github=connected", req.url),
+    );
     response.cookies.delete("github_oauth_state");
 
     return response;
   } catch (error) {
     console.error("GitHub OAuth callback error:", error);
     return NextResponse.redirect(
-      new URL("/dashboard/settings?github=error&message=An unexpected error occurred", req.url)
+      new URL(
+        "/dashboard/settings?github=error&message=An unexpected error occurred",
+        req.url,
+      ),
     );
   }
 }

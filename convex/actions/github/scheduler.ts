@@ -2,6 +2,7 @@
 
 import { internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
+import { logger } from "../../lib/logger.js";
 
 /**
  * Process pending webhook events in batches
@@ -26,13 +27,17 @@ export const processPendingWebhooks = internalAction({
       return { processed: 0 };
     }
 
-    console.log(`Processing ${pending.length} pending webhooks`);
+    logger.info({ count: pending.length }, "Processing pending webhooks");
 
     // Process each webhook
     for (const webhookEvent of pending) {
-      await ctx.scheduler.runAfter(0, internal.actions.github.processWebhook.processWebhook, {
-        webhookEventId: webhookEvent._id,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.actions.github.processWebhook.processWebhook,
+        {
+          webhookEventId: webhookEvent._id,
+        },
+      );
     }
 
     return { processed: pending.length };
@@ -52,13 +57,19 @@ export const resumeStuckBackfills = internalAction({
   args: {},
   handler: async (ctx): Promise<{ resumed: number; failed: number }> => {
     // Find jobs that should have resumed but are still blocked
-    const stuckJobs = await ctx.runQuery(internal.ingestionJobs.findStuckBlockedJobs, {});
+    const stuckJobs = await ctx.runQuery(
+      internal.ingestionJobs.findStuckBlockedJobs,
+      {},
+    );
 
     if (stuckJobs.length === 0) {
       return { resumed: 0, failed: 0 };
     }
 
-    console.log(`[SafetyNet] Found ${stuckJobs.length} stuck blocked jobs to resume`);
+    logger.info(
+      { count: stuckJobs.length },
+      "Found stuck blocked jobs to resume",
+    );
 
     let resumed = 0;
     let failed = 0;
@@ -69,28 +80,34 @@ export const resumeStuckBackfills = internalAction({
         await ctx.scheduler.runAfter(
           0,
           internal.actions.github.startBackfill.continueBackfill,
-          { jobId: job._id }
+          { jobId: job._id },
         );
 
-        console.log("[SafetyNet] Scheduled resume for stuck job", {
-          jobId: job._id,
-          repoFullName: job.repoFullName,
-          blockedUntil: job.blockedUntil
-            ? new Date(job.blockedUntil).toISOString()
-            : "unknown",
-        });
+        logger.info(
+          {
+            jobId: job._id,
+            repoFullName: job.repoFullName,
+            blockedUntil: job.blockedUntil
+              ? new Date(job.blockedUntil).toISOString()
+              : "unknown",
+          },
+          "Scheduled resume for stuck job",
+        );
 
         resumed++;
       } catch (error) {
-        console.error("[SafetyNet] Failed to schedule resume for job", {
-          jobId: job._id,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
+        logger.error(
+          {
+            err: error,
+            jobId: job._id,
+          },
+          "Failed to schedule resume for job",
+        );
         failed++;
       }
     }
 
-    console.log(`[SafetyNet] Resume complete: ${resumed} resumed, ${failed} failed`);
+    logger.info({ resumed, failed }, "Resume complete");
 
     return { resumed, failed };
   },

@@ -24,6 +24,7 @@ import {
   buildSyntheticDailyReport,
   buildSyntheticWeeklyReport,
 } from "../lib/reportGenerator";
+import { logger } from "../lib/logger.js";
 
 export const generate = action({
   args: {
@@ -36,12 +37,18 @@ export const generate = action({
     // Get user data - support both Clerk ID and GitHub login
     let user;
     if (args.userId) {
-      console.log(`[Test Reports] Starting generation for user ${args.userId}`);
+      logger.info(
+        { userId: args.userId },
+        "Starting test report generation for user",
+      );
       user = await ctx.runQuery(api.users.getByClerkId, {
         clerkId: args.userId,
       });
     } else if (args.ghLogin) {
-      console.log(`[Test Reports] Starting generation for GitHub user ${args.ghLogin}`);
+      logger.info(
+        { ghLogin: args.ghLogin },
+        "Starting test report generation for GitHub user",
+      );
       user = await ctx.runQuery(api.users.getByGhLogin, {
         ghLogin: args.ghLogin,
       });
@@ -66,29 +73,34 @@ export const generate = action({
     const now = Date.now();
 
     // Generate 5 daily reports (yesterday, 2 days ago, 3 days ago, 4 days ago, 5 days ago)
-    console.log("[Test Reports] Generating daily reports...");
+    logger.info("Generating daily test reports");
     for (let daysAgo = 1; daysAgo <= 5; daysAgo++) {
       try {
-        console.log(`[Test Reports] Generating daily report for ${daysAgo} days ago`);
+        logger.info({ daysAgo }, "Generating daily report");
 
         // Calculate date range for this specific day
         const endDate = now - (daysAgo - 1) * 24 * 60 * 60 * 1000;
         const startDate = endDate - 24 * 60 * 60 * 1000;
 
         // Fetch events for this date range
-        const events: Doc<"events">[] = await ctx.runQuery(api.events.listByActor, {
-          actorId: user._id,
-          startDate,
-          endDate,
-          limit: 1000,
-        });
+        const events: Doc<"events">[] = await ctx.runQuery(
+          api.events.listByActor,
+          {
+            actorId: user._id,
+            startDate,
+            endDate,
+            limit: 1000,
+          },
+        );
 
-        const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
+        const repoIds = Array.from(
+          new Set(events.map((event) => event.repoId)),
+        );
         const repoDocs: Array<Doc<"repos"> | null> = await Promise.all(
-          repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
+          repoIds.map((id) => ctx.runQuery(api.repos.getById, { id })),
         );
         const reposById = new Map<Id<"repos">, Doc<"repos"> | null>(
-          repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
+          repoIds.map((id, idx) => [id, repoDocs[idx] ?? null]),
         );
 
         const { context, allowedUrls } = buildReportContext({
@@ -103,12 +115,12 @@ export const generate = action({
           report = await generateDailyReportFromContext(
             githubUsername,
             context,
-            allowedUrls
+            allowedUrls,
           );
         } catch (error) {
-          console.error(
-            "[Test Reports] Daily report generation failed, using synthetic fallback.",
-            error
+          logger.warn(
+            { err: error, daysAgo },
+            "Daily report generation failed, using synthetic fallback",
           );
           report = buildSyntheticDailyReport(githubUsername, context);
         }
@@ -133,42 +145,50 @@ export const generate = action({
         });
 
         results.dailyReports.push(
-          `Daily report ${daysAgo} days ago (${events.length} events)`
+          `Daily report ${daysAgo} days ago (${events.length} events)`,
         );
-        console.log(`[Test Reports] ✓ Generated daily report for ${daysAgo} days ago (${events.length} events)`);
+        logger.info(
+          { daysAgo, eventCount: events.length },
+          "Generated daily report",
+        );
       } catch (error) {
         const errorMsg = `Failed to generate daily report ${daysAgo} days ago: ${
           error instanceof Error ? error.message : String(error)
         }`;
-        console.error(`[Test Reports] ${errorMsg}`);
+        logger.error({ err: error, daysAgo }, errorMsg);
         results.errors.push(errorMsg);
       }
     }
 
     // Generate 3 weekly reports (last week, 2 weeks ago, 3 weeks ago)
-    console.log("[Test Reports] Generating weekly reports...");
+    logger.info("Generating weekly test reports");
     for (let weeksAgo = 1; weeksAgo <= 3; weeksAgo++) {
       try {
-        console.log(`[Test Reports] Generating weekly report for ${weeksAgo} weeks ago`);
+        logger.info({ weeksAgo }, "Generating weekly report");
 
         // Calculate date range for this specific week
         const endDate = now - (weeksAgo - 1) * 7 * 24 * 60 * 60 * 1000;
         const startDate = endDate - 7 * 24 * 60 * 60 * 1000;
 
         // Fetch events for this date range
-        const events: Doc<"events">[] = await ctx.runQuery(api.events.listByActor, {
-          actorId: user._id,
-          startDate,
-          endDate,
-          limit: 1000,
-        });
+        const events: Doc<"events">[] = await ctx.runQuery(
+          api.events.listByActor,
+          {
+            actorId: user._id,
+            startDate,
+            endDate,
+            limit: 1000,
+          },
+        );
 
-        const repoIds = Array.from(new Set(events.map((event) => event.repoId)));
+        const repoIds = Array.from(
+          new Set(events.map((event) => event.repoId)),
+        );
         const repoDocs: Array<Doc<"repos"> | null> = await Promise.all(
-          repoIds.map((id) => ctx.runQuery(api.repos.getById, { id }))
+          repoIds.map((id) => ctx.runQuery(api.repos.getById, { id })),
         );
         const reposById = new Map<Id<"repos">, Doc<"repos"> | null>(
-          repoIds.map((id, idx) => [id, repoDocs[idx] ?? null])
+          repoIds.map((id, idx) => [id, repoDocs[idx] ?? null]),
         );
 
         const { context, allowedUrls } = buildReportContext({
@@ -183,12 +203,12 @@ export const generate = action({
           report = await generateWeeklyReportFromContext(
             githubUsername,
             context,
-            allowedUrls
+            allowedUrls,
           );
         } catch (error) {
-          console.error(
-            "[Test Reports] Weekly report generation failed, using synthetic fallback.",
-            error
+          logger.warn(
+            { err: error, weeksAgo },
+            "Weekly report generation failed, using synthetic fallback",
           );
           report = buildSyntheticWeeklyReport(githubUsername, context);
         }
@@ -212,22 +232,32 @@ export const generate = action({
           scheduleType: "weekly",
         });
 
-        results.weeklyReports.push(`Weekly report ${weeksAgo} weeks ago (${events.length} events)`);
-        console.log(`[Test Reports] ✓ Generated weekly report for ${weeksAgo} weeks ago (${events.length} events)`);
+        results.weeklyReports.push(
+          `Weekly report ${weeksAgo} weeks ago (${events.length} events)`,
+        );
+        logger.info(
+          { weeksAgo, eventCount: events.length },
+          "Generated weekly report",
+        );
       } catch (error) {
         const errorMsg = `Failed to generate weekly report ${weeksAgo} weeks ago: ${
           error instanceof Error ? error.message : String(error)
         }`;
-        console.error(`[Test Reports] ${errorMsg}`);
+        logger.error({ err: error, weeksAgo }, errorMsg);
         results.errors.push(errorMsg);
       }
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[Test Reports] Completed in ${duration}ms`);
-    console.log(`[Test Reports] Daily reports: ${results.dailyReports.length}`);
-    console.log(`[Test Reports] Weekly reports: ${results.weeklyReports.length}`);
-    console.log(`[Test Reports] Errors: ${results.errors.length}`);
+    logger.info(
+      {
+        durationMs: duration,
+        dailyReports: results.dailyReports.length,
+        weeklyReports: results.weeklyReports.length,
+        errors: results.errors.length,
+      },
+      "Test report generation completed",
+    );
 
     return {
       success: results.errors.length === 0,

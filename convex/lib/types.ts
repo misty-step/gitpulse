@@ -109,7 +109,7 @@ export enum ErrorCode {
 export function createError(
   code: ErrorCode,
   message: string,
-  details?: any
+  details?: any,
 ): ActionError {
   return {
     code,

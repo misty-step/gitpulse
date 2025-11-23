@@ -46,13 +46,13 @@ export const regenerate = action({
 
     if (!user) {
       throw new Error(
-        `User not found for ${identifier.type}=${identifier.value}`
+        `User not found for ${identifier.type}=${identifier.value}`,
       );
     }
 
     if (!user.githubUsername) {
       throw new Error(
-        `User ${user.ghLogin} is missing githubUsername linkage; cannot generate reports`
+        `User ${user.ghLogin} is missing githubUsername linkage; cannot generate reports`,
       );
     }
 
@@ -73,7 +73,7 @@ export const regenerate = action({
         startDate,
         endDate,
       },
-      { forceRegenerate: args.force === true }
+      { forceRegenerate: args.force === true },
     );
 
     return {

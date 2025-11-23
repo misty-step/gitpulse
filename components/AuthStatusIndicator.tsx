@@ -17,7 +17,11 @@ import { useState } from "react";
  *
  * @param variant - 'default' (with dropdown details) or 'inline' (simple text only)
  */
-export function AuthStatusIndicator({ variant = "default" }: { variant?: "default" | "inline" }) {
+export function AuthStatusIndicator({
+  variant = "default",
+}: {
+  variant?: "default" | "inline";
+}) {
   const authHealth = useQuery(api.lib.authHealth.check);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -155,7 +159,8 @@ export function AuthStatusIndicator({ variant = "default" }: { variant?: "defaul
             )}
 
             <div className="pt-2 border-t border-gray-200 text-[10px] text-gray-400">
-              Last checked: {new Date(authHealth.timestamp).toLocaleTimeString()}
+              Last checked:{" "}
+              {new Date(authHealth.timestamp).toLocaleTimeString()}
             </div>
           </div>
         </div>

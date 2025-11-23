@@ -13,7 +13,12 @@ interface KPICardProps {
   format?: (val: number) => string;
 }
 
-export function KPICard({ label, value, trend, format = (v) => v.toLocaleString() }: KPICardProps) {
+export function KPICard({
+  label,
+  value,
+  trend,
+  format = (v) => v.toLocaleString(),
+}: KPICardProps) {
   const hasTrend = trend !== undefined;
   const isPositive = hasTrend && trend.percentage > 0;
   const isNegative = hasTrend && trend.percentage < 0;
@@ -25,14 +30,22 @@ export function KPICard({ label, value, trend, format = (v) => v.toLocaleString(
         <p className="text-[10px] font-mono uppercase tracking-widest text-muted group-hover:text-foreground transition-colors">
           {label}
         </p>
-        
+
         {hasTrend && (
-          <div className={`flex items-center gap-1 text-xs font-medium ${
-            isPositive ? "text-emerald-600 dark:text-emerald-400" : 
-            isNegative ? "text-rose-600 dark:text-rose-400" : 
-            "text-muted"
-          }`}>
-             <span>{isNeutral ? "—" : `${isPositive ? "↑" : "↓"} ${Math.abs(trend.percentage).toFixed(1)}%`}</span>
+          <div
+            className={`flex items-center gap-1 text-xs font-medium ${
+              isPositive
+                ? "text-emerald-600 dark:text-emerald-400"
+                : isNegative
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-muted"
+            }`}
+          >
+            <span>
+              {isNeutral
+                ? "—"
+                : `${isPositive ? "↑" : "↓"} ${Math.abs(trend.percentage).toFixed(1)}%`}
+            </span>
           </div>
         )}
       </div>

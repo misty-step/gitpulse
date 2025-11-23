@@ -32,12 +32,12 @@ export const listByActor = query({
 
     if (args.startDate !== undefined) {
       actorQuery = actorQuery.filter((q) =>
-        q.gte(q.field("ts"), args.startDate!)
+        q.gte(q.field("ts"), args.startDate!),
       );
     }
     if (args.endDate !== undefined) {
       actorQuery = actorQuery.filter((q) =>
-        q.lte(q.field("ts"), args.endDate!)
+        q.lte(q.field("ts"), args.endDate!),
       );
     }
 
@@ -57,7 +57,7 @@ export async function* listByActorComplete(
   ctx: QueryCtx,
   actorId: Id<"users">,
   startDate?: number,
-  endDate?: number
+  endDate?: number,
 ): AsyncGenerator<Doc<"events">[]> {
   let actorQuery = ctx.db
     .query("events")
@@ -95,7 +95,7 @@ export async function countByActor(
   ctx: QueryCtx,
   actorId: Id<"users">,
   startDate?: number,
-  endDate?: number
+  endDate?: number,
 ): Promise<number> {
   let actorQuery = ctx.db
     .query("events")
@@ -121,12 +121,7 @@ export const countByActorInternal = internalQuery({
     endDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    return await countByActor(
-      ctx,
-      args.actorId,
-      args.startDate,
-      args.endDate
-    );
+    return await countByActor(ctx, args.actorId, args.startDate, args.endDate);
   },
 });
 
@@ -150,13 +145,11 @@ export const listByRepo = query({
 
     if (args.startDate !== undefined) {
       repoQuery = repoQuery.filter((q) =>
-        q.gte(q.field("ts"), args.startDate!)
+        q.gte(q.field("ts"), args.startDate!),
       );
     }
     if (args.endDate !== undefined) {
-      repoQuery = repoQuery.filter((q) =>
-        q.lte(q.field("ts"), args.endDate!)
-      );
+      repoQuery = repoQuery.filter((q) => q.lte(q.field("ts"), args.endDate!));
     }
     let events = await repoQuery.order("desc").take(limit * 2);
 
@@ -187,13 +180,11 @@ export const listByType = query({
 
     if (args.startDate !== undefined) {
       typeQuery = typeQuery.filter((q) =>
-        q.gte(q.field("ts"), args.startDate!)
+        q.gte(q.field("ts"), args.startDate!),
       );
     }
     if (args.endDate !== undefined) {
-      typeQuery = typeQuery.filter((q) =>
-        q.lte(q.field("ts"), args.endDate!)
-      );
+      typeQuery = typeQuery.filter((q) => q.lte(q.field("ts"), args.endDate!));
     }
 
     const events = await typeQuery.order("desc").take(limit);
@@ -237,7 +228,7 @@ export const createBatch = mutation({
         repoId: v.id("repos"),
         ts: v.number(),
         metadata: v.optional(v.any()),
-      })
+      }),
     ),
   },
   handler: async (ctx, args) => {
@@ -247,8 +238,8 @@ export const createBatch = mutation({
         ctx.db.insert("events", {
           ...event,
           createdAt: now,
-        })
-      )
+        }),
+      ),
     );
     return ids;
   },
@@ -281,8 +272,8 @@ export const listByDateRange = internalQuery({
     query = query.filter((q) =>
       q.and(
         q.gte(q.field("ts"), args.startDate),
-        q.lte(q.field("ts"), args.endDate)
-      )
+        q.lte(q.field("ts"), args.endDate),
+      ),
     );
 
     return await query.order("desc").take(limit);
@@ -320,7 +311,7 @@ export const upsertCanonical = internalMutation({
         additions: v.optional(v.number()),
         deletions: v.optional(v.number()),
         filesChanged: v.optional(v.number()),
-      })
+      }),
     ),
     contentHash: v.string(),
     metadata: v.optional(v.any()),
@@ -356,14 +347,12 @@ export const listWithoutEmbeddings = internalQuery({
     // Get all embedding refIds
     const allEmbeddings = await ctx.db.query("embeddings").collect();
     const embeddedEventIds = new Set(
-      allEmbeddings
-        .filter((e) => e.scope === "event")
-        .map((e) => e.refId)
+      allEmbeddings.filter((e) => e.scope === "event").map((e) => e.refId),
     );
 
     // Filter events without embeddings
     const eventsWithoutEmbeddings = allEvents.filter(
-      (e) => !embeddedEventIds.has(e._id)
+      (e) => !embeddedEventIds.has(e._id),
     );
 
     return eventsWithoutEmbeddings.slice(0, args.limit);

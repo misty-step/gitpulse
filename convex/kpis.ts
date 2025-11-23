@@ -25,7 +25,7 @@ async function getUserKPIsInternal(
   ctx: QueryCtx,
   ghLogin: string,
   startDate: number,
-  endDate: number
+  endDate: number,
 ): Promise<UserKPIs> {
   // Find user by GitHub login
   const user = await ctx.db
@@ -50,7 +50,7 @@ async function getUserKPIsInternal(
 
   // Filter by time range and count by type
   const eventsInRange = allEvents.filter(
-    (e) => e.ts >= startDate && e.ts <= endDate
+    (e) => e.ts >= startDate && e.ts <= endDate,
   );
 
   const prsOpened = eventsInRange.filter((e) => e.type === "pr_opened").length;
@@ -120,7 +120,7 @@ async function getRepoKPIsInternal(
   ctx: QueryCtx,
   fullName: string,
   startDate: number,
-  endDate: number
+  endDate: number,
 ): Promise<RepoKPIs> {
   // Find repository by full name
   const repo = await ctx.db
@@ -142,10 +142,7 @@ async function getRepoKPIsInternal(
   const allEvents = await ctx.db
     .query("events")
     .withIndex("by_repo_and_ts", (q) =>
-      q
-        .eq("repoId", repo._id)
-        .gte("ts", startDate)
-        .lte("ts", endDate)
+      q.eq("repoId", repo._id).gte("ts", startDate).lte("ts", endDate),
     )
     .collect();
 
@@ -187,7 +184,12 @@ export const getRepoKPIs = query({
     endDate: v.number(),
   },
   handler: async (ctx, args): Promise<RepoKPIs> => {
-    return getRepoKPIsInternal(ctx, args.fullName, args.startDate, args.endDate);
+    return getRepoKPIsInternal(
+      ctx,
+      args.fullName,
+      args.startDate,
+      args.endDate,
+    );
   },
 });
 
@@ -214,7 +216,7 @@ export const getRepoKPIsWithTrends = query({
       ctx,
       args.fullName,
       args.startDate,
-      args.endDate
+      args.endDate,
     );
 
     // Calculate previous period (same duration, shifted back)
@@ -227,23 +229,30 @@ export const getRepoKPIsWithTrends = query({
       ctx,
       args.fullName,
       previousStart,
-      previousEnd
+      previousEnd,
     );
 
     // Calculate trends
     const calculateTrend = (current: number, previous: number) => {
       const change = current - previous;
-      const percentage = previous > 0 ? (change / previous) * 100 : current > 0 ? 100 : 0;
+      const percentage =
+        previous > 0 ? (change / previous) * 100 : current > 0 ? 100 : 0;
       return { change, percentage };
     };
 
     return {
       ...currentKPIs,
       trends: {
-        prsOpened: calculateTrend(currentKPIs.prsOpened, previousKPIs.prsOpened),
+        prsOpened: calculateTrend(
+          currentKPIs.prsOpened,
+          previousKPIs.prsOpened,
+        ),
         commits: calculateTrend(currentKPIs.commits, previousKPIs.commits),
         reviews: calculateTrend(currentKPIs.reviews, previousKPIs.reviews),
-        contributors: calculateTrend(currentKPIs.contributors, previousKPIs.contributors),
+        contributors: calculateTrend(
+          currentKPIs.contributors,
+          previousKPIs.contributors,
+        ),
       },
       previousPeriod: previousKPIs,
     };
@@ -262,8 +271,8 @@ export const getUserKPIsBatch = query({
   handler: async (ctx, args): Promise<UserKPIs[]> => {
     const kpis = await Promise.all(
       args.ghLogins.map((login) =>
-        getUserKPIsInternal(ctx, login, args.startDate, args.endDate)
-      )
+        getUserKPIsInternal(ctx, login, args.startDate, args.endDate),
+      ),
     );
     return kpis;
   },

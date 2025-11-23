@@ -22,7 +22,6 @@ export class RateLimitError extends Error {
   }
 }
 
-
 /**
  * GitHub API error response
  */
@@ -37,7 +36,7 @@ interface GitHubError {
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 3,
-  baseDelay = 1000
+  baseDelay = 1000,
 ): Promise<T> {
   let lastError: Error | undefined;
 
@@ -58,9 +57,9 @@ async function withRetry<T>(
         // Let it throw so the caller can schedule a long-term pause
         const waitTime = error.reset - Date.now();
         if (waitTime > 60 * 1000) {
-           throw error;
+          throw error;
         }
-        
+
         // Otherwise, if it's a short wait (e.g. secondary rate limit), wait and retry
         const delay = Math.max(baseDelay * Math.pow(2, attempt), 1000);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -91,7 +90,7 @@ async function withRetry<T>(
 async function githubFetch<T>(
   path: string,
   token: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<T> {
   const url = `${GITHUB_API_BASE}${path}`;
 
@@ -120,9 +119,9 @@ async function githubFetch<T>(
       }
 
       const remainingHeader = response.headers.get("x-ratelimit-remaining");
-      const isRateLimit = 
-        response.status === 429 || 
-        (remainingHeader === "0") || 
+      const isRateLimit =
+        response.status === 429 ||
+        remainingHeader === "0" ||
         message.toLowerCase().includes("rate limit") ||
         message.toLowerCase().includes("abuse") ||
         message.toLowerCase().includes("secondary");
@@ -130,27 +129,32 @@ async function githubFetch<T>(
       if (isRateLimit) {
         const resetHeader = response.headers.get("x-ratelimit-reset");
         const retryAfterHeader = response.headers.get("retry-after");
-        
+
         let reset = Date.now() + 3600 * 1000; // Default 1h
-        
+
         if (resetHeader) {
-           reset = parseInt(resetHeader, 10) * 1000;
+          reset = parseInt(resetHeader, 10) * 1000;
         } else if (retryAfterHeader) {
-           reset = Date.now() + parseInt(retryAfterHeader, 10) * 1000;
+          reset = Date.now() + parseInt(retryAfterHeader, 10) * 1000;
         }
 
-        throw new RateLimitError(reset, `GitHub API error (${response.status}): ${message}`);
+        throw new RateLimitError(
+          reset,
+          `GitHub API error (${response.status}): ${message}`,
+        );
       }
-      
+
       // If not a rate limit, throw standard error below
       if (errorBody) {
-         throw new Error(`GitHub API error (${response.status}): ${errorBody.message}`);
+        throw new Error(
+          `GitHub API error (${response.status}): ${errorBody.message}`,
+        );
       }
     }
 
     const error = (await response.json()) as GitHubError;
     throw new Error(
-      `GitHub API error (${response.status}): ${error.message || response.statusText}`
+      `GitHub API error (${response.status}): ${error.message || response.statusText}`,
     );
   }
 
@@ -267,7 +271,7 @@ export interface GitHubRepository {
 export async function backfillPRs(
   token: string,
   fullName: string,
-  sinceISO: string
+  sinceISO: string,
 ): Promise<GitHubPullRequest[]> {
   const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
@@ -285,8 +289,8 @@ export async function backfillPRs(
     const prs = await withRetry(() =>
       githubFetch<GitHubPullRequest[]>(
         `/repos/${owner}/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=${perPage}&page=${page}`,
-        token
-      )
+        token,
+      ),
     );
 
     if (prs.length === 0) {
@@ -319,7 +323,7 @@ export async function backfillPRs(
 export async function listReviews(
   token: string,
   fullName: string,
-  prNumber: number
+  prNumber: number,
 ): Promise<GitHubReview[]> {
   const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
@@ -329,8 +333,8 @@ export async function listReviews(
   return await withRetry(() =>
     githubFetch<GitHubReview[]>(
       `/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-      token
-    )
+      token,
+    ),
   );
 }
 
@@ -347,7 +351,7 @@ export async function listCommits(
   token: string,
   fullName: string,
   sinceISO: string,
-  author?: string
+  author?: string,
 ): Promise<GitHubCommit[]> {
   const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
@@ -364,7 +368,7 @@ export async function listCommits(
 
   while (true) {
     const commits = await withRetry(() =>
-      githubFetch<GitHubCommit[]>(`${path}&page=${page}`, token)
+      githubFetch<GitHubCommit[]>(`${path}&page=${page}`, token),
     );
 
     if (commits.length === 0) {
@@ -393,7 +397,7 @@ export async function listCommits(
  */
 export async function getRepository(
   token: string,
-  fullName: string
+  fullName: string,
 ): Promise<GitHubRepository> {
   const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
@@ -401,7 +405,7 @@ export async function getRepository(
   }
 
   return await withRetry(() =>
-    githubFetch<GitHubRepository>(`/repos/${owner}/${repo}`, token)
+    githubFetch<GitHubRepository>(`/repos/${owner}/${repo}`, token),
   );
 }
 
@@ -416,7 +420,7 @@ export async function getRepository(
  */
 export async function listUserRepositories(
   token: string,
-  username: string
+  username: string,
 ): Promise<GitHubRepository[]> {
   const allRepos: GitHubRepository[] = [];
   let page = 1;
@@ -426,8 +430,8 @@ export async function listUserRepositories(
     const repos = await withRetry(() =>
       githubFetch<GitHubRepository[]>(
         `/users/${username}/repos?per_page=${perPage}&page=${page}`,
-        token
-      )
+        token,
+      ),
     );
 
     if (repos.length === 0) {
@@ -458,7 +462,7 @@ export async function listUserRepositories(
  */
 export async function listOrgRepositories(
   token: string,
-  orgName: string
+  orgName: string,
 ): Promise<GitHubRepository[]> {
   const allRepos: GitHubRepository[] = [];
   let page = 1;
@@ -468,8 +472,8 @@ export async function listOrgRepositories(
     const repos = await withRetry(() =>
       githubFetch<GitHubRepository[]>(
         `/orgs/${orgName}/repos?per_page=${perPage}&page=${page}`,
-        token
-      )
+        token,
+      ),
     );
 
     if (repos.length === 0) {

@@ -38,7 +38,7 @@ describe("LLMClient deterministic generation", () => {
       const body = JSON.parse((requestInit.body as string | undefined) ?? "{}");
 
       // Detect OpenAI vs Gemini by URL
-      if (typeof url === 'string' && url.includes('openai.com')) {
+      if (typeof url === "string" && url.includes("openai.com")) {
         const temperature = body?.temperature ?? 1;
         const text = temperature === 0 ? "stable-output" : `variant-${counter}`;
         return makeOpenAIResponse(text);
@@ -86,7 +86,7 @@ describe("LLMClient structured generation", () => {
   it("validates structured responses via schema", async () => {
     const fetchMock = getFetchMock();
     fetchMock.mockResolvedValue(
-      makeGeminiResponse(JSON.stringify({ sections: ["one"] }))
+      makeGeminiResponse(JSON.stringify({ sections: ["one"] })),
     );
 
     const client = new LLMClient({
@@ -98,10 +98,10 @@ describe("LLMClient structured generation", () => {
     expect(result).toEqual({ sections: ["one"] });
 
     const body = JSON.parse(
-      ((fetchMock.mock.calls[0][1] as RequestInit).body as string) ?? "{}"
+      ((fetchMock.mock.calls[0][1] as RequestInit).body as string) ?? "{}",
     );
     expect(body.generationConfig.response_mime_type).toBe("application/json");
-    expect(body.generationConfig.response_schema).toBeDefined();
+    expect(body.generationConfig.response_json_schema).toBeDefined();
   });
 
   it("throws when JSON cannot be parsed", async () => {
@@ -114,7 +114,7 @@ describe("LLMClient structured generation", () => {
     });
 
     await expect(client.generateStructured(payload, schema)).rejects.toThrow(
-      "Structured response was not valid JSON"
+      "Structured response was not valid JSON",
     );
   });
 
@@ -122,8 +122,8 @@ describe("LLMClient structured generation", () => {
     const fetchMock = getFetchMock();
     fetchMock.mockResolvedValue(
       makeGeminiResponse(
-        JSON.stringify({ sections: [{ title: "missing string" }] })
-      )
+        JSON.stringify({ sections: [{ title: "missing string" }] }),
+      ),
     );
 
     const client = new LLMClient({
@@ -132,7 +132,7 @@ describe("LLMClient structured generation", () => {
     });
 
     await expect(client.generateStructured(payload, schema)).rejects.toThrow(
-      "Structured response failed validation"
+      "Structured response failed validation",
     );
   });
 
@@ -143,7 +143,7 @@ describe("LLMClient structured generation", () => {
     });
 
     await expect(client.generateStructured(payload, schema)).rejects.toThrow(
-      "Structured generation is only supported for the Google provider"
+      "Structured generation is only supported for the Google provider",
     );
   });
 });

@@ -7,12 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **GitPulse** is an AI-powered GitHub activity analytics platform that generates trusted, citation-backed reports (daily standups, weekly retrospectives) from GitHub events. Every claim links to a GitHub URL for verification.
 
 **Core Architecture**: Dual-stream content-addressed fact graph
+
 - **Webhooks** (real-time) + **Backfills** (historical) → Single canonical fact store
 - **Content hashing** (SHA-256) prevents duplicate embeddings/LLM calls
 - **Deterministic caching** by (scope, window, contentHashAgg, promptVersion)
 - **Deep modules**: GitHub Service, Canonical Fact Service, Embedding Service, Report Orchestrator
 
 **Tech Stack**:
+
 - Frontend: Next.js 16 (App Router) + React 19 + TypeScript 5.7 + Tailwind CSS 4
 - Backend: Convex (serverless functions + database + vector search)
 - Auth: Clerk (session management + GitHub OAuth)
@@ -21,6 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Essential Commands
 
 ### Development
+
 ```bash
 pnpm dev              # Start Next.js (port 3000) + Convex dev server concurrently
 pnpm build            # Production build (Next.js only)
@@ -28,6 +31,7 @@ pnpm start            # Start production server
 ```
 
 ### Quality Checks
+
 ```bash
 pnpm typecheck        # TypeScript type checking (tsc --noEmit)
 pnpm lint             # ESLint check
@@ -36,6 +40,7 @@ pnpm test             # Run Jest test suite
 ```
 
 ### Convex Operations
+
 ```bash
 npx convex dev        # Start Convex dev server (auto-syncs schema + functions)
 npx convex dashboard  # Open Convex dashboard (view data, logs, run functions)
@@ -43,6 +48,7 @@ npx convex deploy     # Deploy to production Convex environment
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 pnpm test
@@ -62,18 +68,22 @@ npx jest --coverage
 ### Module Boundaries (Deep Modules Philosophy)
 
 **1. GitHub Integration Service** (`convex/lib/githubApp.ts`)
+
 - **Hides**: GitHub App OAuth, webhook HMAC verification, token minting, rate-limit state
 - **Exposes**: `verifyAndEnqueueWebhook()`, `startBackfill()`, `reconcileInstallation()`
 
 **2. Canonical Fact Service** (`convex/lib/canonicalFactService.ts`)
+
 - **Hides**: Payload normalization, SHA-256 hashing, deduplication logic, user/repo upsertion
 - **Exposes**: `upsertFromWebhook()`, `upsertFromBackfill()`
 
 **3. Embedding Service** (`convex/actions/embeddings/ensureBatch.ts`)
+
 - **Hides**: Voyage/OpenAI batch API calls, retry logic, spend tracking, provider fallback
 - **Exposes**: `ensureEmbeddings(contentHashes[])`
 
 **4. Report Orchestrator** (`convex/lib/reportOrchestrator.ts`)
+
 - **Hides**: LLM prompting, citation validation, coverage computation, cache key generation
 - **Exposes**: `generateReport()`, `computeCoverage()`
 
@@ -95,13 +105,13 @@ if (!existing) {
 ```typescript
 // Cache key ensures deterministic generation
 cacheKey = sha256({
-  kind,           // "daily" | "weekly"
+  kind, // "daily" | "weekly"
   userId,
   startDate,
   endDate,
   contentHashAgg, // hash of all selected event hashes (sorted)
-  promptVersion
-})
+  promptVersion,
+});
 
 // Cache hit: <5s response
 // Cache miss: LLM generation ≤60s
@@ -110,6 +120,7 @@ cacheKey = sha256({
 ### Vocabulary Layering
 
 Each abstraction layer changes vocabulary:
+
 - **Acquisition**: GitHub payloads, webhook events, installation IDs
 - **Normalization**: EventFact, contentHash, canonicalText, metrics
 - **Intelligence**: Report sections, citations, coverage score
@@ -132,6 +143,7 @@ Each abstraction layer changes vocabulary:
 11. **reportJobHistory** - Audit log for daily/weekly scheduler runs
 
 **Key Indexes**:
+
 - `by_contentHash` on events (deduplication)
 - `by_actor_and_ts`, `by_repo_and_ts` on events (report queries)
 - Native vector index on embeddings (cosine similarity)
@@ -197,6 +209,7 @@ app/
 **Test Framework**: Jest 29 + ts-jest (ESM preset)
 
 **Test Locations**:
+
 - **Unit tests**: Alongside source (`.test.ts` pattern)
   - `convex/lib/contentHash.test.ts` - Hash determinism
   - `convex/lib/coverage.test.ts` - Coverage math
@@ -208,6 +221,7 @@ app/
   - `canonicalFactService.test.ts` - Fact upsertion pipeline
 
 **Test Coverage Areas**:
+
 1. Event canonicalization + hash determinism
 2. Content-addressed upserts + deduplication
 3. Coverage scoring (fact-to-report mapping)
@@ -256,10 +270,10 @@ All actions return `ActionResult<T>`:
 
 ```typescript
 interface ActionResult<T> {
-  success: boolean
-  data?: T
-  error?: ActionError
-  timestamp: number
+  success: boolean;
+  data?: T;
+  error?: ActionError;
+  timestamp: number;
 }
 ```
 
@@ -309,11 +323,12 @@ npx convex env set OPENAI_API_KEY "sk-..."
 ```typescript
 emitMetric({
   name: "fact.upserted",
-  properties: { contentHash, repoId, actorId }
-})
+  properties: { contentHash, repoId, actorId },
+});
 ```
 
 **Key Metrics**:
+
 - `events_ingested_per_min`
 - `webhook_lag_ms`
 - `coverage_score`
@@ -323,6 +338,7 @@ emitMetric({
 - `llm_cost_usd`
 
 **Monitoring Locations**:
+
 - Convex Dashboard → Logs tab (structured JSON logs)
 - Convex Dashboard → Functions tab (function execution traces)
 - Optional: Sentry for Next.js UI errors
@@ -332,6 +348,7 @@ emitMetric({
 **Target**: ≤$0.02/user-day LLM spend
 
 **Strategies**:
+
 1. Cache hits bypass LLM (deterministic cache keys)
 2. Content-addressed deduplication (no double embeddings)
 3. Token budgeting (monitor via `costUsd` field)
@@ -365,6 +382,7 @@ emitMetric({
 ## Git Workflow
 
 **Conventional Commits** (enforced):
+
 - `feat:` - New features
 - `fix:` - Bug fixes
 - `docs:` - Documentation
@@ -373,6 +391,7 @@ emitMetric({
 - `chore:` - Maintenance
 
 **Recent Commits** (as of Nov 9, 2025):
+
 ```
 e2bd3d8 feat(metrics): add structured logging
 3ff448b feat(cron): log report job history
@@ -392,11 +411,13 @@ a8fd873 feat(app): surface report coverage
 ## Troubleshooting
 
 ### Database Issues
+
 ```bash
 npx convex dashboard  # Check logs tab for errors
 ```
 
 ### Build Errors
+
 ```bash
 rm -rf .next node_modules
 pnpm install
@@ -404,11 +425,13 @@ pnpm build
 ```
 
 ### GitHub Rate Limits
+
 - Automatic exponential backoff (1s → 2s → 4s → 8s)
 - Jobs auto-pause when budget low
 - Logs show `rate_limit_remaining` metric
 
 ### Report Generation Fails
+
 1. Verify API keys in Convex Dashboard → Settings → Environment Variables
 2. Check Convex logs for LLM errors
 3. Ensure data ingested for users/date range (check `events` table)
@@ -423,6 +446,7 @@ pnpm build
 ## Development Status
 
 **Current Phase**: MVP functional, active hardening
+
 - ✅ Core ingestion pipeline (REST API)
 - ✅ Report generation with citations
 - ✅ Coverage scoring

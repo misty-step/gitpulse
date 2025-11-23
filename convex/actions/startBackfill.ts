@@ -11,8 +11,8 @@ type BackfillReturn = {
     jobId: string;
     status: string;
     blockedUntil?: number;
-    eventsIngested?: number
-  }>
+    eventsIngested?: number;
+  }>;
 };
 
 /**
@@ -26,6 +26,9 @@ export const startBackfill = action({
     until: v.optional(v.number()),
   },
   handler: async (ctx, args): Promise<BackfillReturn> => {
-    return await ctx.runAction(internal.actions.github.startBackfill.startBackfill, args);
+    return await ctx.runAction(
+      internal.actions.github.startBackfill.startBackfill,
+      args,
+    );
   },
 });

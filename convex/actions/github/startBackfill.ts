@@ -13,6 +13,7 @@ import { ErrorCode } from "../../lib/types";
 import { canonicalizeEvent } from "../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../lib/canonicalFactService";
 import { getRepository, RateLimitError } from "../../lib/github";
+import { logger } from "../../lib/logger.js";
 
 const MAX_REPOS_PER_INVOCATION = 10;
 const DEFAULT_BLOCKED_DELAY_MS = 5 * 60 * 1000;
@@ -35,7 +36,16 @@ interface BackfillInternalArgs {
   initialCursor?: string;
 }
 
-type BackfillReturn = { ok: boolean; jobs: Array<{ repo: string; jobId: string; status: string; blockedUntil?: number; eventsIngested?: number }> };
+type BackfillReturn = {
+  ok: boolean;
+  jobs: Array<{
+    repo: string;
+    jobId: string;
+    status: string;
+    blockedUntil?: number;
+    eventsIngested?: number;
+  }>;
+};
 
 /**
  * Admin version of startBackfill - bypasses auth for CLI usage
@@ -72,29 +82,40 @@ export const startBackfill = internalAction({
   handler: async (ctx, args): Promise<BackfillReturn> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error(`[${ErrorCode.NOT_AUTHENTICATED}] GitHub backfill requires authentication`);
-    }
-
-    const installation = await ctx.runQuery(api.installations.getByInstallationId, {
-      installationId: args.installationId,
-    });
-
-    if (!installation) {
       throw new Error(
-        `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} not registered`
+        `[${ErrorCode.NOT_AUTHENTICATED}] GitHub backfill requires authentication`,
       );
     }
 
-    if (installation.clerkUserId && installation.clerkUserId !== identity.subject) {
+    const installation = await ctx.runQuery(
+      api.installations.getByInstallationId,
+      {
+        installationId: args.installationId,
+      },
+    );
+
+    if (!installation) {
       throw new Error(
-        `[${ErrorCode.UNAUTHORIZED}] User ${identity.subject} cannot manage installation ${args.installationId}`
+        `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} not registered`,
+      );
+    }
+
+    if (
+      installation.clerkUserId &&
+      installation.clerkUserId !== identity.subject
+    ) {
+      throw new Error(
+        `[${ErrorCode.UNAUTHORIZED}] User ${identity.subject} cannot manage installation ${args.installationId}`,
       );
     }
 
     return runBackfillInternal(ctx, {
       installationId: args.installationId,
       userId: identity.subject,
-      repositories: args.repositories.length > 0 ? args.repositories : installation.repositories ?? [],
+      repositories:
+        args.repositories.length > 0
+          ? args.repositories
+          : (installation.repositories ?? []),
       since: args.since,
       until: args.until,
     });
@@ -118,20 +139,20 @@ export const continueBackfill = internalAction({
     });
 
     if (!job) {
-      console.error("[continueBackfill] Job not found", { jobId: args.jobId });
+      logger.error({ jobId: args.jobId }, "Job not found");
       return { ok: false, jobs: [] };
     }
 
     if (job.status === "completed" || job.status === "failed") {
-      console.log("[continueBackfill] Job already finished, skipping", {
-        jobId: args.jobId,
-        status: job.status,
-      });
+      logger.info(
+        { jobId: args.jobId, status: job.status },
+        "Job already finished, skipping",
+      );
       return { ok: true, jobs: [] };
     }
 
     if (!job.installationId) {
-      console.error("[continueBackfill] Job missing installationId", { jobId: args.jobId });
+      logger.error({ jobId: args.jobId }, "Job missing installationId");
       await ctx.runMutation(internal.ingestionJobs.fail, {
         jobId: job._id,
         errorMessage: "Missing installationId; marking failed",
@@ -149,13 +170,20 @@ export const continueBackfill = internalAction({
 
     let repositories: string[] = [];
 
-    if (job.status === "completed" && job.reposRemaining && job.reposRemaining.length > 0) {
+    if (
+      job.status === "completed" &&
+      job.reposRemaining &&
+      job.reposRemaining.length > 0
+    ) {
       // We are moving to the next repo in the chain
       repositories = job.reposRemaining;
-      console.log("[continueBackfill] Chaining to next repo", {
-        previousJobId: args.jobId,
-        nextRepo: repositories[0],
-      });
+      logger.info(
+        {
+          previousJobId: args.jobId,
+          nextRepo: repositories[0],
+        },
+        "Chaining to next repo",
+      );
     } else if (job.status !== "completed") {
       // We are resuming the current repo (from block/pause)
       repositories =
@@ -163,12 +191,15 @@ export const continueBackfill = internalAction({
           ? [job.repoFullName, ...job.reposRemaining]
           : [job.repoFullName];
 
-      console.log("[continueBackfill] Resuming paused job", {
-        jobId: args.jobId,
-        repo: job.repoFullName,
-      });
+      logger.info(
+        {
+          jobId: args.jobId,
+          repo: job.repoFullName,
+        },
+        "Resuming paused job",
+      );
     } else {
-      console.log("[continueBackfill] Job finished and no repos remaining.", { jobId: args.jobId });
+      logger.info({ jobId: args.jobId }, "Job finished and no repos remaining");
       return { ok: true, jobs: [] };
     }
 
@@ -192,15 +223,18 @@ export const continueBackfill = internalAction({
 // Implementation of runBackfillInternal (declared above)
 async function runBackfillInternal(
   ctx: ActionCtx,
-  args: BackfillInternalArgs
+  args: BackfillInternalArgs,
 ): Promise<BackfillReturn> {
-  const installation = await ctx.runQuery(api.installations.getByInstallationId, {
-    installationId: args.installationId,
-  });
+  const installation = await ctx.runQuery(
+    api.installations.getByInstallationId,
+    {
+      installationId: args.installationId,
+    },
+  );
 
   if (!installation) {
     throw new Error(
-      `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} not registered`
+      `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} not registered`,
     );
   }
 
@@ -208,7 +242,7 @@ async function runBackfillInternal(
 
   if (reposToProcess.length === 0) {
     throw new Error(
-      `[${ErrorCode.INVALID_INPUT}] No repositories available for installation ${args.installationId}`
+      `[${ErrorCode.INVALID_INPUT}] No repositories available for installation ${args.installationId}`,
     );
   }
 
@@ -224,17 +258,21 @@ async function runBackfillInternal(
 
   const baseEventsIngested = args.initialEventsIngested ?? 0;
 
-  const latestInstallation = await ctx.runQuery(api.installations.getByInstallationId, {
-    installationId: args.installationId,
-  });
+  const latestInstallation = await ctx.runQuery(
+    api.installations.getByInstallationId,
+    {
+      installationId: args.installationId,
+    },
+  );
 
   if (!latestInstallation) {
     throw new Error(
-      `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} missing during backfill`
+      `[${ErrorCode.NOT_FOUND}] Installation ${args.installationId} missing during backfill`,
     );
   }
 
-  const initialCursor = args.initialCursor ?? latestInstallation.lastCursor ?? undefined;
+  const initialCursor =
+    args.initialCursor ?? latestInstallation.lastCursor ?? undefined;
   const initialEtag = latestInstallation.etag ?? undefined;
 
   let jobId: Id<"ingestionJobs">;
@@ -296,18 +334,22 @@ async function runBackfillInternal(
     // Ideally, we would self-schedule the next repo here if not blocked.
 
     if (result.status === "completed" && remainingRepos.length > 0) {
-       // Self-schedule next batch immediately?
-       // For safety, let's rely on the scheduler or manual re-trigger for now to avoid infinite loops if buggy.
-       // But actually, the user WANTS it to backfill all.
-       // Let's schedule the continuation for the *next* repo immediately.
-       
-       await ctx.scheduler.runAfter(0, internal.actions.github.startBackfill.continueBackfill, {
-         jobId: jobId,
-       });
-    }
+      // Self-schedule next batch immediately?
+      // For safety, let's rely on the scheduler or manual re-trigger for now to avoid infinite loops if buggy.
+      // But actually, the user WANTS it to backfill all.
+      // Let's schedule the continuation for the *next* repo immediately.
 
+      await ctx.scheduler.runAfter(
+        0,
+        internal.actions.github.startBackfill.continueBackfill,
+        {
+          jobId: jobId,
+        },
+      );
+    }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     await ctx.runMutation(internal.ingestionJobs.fail, {
       jobId,
       errorMessage,
@@ -337,7 +379,9 @@ interface ProcessRepoArgs {
   };
 }
 
-async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillResult> {
+async function processRepoBackfill(
+  params: ProcessRepoArgs,
+): Promise<BackfillResult> {
   const {
     ctx,
     jobId,
@@ -361,9 +405,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
   } catch (error) {
     if (error instanceof RateLimitError) {
       const resetTime = new Date(error.reset).toISOString();
-      console.warn(
-        `[processRepoBackfill] Rate limit hit during getRepository. Reset at ${resetTime}`
-      );
+      logger.warn({ resetTime }, "Rate limit hit during getRepository");
 
       await ctx.runMutation(internal.ingestionJobs.markBlocked, {
         jobId,
@@ -384,7 +426,7 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
         internal.actions.github.startBackfill.continueBackfill,
         {
           jobId,
-        }
+        },
       );
 
       return {
@@ -394,10 +436,10 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
       };
     }
 
-    console.error("Failed to load repository metadata for backfill", {
-      repoFullName,
-      error,
-    });
+    logger.error(
+      { err: error, repoFullName },
+      "Failed to load repository metadata for backfill",
+    );
     throw error instanceof Error
       ? error
       : new Error("Unable to fetch repository metadata");
@@ -497,15 +539,18 @@ async function processRepoBackfill(params: ProcessRepoArgs): Promise<BackfillRes
         internal.actions.github.startBackfill.continueBackfill,
         {
           jobId,
-        }
+        },
       );
 
-      console.log("[Backfill] Rate limited, scheduled auto-resume", {
-        jobId,
-        repoFullName,
-        blockedUntil: new Date(blockedUntil).toISOString(),
-        rateLimitRemaining: timeline.rateLimit.remaining,
-      });
+      logger.info(
+        {
+          jobId,
+          repoFullName,
+          blockedUntil: new Date(blockedUntil).toISOString(),
+          rateLimitRemaining: timeline.rateLimit.remaining,
+        },
+        "Rate limited, scheduled auto-resume",
+      );
 
       return {
         status: "blocked",

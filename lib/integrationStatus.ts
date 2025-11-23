@@ -34,12 +34,17 @@ const ATTENTION_KINDS: IntegrationStatusKind[] = [
   "stale_events",
 ];
 
-export function needsIntegrationAttention(status?: IntegrationStatus | null): boolean {
+export function needsIntegrationAttention(
+  status?: IntegrationStatus | null,
+): boolean {
   if (!status) return false;
   return ATTENTION_KINDS.includes(status.kind);
 }
 
-export function formatTimestamp(ts?: number | null, locale?: Intl.LocalesArgument): string {
+export function formatTimestamp(
+  ts?: number | null,
+  locale?: Intl.LocalesArgument,
+): string {
   if (!ts) return "Never";
   return new Date(ts).toLocaleString(locale ?? undefined);
 }

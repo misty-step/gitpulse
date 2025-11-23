@@ -12,7 +12,7 @@ import { toast } from "sonner";
 const ERROR_MESSAGES: Record<string, string> = {
   // Authentication errors
   "Not authenticated": "Please sign in to continue",
-  "Unauthorized": "You don't have permission to perform this action",
+  Unauthorized: "You don't have permission to perform this action",
   "Invalid token": "Your session has expired. Please sign in again",
 
   // Validation errors
@@ -27,7 +27,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   // Resource errors
   "Not found": "The requested resource was not found",
   "Already exists": "This resource already exists",
-  "Conflict": "This operation conflicts with existing data",
+  Conflict: "This operation conflicts with existing data",
 
   // External service errors
   "GitHub API": "Unable to connect to GitHub. Please try again later",
@@ -36,8 +36,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   "OpenAI API": "AI service unavailable. Please try again later",
 
   // Database errors
-  "Database": "A database error occurred. Please try again",
-  "Transaction": "The operation could not be completed. Please try again",
+  Database: "A database error occurred. Please try again",
+  Transaction: "The operation could not be completed. Please try again",
 
   // Generic fallback
   default: "An unexpected error occurred. Please try again",
@@ -118,7 +118,7 @@ export function handleConvexError(
     operation?: string; // e.g., "add repository", "generate report"
     retry?: () => void; // Callback to retry the operation
     onAuthError?: () => void; // Redirect to sign-in
-  } = {}
+  } = {},
 ): ErrorType {
   const errorType = classifyError(error);
   const message = getErrorMessage(error);
@@ -178,10 +178,7 @@ export function handleConvexError(
 /**
  * Show success toast for completed operations
  */
-export function showSuccess(
-  message: string,
-  description?: string
-): void {
+export function showSuccess(message: string, description?: string): void {
   toast.success(message, { description });
 }
 
@@ -199,7 +196,7 @@ export function showLoading(message: string): string | number {
  */
 export function dismissLoading(
   toastId: string | number,
-  result: { success: boolean; message: string; description?: string }
+  result: { success: boolean; message: string; description?: string },
 ): void {
   toast.dismiss(toastId);
   if (result.success) {
@@ -231,7 +228,7 @@ export async function withErrorHandling<T>(
     onError?: (error: Error) => void;
     retry?: () => void;
     showLoading?: boolean;
-  } = {}
+  } = {},
 ): Promise<{ success: boolean; data?: T; error?: Error }> {
   const loadingId = options.showLoading
     ? toast.loading(options.operation || "Processing...")

@@ -73,7 +73,7 @@ export function buildUserPrompt(
   searchResults: SearchResult[],
   fromDate: string,
   toDate: string,
-  query?: string
+  query?: string,
 ): string {
   // Format time range
   const from = new Date(fromDate).toLocaleDateString("en-US", {
@@ -120,29 +120,29 @@ export function buildUserPrompt(
       const similarity = (result.similarity * 100).toFixed(1);
 
       sections.push(
-        `${idx + 1}. [${meta.type || "activity"}] in ${meta.repo || "unknown repo"} by ${meta.user || "unknown user"}`
+        `${idx + 1}. [${meta.type || "activity"}] in ${meta.repo || "unknown repo"} by ${meta.user || "unknown user"}`,
       );
       sections.push(`   Relevance: ${similarity}%`);
       sections.push(`   Citation: ${url}\n`);
     });
   } else {
     sections.push(
-      `\nNo semantic search results available. Use only KPI data above.\n`
+      `\nNo semantic search results available. Use only KPI data above.\n`,
     );
   }
 
   // 5. Task instruction
   sections.push(
-    `\nTASK: Generate a concise activity report for the time range above. Include:`
+    `\nTASK: Generate a concise activity report for the time range above. Include:`,
   );
   sections.push(`- Summary of contributions (2-3 sentences)`);
   sections.push(`- Key metrics table (if multiple users, show comparison)`);
   sections.push(
-    `- Notable PRs or commits with [text](URL) citations from the relevant activity section`
+    `- Notable PRs or commits with [text](URL) citations from the relevant activity section`,
   );
   sections.push(`- Any patterns or insights visible in the data`);
   sections.push(
-    `\nRemember: EVERY claim about specific PRs, commits, or code changes MUST include a GitHub URL citation.`
+    `\nRemember: EVERY claim about specific PRs, commits, or code changes MUST include a GitHub URL citation.`,
   );
 
   return sections.join("\n");
@@ -221,7 +221,7 @@ export function getPromptVersion(): string {
     [],
     "2025-01-01T00:00:00.000Z",
     "2025-12-31T00:00:00.000Z",
-    "QUERY"
+    "QUERY",
   );
 
   const combined = `${systemTemplate}\n\n${userTemplate}`;
@@ -272,7 +272,7 @@ export function getCurrentPromptVersion(): PromptVersion {
 export function buildDailyStandupPrompt(
   githubUsername: string,
   context: ReportContext,
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): PromptPayload {
   const endDate = new Date(context.timeframe.end);
   const dateLabel = endDate.toLocaleDateString("en-US", {
@@ -340,7 +340,7 @@ Make the report specific and technical. Pull commit messages, PR titles, review 
 export function buildWeeklyRetroPrompt(
   githubUsername: string,
   context: ReportContext,
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): PromptPayload {
   const startLabel = new Date(context.timeframe.start).toLocaleDateString(
     "en-US",
@@ -348,16 +348,13 @@ export function buildWeeklyRetroPrompt(
       year: "numeric",
       month: "long",
       day: "numeric",
-    }
+    },
   );
-  const endLabel = new Date(context.timeframe.end).toLocaleDateString(
-    "en-US",
-    {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }
-  );
+  const endLabel = new Date(context.timeframe.end).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
   const contextJson = JSON.stringify(context, null, 2);
   const allowedList =

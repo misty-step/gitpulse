@@ -4,6 +4,7 @@
 
 import { v } from "convex/values";
 import { query, mutation, internalQuery } from "./_generated/server";
+import { logger } from "./lib/logger.js";
 
 /**
  * Get user by GitHub login
@@ -131,7 +132,9 @@ export const syncFromClerk = mutation({
     // Get Clerk identity
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authenticated - call syncFromClerk only for authenticated users");
+      throw new Error(
+        "Not authenticated - call syncFromClerk only for authenticated users",
+      );
     }
 
     // Find GitHub user by login
@@ -141,20 +144,22 @@ export const syncFromClerk = mutation({
       .first();
 
     if (!ghUser) {
-      throw new Error(`GitHub user not found: ${args.ghLogin}. Ingest repository data first.`);
+      throw new Error(
+        `GitHub user not found: ${args.ghLogin}. Ingest repository data first.`,
+      );
     }
 
     // Check if Clerk user already linked to different GitHub user
     const existingClerkUser = await ctx.db
       .query("users")
       .withIndex("by_tokenIdentifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier)
+        q.eq("tokenIdentifier", identity.tokenIdentifier),
       )
       .first();
 
     if (existingClerkUser && existingClerkUser._id !== ghUser._id) {
       throw new Error(
-        `Clerk account already linked to GitHub user: ${existingClerkUser.ghLogin}`
+        `Clerk account already linked to GitHub user: ${existingClerkUser.ghLogin}`,
       );
     }
 
@@ -224,7 +229,9 @@ export const updateGitHubAuth = mutation({
     if (!user) {
       user = await ctx.db
         .query("users")
-        .withIndex("by_ghLogin", (q) => q.eq("ghLogin", args.githubProfile.login))
+        .withIndex("by_ghLogin", (q) =>
+          q.eq("ghLogin", args.githubProfile.login),
+        )
         .first();
     }
 
@@ -235,13 +242,20 @@ export const updateGitHubAuth = mutation({
     };
 
     const optionalProfile: Record<string, unknown> = {};
-    if (args.githubProfile.name !== undefined) optionalProfile.name = args.githubProfile.name;
-    if (args.githubProfile.email !== undefined) optionalProfile.email = args.githubProfile.email;
-    if (args.githubProfile.avatarUrl !== undefined) optionalProfile.avatarUrl = args.githubProfile.avatarUrl;
-    if (args.githubProfile.bio !== undefined) optionalProfile.bio = args.githubProfile.bio;
-    if (args.githubProfile.company !== undefined) optionalProfile.company = args.githubProfile.company;
-    if (args.githubProfile.location !== undefined) optionalProfile.location = args.githubProfile.location;
-    if (args.githubProfile.blog !== undefined) optionalProfile.blog = args.githubProfile.blog;
+    if (args.githubProfile.name !== undefined)
+      optionalProfile.name = args.githubProfile.name;
+    if (args.githubProfile.email !== undefined)
+      optionalProfile.email = args.githubProfile.email;
+    if (args.githubProfile.avatarUrl !== undefined)
+      optionalProfile.avatarUrl = args.githubProfile.avatarUrl;
+    if (args.githubProfile.bio !== undefined)
+      optionalProfile.bio = args.githubProfile.bio;
+    if (args.githubProfile.company !== undefined)
+      optionalProfile.company = args.githubProfile.company;
+    if (args.githubProfile.location !== undefined)
+      optionalProfile.location = args.githubProfile.location;
+    if (args.githubProfile.blog !== undefined)
+      optionalProfile.blog = args.githubProfile.blog;
     if (args.githubProfile.twitterUsername !== undefined)
       optionalProfile.twitterUsername = args.githubProfile.twitterUsername;
     if (args.githubProfile.publicRepos !== undefined)
@@ -255,9 +269,9 @@ export const updateGitHubAuth = mutation({
 
     if (!user) {
       // No existing record — create a fresh user linked to Clerk and GitHub
-      console.info(
-        "[users.updateGitHubAuth] Creating new user from GitHub OAuth",
-        { clerkId: args.clerkId, ghLogin: args.githubProfile.login }
+      logger.info(
+        { clerkId: args.clerkId, ghLogin: args.githubProfile.login },
+        "Creating new user from GitHub OAuth",
       );
       const userId = await ctx.db.insert("users", {
         clerkId: args.clerkId,
@@ -286,10 +300,10 @@ export const updateGitHubAuth = mutation({
 
     if (!user.clerkId) {
       patch.clerkId = args.clerkId;
-      console.info("[users.updateGitHubAuth] Linking existing GitHub user to Clerk account", {
-        clerkId: args.clerkId,
-        ghLogin: args.githubProfile.login,
-      });
+      logger.info(
+        { clerkId: args.clerkId, ghLogin: args.githubProfile.login },
+        "Linking existing GitHub user to Clerk account",
+      );
     }
 
     if (args.githubRefreshToken) {
@@ -353,7 +367,10 @@ function calculateReportHourUTC(timezone: string): number {
 /**
  * Calculate weekly day/hour in UTC for Monday 9am in target timezone
  */
-function calculateWeeklyScheduleUTC(timezone: string): { dayUTC: number; hourUTC: number } {
+function calculateWeeklyScheduleUTC(timezone: string): {
+  dayUTC: number;
+  hourUTC: number;
+} {
   // Similar approach: find which UTC day/hour corresponds to Monday 9am in target timezone
   const now = new Date();
   const year = now.getFullYear();
@@ -497,7 +514,9 @@ export const getUsersByReportHour = internalQuery({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("users")
-      .withIndex("by_reportHourUTC", (q) => q.eq("reportHourUTC", args.reportHourUTC))
+      .withIndex("by_reportHourUTC", (q) =>
+        q.eq("reportHourUTC", args.reportHourUTC),
+      )
       .filter((q) => q.eq(q.field("dailyReportsEnabled"), args.dailyEnabled))
       .collect();
   },
@@ -519,7 +538,9 @@ export const getUsersByWeeklySchedule = internalQuery({
     return await ctx.db
       .query("users")
       .withIndex("by_weeklySchedule", (q) =>
-        q.eq("weeklyDayUTC", args.weeklyDayUTC).eq("reportHourUTC", args.reportHourUTC)
+        q
+          .eq("weeklyDayUTC", args.weeklyDayUTC)
+          .eq("reportHourUTC", args.reportHourUTC),
       )
       .filter((q) => q.eq(q.field("weeklyReportsEnabled"), args.weeklyEnabled))
       .collect();

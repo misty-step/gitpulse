@@ -104,18 +104,22 @@ export const generateBatch = action({
   handler: async (ctx, args): Promise<Id<"embeddings">[]> => {
     // Rate limit: max 100 events per batch
     if (args.eventIds.length > 100) {
-      throw new Error(`Batch too large: ${args.eventIds.length} events (max 100)`);
+      throw new Error(
+        `Batch too large: ${args.eventIds.length} events (max 100)`,
+      );
     }
 
     // Fetch all events
     const events: (Doc<"events"> | null)[] = await Promise.all(
       args.eventIds.map((id: Id<"events">) =>
-        ctx.runQuery(internal.events.getById, { id })
-      )
+        ctx.runQuery(internal.events.getById, { id }),
+      ),
     );
 
     // Filter out missing events
-    const validEvents: Doc<"events">[] = events.filter((e): e is Doc<"events"> => e !== null);
+    const validEvents: Doc<"events">[] = events.filter(
+      (e): e is Doc<"events"> => e !== null,
+    );
     if (validEvents.length === 0) {
       throw new Error("No valid events found");
     }
@@ -150,8 +154,8 @@ export const generateBatch = action({
             actorId: event.actorId,
             repoId: event.repoId,
           },
-        })
-      )
+        }),
+      ),
     );
 
     return embeddingIds;
@@ -182,7 +186,7 @@ export const processUnembedded = action({
     // Find events without embeddings
     const eventsWithoutEmbeddings: Doc<"events">[] = await ctx.runQuery(
       internal.events.listWithoutEmbeddings,
-      { limit }
+      { limit },
     );
 
     if (eventsWithoutEmbeddings.length === 0) {
@@ -190,8 +194,12 @@ export const processUnembedded = action({
     }
 
     // Generate embeddings in batch
-    const eventIds: Id<"events">[] = eventsWithoutEmbeddings.map((e: Doc<"events">) => e._id);
-    await ctx.runAction(api.actions.generateEmbeddings.generateBatch, { eventIds });
+    const eventIds: Id<"events">[] = eventsWithoutEmbeddings.map(
+      (e: Doc<"events">) => e._id,
+    );
+    await ctx.runAction(api.actions.generateEmbeddings.generateBatch, {
+      eventIds,
+    });
 
     return eventIds.length;
   },
@@ -199,11 +207,14 @@ export const processUnembedded = action({
 
 async function runGenerateEmbedding(
   ctx: ActionCtx,
-  eventId: Id<"events">
+  eventId: Id<"events">,
 ): Promise<Id<"embeddings">> {
-  const event: Doc<"events"> | null = await ctx.runQuery(internal.events.getById, {
-    id: eventId,
-  });
+  const event: Doc<"events"> | null = await ctx.runQuery(
+    internal.events.getById,
+    {
+      id: eventId,
+    },
+  );
 
   if (!event) {
     throw new Error(`Event not found: ${eventId}`);
@@ -213,7 +224,9 @@ async function runGenerateEmbedding(
   const openaiApiKey = process.env.OPENAI_API_KEY;
 
   if (!voyageApiKey && !openaiApiKey) {
-    throw new Error("No embedding API keys configured (VOYAGE_API_KEY or OPENAI_API_KEY)");
+    throw new Error(
+      "No embedding API keys configured (VOYAGE_API_KEY or OPENAI_API_KEY)",
+    );
   }
 
   const text = eventToText(event);

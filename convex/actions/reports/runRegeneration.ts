@@ -5,6 +5,7 @@ import { internalAction } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
 import type { Id } from "../../_generated/dataModel";
 import { generateReportForUser } from "../../lib/reportOrchestrator";
+import { logger } from "../../lib/logger.js";
 
 const STAGE_PROGRESS: Record<string, number> = {
   queued: 0,
@@ -31,16 +32,21 @@ function progressFor(stage: keyof typeof STAGE_PROGRESS) {
 export const run = internalAction({
   args: { jobId: v.id("reportRegenerations") },
   handler: async (ctx, args) => {
-    const job = await ctx.runQuery(internal.reportRegenerations.getByIdInternal, {
-      jobId: args.jobId,
-    });
+    const job = await ctx.runQuery(
+      internal.reportRegenerations.getByIdInternal,
+      {
+        jobId: args.jobId,
+      },
+    );
 
     if (!job) {
-      console.warn(`[Regenerate] Job ${args.jobId} not found`);
+      logger.warn({ jobId: args.jobId }, "Regenerate job not found");
       return;
     }
 
-    const report = await ctx.runQuery(api.reports.getById, { id: job.reportId });
+    const report = await ctx.runQuery(api.reports.getById, {
+      id: job.reportId,
+    });
     if (!report) {
       await ctx.runMutation(internal.reportRegenerations.markFailed, {
         jobId: args.jobId,
@@ -59,11 +65,15 @@ export const run = internalAction({
       : await ctx.runQuery(api.users.getByClerkId, { clerkId: report.userId });
 
     if (!userDoc && primaryGhLogin) {
-      userDoc = await ctx.runQuery(api.users.getByGhLogin, { ghLogin: primaryGhLogin });
+      userDoc = await ctx.runQuery(api.users.getByGhLogin, {
+        ghLogin: primaryGhLogin,
+      });
     }
 
     if (!userDoc && fallbackGhLogin) {
-      userDoc = await ctx.runQuery(api.users.getByGhLogin, { ghLogin: fallbackGhLogin });
+      userDoc = await ctx.runQuery(api.users.getByGhLogin, {
+        ghLogin: fallbackGhLogin,
+      });
     }
 
     if (!userDoc) {
@@ -83,7 +93,12 @@ export const run = internalAction({
     }
 
     const stageUpdate = async (
-      stage: "collecting" | "generating" | "validating" | "saving" | "completed"
+      stage:
+        | "collecting"
+        | "generating"
+        | "validating"
+        | "saving"
+        | "completed",
     ) => {
       if (stage === "completed") {
         return;
@@ -109,7 +124,7 @@ export const run = internalAction({
         {
           forceRegenerate: true,
           onStage: stageUpdate,
-        }
+        },
       );
 
       if (!newReportId) {
@@ -126,15 +141,19 @@ export const run = internalAction({
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unknown error during regeneration";
+        error instanceof Error
+          ? error.message
+          : "Unknown error during regeneration";
       await ctx.runMutation(internal.reportRegenerations.markFailed, {
         jobId: args.jobId,
         message,
         stage:
-          error instanceof Error && "stage" in error ? String((error as any).stage) : undefined,
+          error instanceof Error && "stage" in error
+            ? String((error as any).stage)
+            : undefined,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      console.error(`[Regenerate] Job ${args.jobId} failed`, error);
+      logger.error({ err: error, jobId: args.jobId }, "Regenerate job failed");
     }
   },
 });

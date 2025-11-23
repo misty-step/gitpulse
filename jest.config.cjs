@@ -2,11 +2,17 @@
 module.exports = {
   preset: "ts-jest/presets/default-esm",
   testEnvironment: "node",
-  roots: ["<rootDir>/convex", "<rootDir>/lib", "<rootDir>/tests"],
+  roots: [
+    "<rootDir>/convex",
+    "<rootDir>/lib",
+    "<rootDir>/tests",
+    "<rootDir>/app",
+  ],
   extensionsToTreatAsEsm: [".ts", ".tsx"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^.+/_generated/server$": "<rootDir>/tests/mocks/convexServer.ts",
+    "^(.*)\\.js$": "$1", // Map .js imports to .ts files (ESM compatibility)
   },
   setupFilesAfterEnv: ["<rootDir>/tests/jest.setup.ts"],
   transform: {
@@ -18,4 +24,21 @@ module.exports = {
       },
     ],
   },
+  collectCoverageFrom: [
+    "convex/lib/**/*.ts",
+    "convex/actions/**/*.ts",
+    "lib/**/*.ts",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "!convex/_generated/**",
+  ],
+  coverageThreshold: {
+    global: {
+      lines: 60,
+      functions: 60,
+      branches: 55,
+      statements: 60,
+    },
+  },
+  coverageReporters: ["text", "lcov", "html"],
 };

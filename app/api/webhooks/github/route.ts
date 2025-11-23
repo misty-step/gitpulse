@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!signature || !deliveryId || !event) {
       return NextResponse.json(
         { error: "Missing required webhook headers" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       console.error("GITHUB_WEBHOOK_SECRET not configured");
       return NextResponse.json(
         { error: "Webhook secret not configured" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       rawBody,
       signature,
       currentSecret,
-      previousSecret
+      previousSecret,
     );
 
     if (!isValid) {
@@ -66,7 +66,10 @@ export async function POST(req: NextRequest) {
     try {
       payload = JSON.parse(rawBody);
     } catch {
-      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400 },
+      );
     }
 
     // Extract installation ID if present
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
       console.error("NEXT_PUBLIC_CONVEX_URL not configured");
       return NextResponse.json(
         { error: "Database not configured" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -113,7 +116,7 @@ export async function POST(req: NextRequest) {
     // Return 500 so GitHub retries
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -10,6 +10,7 @@ import {
   generateWithOrchestrator,
   validateLLMMarkdown,
 } from "./llmOrchestrator.js";
+import { logger } from "./logger.js";
 
 export interface GeneratedReport {
   markdown: string;
@@ -22,7 +23,7 @@ export interface GeneratedReport {
 export async function generateDailyReportFromContext(
   githubUsername: string,
   context: ReportContext,
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): Promise<GeneratedReport> {
   try {
     if (context.totals.eventCount === 0) {
@@ -48,13 +49,13 @@ All previously active threads remain in their prior state. Consider reviewing op
     const prompt = buildDailyStandupPrompt(
       githubUsername,
       context,
-      allowedUrls
+      allowedUrls,
     );
     return await generateWithPrompt("daily", prompt, allowedUrls);
   } catch (error) {
-    console.error(
-      "[Reports] Daily standup generation failed after fallback. Returning synthetic summary.",
-      error
+    logger.error(
+      { err: error, githubUsername },
+      "Daily standup generation failed after fallback, returning synthetic summary",
     );
     return buildSyntheticDailyReport(githubUsername, context);
   }
@@ -63,12 +64,12 @@ All previously active threads remain in their prior state. Consider reviewing op
 export async function generateWeeklyReportFromContext(
   githubUsername: string,
   context: ReportContext,
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): Promise<GeneratedReport> {
   try {
     if (context.totals.eventCount === 0) {
       const start = new Date(context.timeframe.start).toLocaleDateString(
-        "en-US"
+        "en-US",
       );
       const end = new Date(context.timeframe.end).toLocaleDateString("en-US");
       const markdown = `## Accomplishments
@@ -92,16 +93,12 @@ Momentum is effectively paused in GitHub history. Review open issues and branche
       };
     }
 
-    const prompt = buildWeeklyRetroPrompt(
-      githubUsername,
-      context,
-      allowedUrls
-    );
+    const prompt = buildWeeklyRetroPrompt(githubUsername, context, allowedUrls);
     return await generateWithPrompt("weekly", prompt, allowedUrls);
   } catch (error) {
-    console.error(
-      "[Reports] Weekly retro generation failed after fallback. Returning synthetic summary.",
-      error
+    logger.error(
+      { err: error, githubUsername },
+      "Weekly retro generation failed after fallback, returning synthetic summary",
     );
     return buildSyntheticWeeklyReport(githubUsername, context);
   }
@@ -110,7 +107,7 @@ Momentum is effectively paused in GitHub history. Review open issues and branche
 async function generateWithPrompt(
   kind: "daily" | "weekly",
   prompt: PromptPayload,
-  allowedUrls: string[]
+  allowedUrls: string[],
 ): Promise<GeneratedReport> {
   const generation = await generateWithOrchestrator(kind, prompt);
   const validationErrors = validateLLMMarkdown(generation.markdown, prompt);
@@ -137,10 +134,7 @@ interface GenerationResult {
   model: string;
 }
 
-function filterCitations(
-  citations: string[],
-  allowedUrls: string[]
-): string[] {
+function filterCitations(citations: string[], allowedUrls: string[]): string[] {
   if (allowedUrls.length === 0) {
     return [];
   }
@@ -161,7 +155,7 @@ function filterCitations(
 
 export function buildSyntheticDailyReport(
   githubUsername: string,
-  context: ReportContext
+  context: ReportContext,
 ): GeneratedReport {
   const date = new Date(context.timeframe.end).toLocaleDateString("en-US");
   const markdown = `## Work Completed
@@ -184,7 +178,7 @@ Momentum indicators are unavailable from the model. Check ongoing branches or is
 
 export function buildSyntheticWeeklyReport(
   githubUsername: string,
-  context: ReportContext
+  context: ReportContext,
 ): GeneratedReport {
   const start = new Date(context.timeframe.start).toLocaleDateString("en-US");
   const end = new Date(context.timeframe.end).toLocaleDateString("en-US");
