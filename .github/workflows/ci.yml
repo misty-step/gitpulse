@@ -46,6 +46,18 @@ jobs:
         run: pnpm audit --audit-level=high
         continue-on-error: false
 
+  deployment-config:
+    name: Deployment Config Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify deployment configuration
+        run: |
+          chmod +x scripts/verify-deployment-config.sh
+          ./scripts/verify-deployment-config.sh
+
   quality-gates:
     name: Quality Gates
     runs-on: ubuntu-latest
