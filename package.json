@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"next dev\" \"npx convex dev\"",
-    "build": "npx convex deploy && next build",
+    "build": "pnpm build:app",
+    "build:app": "next build",
+    "build:local": "npx convex deploy && next build",
     "start": "next start",
     "lint": "eslint app convex components hooks lib tests --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit",
@@ -15,7 +17,7 @@
     "convex": "npx convex dev",
     "convex:deploy": "npx convex deploy",
     "reports:generate": "npx convex run actions/reports/regenerate:regenerate",
-    "prepare": "lefthook install"
+    "prepare": "if [ -d .git ]; then lefthook install; else echo \"Skipping lefthook (no .git)\"; fi"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.34.1",
