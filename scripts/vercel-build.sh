@@ -100,4 +100,4 @@ retry_with_backoff() {
 # The --cmd flag ensures Next.js build happens after Convex deployment
 # This allows Next.js to use the auto-generated NEXT_PUBLIC_CONVEX_URL
 # Retries: 3 attempts with exponential backoff (1s, 2s, 4s)
-retry_with_backoff npx convex deploy --cmd 'pnpm build'
+retry_with_backoff npx convex deploy --cmd 'pnpm build:app'

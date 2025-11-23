@@ -379,6 +379,84 @@ docs/runbooks/
 
 ---
 
+### [INFRASTRUCTURE] Infrastructure as Code for Environment Variables
+**Files**: Create `infrastructure/` directory with Pulumi/Terraform configs
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Single source of truth for all env vars, eliminate drift, automate deployment config
+
+**Problem**: 6 sources of environment variable configuration (.env.local, Convex dev, Convex prod, Convex defaults, Vercel production, Vercel preview). Manual sync error-prone, no validation, documentation drift.
+
+**Fix**: Infrastructure as Code
+```typescript
+// infrastructure/convex-env.ts
+export const convexEnvironment = {
+  development: {
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+    GITHUB_APP_ID: githubAppId,
+    // ... all dev vars
+  },
+  production: {
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+    GITHUB_TOKEN: secret(githubToken),
+    // ... all prod vars
+  },
+  defaults: {
+    // Applied to all preview deployments
+    CLERK_JWT_ISSUER_DOMAIN: clerkDomain,
+  }
+}
+
+// infrastructure/vercel-env.ts
+export const vercelEnvironment = {
+  production: {
+    CONVEX_DEPLOY_KEY: secret(convexProdKey),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPubKey,
+  },
+  preview: {
+    CONVEX_DEPLOY_KEY: secret(convexPreviewKey),
+    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkPubKey,
+  }
+}
+```
+
+**Effort**: 1 week (3d config + 2d validation + 2d migration) | **Priority**: P1
+**Acceptance**: All env vars defined in code, deployment script applies them, drift detection automated
+
+---
+
+### [TESTING] Add Deployment Integration Tests
+**Files**: Create `tests/integration/deployment.test.ts`
+**Perspectives**: maintainability-maven, architecture-guardian
+**Impact**: Catch deployment config issues before production
+
+**Problem**: No automated testing of deployment flow. Configuration mismatches discovered in production (vercel.json vs package.json vs docs).
+
+**Fix**: Integration tests for deployment
+```typescript
+describe('Deployment Configuration', () => {
+  it('vercel.json buildCommand should match expected', () => {
+    const vercelConfig = JSON.parse(fs.readFileSync('vercel.json'))
+    expect(vercelConfig.buildCommand).toBe("npx convex deploy --cmd 'pnpm build:app'")
+  })
+
+  it('package.json build:app should exist', () => {
+    const pkg = JSON.parse(fs.readFileSync('package.json'))
+    expect(pkg.scripts['build:app']).toBeDefined()
+  })
+
+  it('required env vars should be documented', () => {
+    const readme = fs.readFileSync('README.md', 'utf-8')
+    expect(readme).toContain('CONVEX_DEPLOY_KEY')
+    expect(readme).toContain('CLERK_JWT_ISSUER_DOMAIN')
+  })
+})
+```
+
+**Effort**: 4h | **Priority**: P1
+**Acceptance**: CI fails if deployment config drifts from expected
+
+---
+
 ### [INFRASTRUCTURE] Install Sentry Error Tracking
 **Files**: `app/error.tsx`, `convex/lib/sentry.ts` (new files)
 **Perspectives**: architecture-guardian, user-experience-advocate
@@ -785,6 +863,57 @@ Then migrate all hardcoded colors:
 
 **Effort**: 2 weeks (schema + permissions + UI) | **Impact**: Foundation for B2B revenue
 **Acceptance**: Users can create workspaces, invite members, view team dashboards
+
+---
+
+### [ARCHITECTURE] Create Deployment Service Module
+**Files**: Create `lib/deployment/` directory
+**Perspectives**: complexity-archaeologist, architecture-guardian
+**Impact**: Deep module hiding all deployment complexity
+
+**Problem**: Deployment knowledge scattered across vercel.json, package.json, CI workflows, setup scripts, documentation. Violates single source of truth, obscurity around "how to deploy correctly".
+
+**Fix**: Deployment service with clean interface
+```typescript
+// lib/deployment/DeploymentService.ts
+export class DeploymentService {
+  // Hide: Convex deploy keys, build commands, env var validation
+  // Expose: Simple deploy methods
+
+  async deployPreview(branch: string): Promise<DeploymentResult>
+  async deployProduction(): Promise<DeploymentResult>
+  async validateConfig(): Promise<ValidationResult>
+  async rollback(deploymentId: string): Promise<RollbackResult>
+}
+
+// Usage
+const deployment = new DeploymentService()
+const result = await deployment.deployPreview('feature-branch')
+if (!result.success) {
+  console.error(result.error)
+}
+```
+
+**Effort**: 2 weeks | **Impact**: Single source of truth, testable deployment logic
+**Strategic Value**: Enables automated deployment testing, rollback automation, multi-cloud future
+
+---
+
+### [INFRASTRUCTURE] Add Staging Environment
+**Files**: Convex staging deployment, Vercel staging project
+**Perspectives**: architecture-guardian
+**Impact**: Safe testing ground between preview and production
+
+**Problem**: Only dev and production environments. Risky changes tested directly in production preview deployments. No place to test infrastructure changes (env var updates, build command changes).
+
+**Fix**: Add staging environment
+- Convex staging deployment (separate from dev/prod)
+- Vercel staging project with staging branch auto-deploy
+- Smoke tests run against staging before production promotion
+- Database migrations tested in staging first
+
+**Effort**: 1 week | **Priority**: P1
+**Acceptance**: Staging environment exists, auto-deploys from staging branch, smoke tests pass
 
 ---
 
@@ -1243,6 +1372,60 @@ Sentry.init({
 - **[Integration] Webhooks API** - Send reports to external systems (2 days)
 - **[Design] OKLCH Color Space** - Perceptually uniform colors across themes (2h)
 
+### [ARCHITECTURE] Deployment Observability Dashboard
+**Files**: Create `app/admin/deployments/page.tsx`
+**Perspectives**: architecture-guardian
+**Impact**: Visibility into deployment history, health, rollback capability
+
+**Problem**: No visibility into deployment history, current deployment health, or ability to quickly rollback. Must check Vercel/Convex dashboards separately.
+
+**Fix**: Unified deployment dashboard
+- Show last 20 deployments with status, timing, committer
+- Health checks for current production deployment
+- One-click rollback to previous deployment
+- Deployment annotations (which PR, which features)
+
+**Effort**: 1 week | **Impact**: Faster incident response, deployment confidence
+**Acceptance**: Dashboard shows deployment history, health status, supports rollback
+
+---
+
+### [ARCHITECTURE] Automated Deployment Drift Detection
+**Files**: Create `.github/workflows/drift-detection.yml`
+**Perspectives**: architecture-guardian, maintainability-maven
+**Impact**: Catch configuration drift before it causes failures
+
+**Problem**: Documentation can drift from actual configuration. No automated way to detect when vercel.json doesn't match docs, or when env vars are missing.
+
+**Fix**: Scheduled drift detection
+```yaml
+# .github/workflows/drift-detection.yml
+name: Configuration Drift Detection
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily
+  workflow_dispatch:
+
+jobs:
+  detect-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Vercel config matches expected
+        run: ./scripts/verify-deployment-config.sh
+
+      - name: Validate documentation matches actual config
+        run: ./scripts/validate-docs.sh
+
+      - name: Check env vars exist in all environments
+        run: |
+          # Query Vercel API for env vars
+          # Compare against infrastructure/vercel-env.ts
+          # Fail if drift detected
+```
+
+**Effort**: 1 week | **Impact**: Proactive drift detection, prevent configuration issues
+**Acceptance**: Daily drift detection runs, alerts on mismatches, clear remediation steps
+
 ---
 
 ## Later (Someday/Maybe, 6+ months)
@@ -1288,6 +1471,20 @@ Sentry.init({
 - **Coverage philosophy**: Google research 60% acceptable, 75% commendable, 90% exemplary - focus on delta not absolute
 - **CI/CD gap**: 3 workflows exist (enforce-pnpm, claude, claude-code-review) but none run typecheck/lint/test/build
 - **Changesets rationale**: Best for apps (vs semantic-release for libraries), automated changelog + version bumps
+
+**Deployment Infrastructure Insights (Added 2025-11-22):**
+- **Root cause of Vercel failure**: `vercel.json` buildCommand was `pnpm build` instead of `npx convex deploy --cmd 'pnpm build'`
+- **Why it matters**: Without Convex wrapping the build, `NEXT_PUBLIC_CONVEX_URL` never gets injected, causing deployment to fail
+- **Documentation drift**: Docs correctly described `npx convex deploy --cmd 'pnpm build'` but actual config didn't match
+- **Quality gate gap**: Pre-push hooks don't run build verification - could push code that won't deploy
+- **Configuration sprawl**: 6 different sources of env var configuration (local, Convex dev/prod/defaults, Vercel prod/preview)
+- **Shallow module anti-pattern**: Build command defined in 3 places (package.json, vercel.json, docs) with no single source of truth
+- **CLI automation limits**: Convex CLI can't set default env vars or generate deploy keys (dashboard only) - hybrid approach required
+- **Quick fixes**: Fix vercel.json (5m), add build to pre-push (30m), create verification script (2h)
+- **Strategic fixes**: Deployment service module (2w), Infrastructure as Code for env vars (1w), staging environment (1w)
+- **Ousterhout violations**: Information leakage (env vars spread across 6 places), shallow modules (build definitions everywhere), obscurity (no config validation)
+- **Key learning**: "Can we deploy this?" should be answered before merge, not in production Vercel logs
+- **Prevention strategy**: Deployment config integration tests + drift detection + staging environment + build verification in pre-push
 
 **Architecture Insights:**
 - Codebase has excellent deep module design (Canonical Fact Service, Report Orchestrator) but lacks production infrastructure

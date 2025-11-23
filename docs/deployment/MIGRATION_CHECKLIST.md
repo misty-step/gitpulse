@@ -90,7 +90,7 @@ Before starting, ensure you have:
    - Settings → Build & Development Settings
 
 2. **Check Settings:**
-   - [ ] Build Command: `npx convex deploy --cmd 'pnpm build'`
+   - [ ] Build Command: `npx convex deploy --cmd 'pnpm build:app'`
    - [ ] Framework Preset: Next.js
    - [ ] Root Directory: `.`
    - [ ] Install Command: `pnpm install`
@@ -295,7 +295,7 @@ If issues arise, you can rollback:
        - name: Install dependencies
          run: pnpm install --frozen-lockfile
        - name: Deploy Convex
-         run: npx convex deploy --cmd 'pnpm build'
+         run: npx convex deploy --cmd 'pnpm build:app'
          env:
            CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
    ```

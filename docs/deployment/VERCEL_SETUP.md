@@ -123,7 +123,7 @@ CLERK_SECRET_KEY=sk_test_...
 
 2. **Verify/Set Build Command:**
    ```bash
-   npx convex deploy --cmd 'pnpm build'
+   npx convex deploy --cmd 'pnpm build:app'
    ```
 
 3. **Verify Framework Preset:**
@@ -331,7 +331,7 @@ For the next 2-3 PRs, keep an eye on:
 
 **Check:**
 1. Vercel build logs for specific error
-2. Build command is correct: `npx convex deploy --cmd 'pnpm build'`
+2. Build command is correct: `npx convex deploy --cmd 'pnpm build:app'`
 3. `CONVEX_DEPLOY_KEY` is set for the correct environment
 
 ### Preview Deployment Works but Production Fails
@@ -389,7 +389,7 @@ After completing this guide, you should have:
 ```
 PR Created → Vercel Detects → Creates Preview Deployment
   ↓
-Vercel Runs: npx convex deploy --cmd 'pnpm build'
+Vercel Runs: npx convex deploy --cmd 'pnpm build:app'
   ↓
 Convex Creates: Preview backend (with default env vars)
   ↓

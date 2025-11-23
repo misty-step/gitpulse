@@ -100,7 +100,7 @@ CLERK_JWT_ISSUER_DOMAIN=finer-llama-61.clerk.accounts.dev
    - Go to **Settings** → **Build & Development Settings**
    - Ensure Build Command is:
    ```bash
-   npx convex deploy --cmd 'pnpm build'
+   npx convex deploy --cmd 'pnpm build:app'
    ```
 
 ##### 3. Refactor GitHub Actions CI
@@ -130,7 +130,7 @@ Edit `.github/workflows/ci.yml`:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Deploy Convex
-        run: npx convex deploy --cmd 'pnpm build'
+        run: npx convex deploy --cmd 'pnpm build:app'
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 ```
