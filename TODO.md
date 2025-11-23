@@ -4,8 +4,10 @@ Branch focus: keep Vercel/Convex deploys green and prevent config drift.
 
 Current state (2025-11-23):
 - Build pipeline fixed: `vercel.json` runs `npx convex deploy --cmd 'pnpm build:app'`; `pnpm build` now aliases the pure Next.js build.
-- Vercel preview env is populated (Convex deploy key, Clerk publishable/secret/issuer + auth URLs, GitHub app install URL, lefthook disabled). Latest preview deploy succeeded: https://gitpulse-m24tv9os5-adminifi.vercel.app
-- Production Convex deploy key set, but production Clerk env not yet populated.
+- **FIXED**: Vercel `CONVEX_DEPLOY_KEY` had literal `\n` suffix causing CLI to reject key. Removed using `printf` (no trailing newline) when setting via Vercel CLI.
+- Latest successful preview deploy: https://gitpulse-n9i639l1w-adminifi.vercel.app (verified Convex deployment works)
+- Production Convex deploy key fixed (same `\n` issue)
+- Production Clerk env not yet populated
 - CLAUDE code-review action still missing `CLAUDE_CODE_OAUTH_TOKEN`.
 
 ## Done
@@ -13,8 +15,9 @@ Current state (2025-11-23):
 - Switched Vercel build command to use `build:app`.
 - Guarded `prepare` script to skip lefthook when `.git` is absent.
 - Set Convex deploy keys in Vercel (preview + production).
+- **Fixed Convex deploy key corruption**: Removed literal `\n` suffix from both Preview and Production `CONVEX_DEPLOY_KEY` environment variables.
 - Set required Clerk + GitHub public env vars in Vercel preview.
-- Ran successful preview deploy.
+- Ran successful preview deploy (https://gitpulse-n9i639l1w-adminifi.vercel.app).
 - Added `build:local` script for local one-shot builds.
 - Created deployment config preflight script and wired into CI.
 - Enabled build check in pre-push hook with `SKIP_BUILD_CHECK` escape hatch.
