@@ -24,3 +24,11 @@ pre-push:
       run: pnpm test --bail
     convex:
       run: npx convex typecheck
+    build:
+      run: |
+        if [ "${SKIP_BUILD_CHECK:-}" = "true" ]; then
+          echo "⚠️  Skipping build check (SKIP_BUILD_CHECK=true)"
+          exit 0
+        fi
+        echo "🔨 Running build check..."
+        pnpm build:app

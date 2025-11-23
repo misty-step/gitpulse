@@ -233,6 +233,32 @@ pnpm typecheck
 pnpm build
 ```
 
+### Git Hooks (Lefthook)
+
+This project uses [Lefthook](https://github.com/evilmartians/lefthook) for fast, parallel git hooks.
+
+**Pre-commit** (runs automatically on `git commit`):
+- Format code with Prettier
+- Lint code with ESLint
+- Scan for secrets with Gitleaks
+
+**Pre-push** (runs automatically on `git push`):
+- Type check with TypeScript
+- Run tests
+- Verify Convex types
+- **Build check** - ensures `pnpm build:app` succeeds
+
+**Bypass build check:**
+```bash
+# Temporarily skip build check (use sparingly)
+SKIP_BUILD_CHECK=true git push
+
+# Or skip all hooks
+git push --no-verify
+```
+
+**Note:** Build checks catch deployment failures before pushing. Only skip when absolutely necessary (e.g., urgent hotfix, WIP branch).
+
 ### Convex Dashboard
 
 View data, run functions, check logs:
@@ -292,7 +318,7 @@ GitHub Actions CI → Quality Gates Only (typecheck, lint, test, security)
 3. **Vercel Configuration:**
    - Add `CONVEX_DEPLOY_KEY` (production) to Vercel Production environment
    - Add `CONVEX_DEPLOY_KEY` (preview) to Vercel Preview environment
-   - Set build command: `npx convex deploy --cmd 'pnpm build'`
+   - Set build command: `npx convex deploy --cmd 'pnpm build:app'`
 
 ### Deployment Flow
 
