@@ -3,6 +3,7 @@
 Branch focus: keep Vercel/Convex deploys green and prevent config drift.
 
 Current state (2025-11-23):
+
 - Build pipeline fixed: `vercel.json` runs `npx convex deploy --cmd 'pnpm build:app'`; `pnpm build` now aliases the pure Next.js build.
 - **FIXED**: Project mismatch - local was linked to `adminifi/gitpulse` but GitHub deploys to `misty-step/gitpulse`.
 - **FIXED**: Relinked to correct project (`misty-step/gitpulse`) and configured all environment variables.
@@ -13,6 +14,7 @@ Current state (2025-11-23):
 - CLAUDE code-review action still missing `CLAUDE_CODE_OAUTH_TOKEN`.
 
 ## Done
+
 - Updated build scripts to avoid double Convex deploys (`build:app`, `build` alias).
 - Switched Vercel build command to use `build:app`.
 - Guarded `prepare` script to skip lefthook when `.git` is absent.
@@ -27,14 +29,17 @@ Current state (2025-11-23):
 - Silenced Turbopack warnings by adding dev deps.
 
 ## In Progress / Blockers
+
 - Populate production Clerk secrets (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, auth URLs) in Vercel.
 - Add `CLAUDE_CODE_OAUTH_TOKEN` GitHub secret so `claude-code-review` stops failing.
 
 ## Next Actions (short horizon)
+
 - [ ] Populate production Clerk vars in Vercel; run `vercel --prod` smoke deploy.
 - [ ] Add `CLAUDE_CODE_OAUTH_TOKEN` to GitHub secrets; rerun `claude-code-review` workflow.
 
 ## Verification targets
+
 - Preview deploys green with Convex + Clerk wiring.
 - Production deploy succeeds with Clerk prod keys.
 - CI gate fails fast on missing deploy keys / Clerk env.

@@ -57,7 +57,9 @@ export type CanonicalizeInput =
   | { kind: "commit"; payload: CommitLike; repository: GitHubRepository }
   | { kind: "timeline"; item: RepoTimelineNode; repoFullName: string };
 
-export function canonicalizeEvent(input: CanonicalizeInput): CanonicalEvent | null {
+export function canonicalizeEvent(
+  input: CanonicalizeInput,
+): CanonicalEvent | null {
   switch (input.kind) {
     case "pull_request":
       return canonicalizePullRequest(input.payload);
@@ -76,7 +78,9 @@ export function canonicalizeEvent(input: CanonicalizeInput): CanonicalEvent | nu
   }
 }
 
-function canonicalizePullRequest(payload: PullRequestWebhookEvent): CanonicalEvent | null {
+function canonicalizePullRequest(
+  payload: PullRequestWebhookEvent,
+): CanonicalEvent | null {
   const repo = normalizeRepo(payload.repository);
   const actor = normalizeActor(payload.sender ?? payload.pull_request.user);
   if (!repo || !actor) {
@@ -84,17 +88,20 @@ function canonicalizePullRequest(payload: PullRequestWebhookEvent): CanonicalEve
   }
 
   const { pull_request: pr } = payload;
-  const eventType = resolvePullRequestEventType(payload.action, pr.merged ?? false);
+  const eventType = resolvePullRequestEventType(
+    payload.action,
+    pr.merged ?? false,
+  );
   if (!eventType) {
     return null;
   }
 
   const ts = resolveTimestamp(
     eventType === "pr_opened"
-      ? pr.created_at ?? pr.updated_at
+      ? (pr.created_at ?? pr.updated_at)
       : eventType === "pr_merged"
-        ? pr.merged_at ?? pr.closed_at ?? pr.updated_at
-        : pr.closed_at ?? pr.updated_at
+        ? (pr.merged_at ?? pr.closed_at ?? pr.updated_at)
+        : (pr.closed_at ?? pr.updated_at),
   );
 
   const sourceUrl = pr.html_url ?? pr.url ?? repo.url;
@@ -103,14 +110,19 @@ function canonicalizePullRequest(payload: PullRequestWebhookEvent): CanonicalEve
   }
 
   const metrics = extractMetrics(pr.additions, pr.deletions, pr.changed_files);
-  const verb = eventType === "pr_opened" ? "opened" : eventType === "pr_merged" ? "merged" : "closed";
+  const verb =
+    eventType === "pr_opened"
+      ? "opened"
+      : eventType === "pr_merged"
+        ? "merged"
+        : "closed";
   const canonicalText = truncateText(
     joinParts([
       `PR #${pr.number}`,
       pr.title ? `– ${collapseWhitespace(pr.title)}` : undefined,
       `${verb} by ${actor.ghLogin}`,
       formatMetrics(metrics),
-    ])
+    ]),
   );
 
   return {
@@ -135,7 +147,9 @@ function canonicalizePullRequest(payload: PullRequestWebhookEvent): CanonicalEve
   };
 }
 
-function canonicalizePullRequestReview(payload: PullRequestReviewWebhookEvent): CanonicalEvent | null {
+function canonicalizePullRequestReview(
+  payload: PullRequestReviewWebhookEvent,
+): CanonicalEvent | null {
   if (payload.action !== "submitted") {
     return null;
   }
@@ -146,20 +160,30 @@ function canonicalizePullRequestReview(payload: PullRequestReviewWebhookEvent): 
     return null;
   }
 
-  const ts = resolveTimestamp(payload.review.submitted_at ?? payload.review.submittedAt ?? payload.pull_request.updated_at);
-  const sourceUrl = payload.review.html_url ?? payload.review.pull_request_url ?? payload.pull_request.html_url ?? repo.url;
+  const ts = resolveTimestamp(
+    payload.review.submitted_at ??
+      payload.review.submittedAt ??
+      payload.pull_request.updated_at,
+  );
+  const sourceUrl =
+    payload.review.html_url ??
+    payload.review.pull_request_url ??
+    payload.pull_request.html_url ??
+    repo.url;
   if (ts === null || !sourceUrl) {
     return null;
   }
 
-  const bodySnippet = payload.review.body ? `– ${collapseWhitespace(payload.review.body).slice(0, 160)}` : undefined;
+  const bodySnippet = payload.review.body
+    ? `– ${collapseWhitespace(payload.review.body).slice(0, 160)}`
+    : undefined;
   const canonicalText = truncateText(
     joinParts([
       `Review on PR #${payload.pull_request.number}`,
       `by ${actor.ghLogin}`,
       payload.review.state ? `[${payload.review.state}]` : undefined,
       bodySnippet,
-    ])
+    ]),
   );
 
   return {
@@ -187,13 +211,20 @@ function canonicalizeIssue(payload: IssuesWebhookEvent): CanonicalEvent | null {
     return null;
   }
 
-  const eventType = payload.action === "closed" ? "issue_closed" : payload.action === "opened" || payload.action === "reopened" ? "issue_opened" : null;
+  const eventType =
+    payload.action === "closed"
+      ? "issue_closed"
+      : payload.action === "opened" || payload.action === "reopened"
+        ? "issue_opened"
+        : null;
   if (!eventType) {
     return null;
   }
 
   const ts = resolveTimestamp(
-    eventType === "issue_opened" ? payload.issue.created_at ?? payload.issue.updated_at : payload.issue.closed_at ?? payload.issue.updated_at
+    eventType === "issue_opened"
+      ? (payload.issue.created_at ?? payload.issue.updated_at)
+      : (payload.issue.closed_at ?? payload.issue.updated_at),
   );
   const sourceUrl = payload.issue.html_url ?? payload.issue.url ?? repo.url;
   if (ts === null || !sourceUrl) {
@@ -204,9 +235,11 @@ function canonicalizeIssue(payload: IssuesWebhookEvent): CanonicalEvent | null {
   const canonicalText = truncateText(
     joinParts([
       `Issue #${payload.issue.number}`,
-      payload.issue.title ? `– ${collapseWhitespace(payload.issue.title)}` : undefined,
+      payload.issue.title
+        ? `– ${collapseWhitespace(payload.issue.title)}`
+        : undefined,
       `${verb} by ${actor.ghLogin}`,
-    ])
+    ]),
   );
 
   return {
@@ -227,7 +260,9 @@ function canonicalizeIssue(payload: IssuesWebhookEvent): CanonicalEvent | null {
   };
 }
 
-function canonicalizeIssueComment(payload: IssueCommentWebhookEvent): CanonicalEvent | null {
+function canonicalizeIssueComment(
+  payload: IssueCommentWebhookEvent,
+): CanonicalEvent | null {
   if (payload.action !== "created" && payload.action !== "edited") {
     return null;
   }
@@ -238,7 +273,9 @@ function canonicalizeIssueComment(payload: IssueCommentWebhookEvent): CanonicalE
     return null;
   }
 
-  const ts = resolveTimestamp(payload.comment.updated_at ?? payload.comment.created_at);
+  const ts = resolveTimestamp(
+    payload.comment.updated_at ?? payload.comment.created_at,
+  );
   const sourceUrl = payload.comment.html_url ?? payload.comment.url ?? repo.url;
   if (ts === null || !sourceUrl) {
     return null;
@@ -249,8 +286,10 @@ function canonicalizeIssueComment(payload: IssueCommentWebhookEvent): CanonicalE
     joinParts([
       `Comment on ${target} #${payload.issue.number}`,
       `by ${actor.ghLogin}`,
-      payload.comment.body ? `– ${collapseWhitespace(payload.comment.body).slice(0, 200)}` : undefined,
-    ])
+      payload.comment.body
+        ? `– ${collapseWhitespace(payload.comment.body).slice(0, 200)}`
+        : undefined,
+    ]),
   );
 
   return {
@@ -271,28 +310,39 @@ function canonicalizeIssueComment(payload: IssueCommentWebhookEvent): CanonicalE
   };
 }
 
-function canonicalizeCommit(commit: CommitLike, repository: GitHubRepository): CanonicalEvent | null {
+function canonicalizeCommit(
+  commit: CommitLike,
+  repository: GitHubRepository,
+): CanonicalEvent | null {
   const repo = normalizeRepo(repository);
   const actor = normalizeActor(commit.author ?? commit.committer);
   if (!repo || !actor) {
     return null;
   }
 
-  const ts = resolveTimestamp(commit.timestamp ?? commit.author?.date ?? commit.committer?.date);
+  const ts = resolveTimestamp(
+    commit.timestamp ?? commit.author?.date ?? commit.committer?.date,
+  );
   const sourceUrl = commit.html_url ?? commit.url ?? repo.url;
   if (ts === null || !sourceUrl) {
     return null;
   }
 
   const sha = commit.sha ?? commit.id;
-  const metrics = extractMetrics(commit.stats?.additions, commit.stats?.deletions, commit.stats?.filesChanged);
+  const metrics = extractMetrics(
+    commit.stats?.additions,
+    commit.stats?.deletions,
+    commit.stats?.filesChanged,
+  );
   const canonicalText = truncateText(
     joinParts([
       `Commit ${sha ? sha.slice(0, 7) : ""}`.trim(),
       `by ${actor.ghLogin}`,
-      commit.message ? `– ${collapseWhitespace(commit.message).slice(0, 200)}` : undefined,
+      commit.message
+        ? `– ${collapseWhitespace(commit.message).slice(0, 200)}`
+        : undefined,
       formatMetrics(metrics),
-    ])
+    ]),
   );
 
   return {
@@ -313,7 +363,10 @@ function canonicalizeCommit(commit: CommitLike, repository: GitHubRepository): C
   };
 }
 
-function canonicalizeTimelineItem(item: RepoTimelineNode, repoFullName: string): CanonicalEvent | null {
+function canonicalizeTimelineItem(
+  item: RepoTimelineNode,
+  repoFullName: string,
+): CanonicalEvent | null {
   const repo: CanonicalRepo = {
     fullName: repoFullName,
   };
@@ -339,9 +392,11 @@ function canonicalizeTimelineItem(item: RepoTimelineNode, repoFullName: string):
   const isPr = item.__typename === "PullRequest";
   let eventType: EventType;
   if (isPr) {
-    eventType = item.state?.toLowerCase() === "closed" ? "pr_closed" : "pr_opened";
+    eventType =
+      item.state?.toLowerCase() === "closed" ? "pr_closed" : "pr_opened";
   } else {
-    eventType = item.state?.toLowerCase() === "closed" ? "issue_closed" : "issue_opened";
+    eventType =
+      item.state?.toLowerCase() === "closed" ? "issue_closed" : "issue_opened";
   }
 
   const canonicalText = truncateText(
@@ -349,7 +404,7 @@ function canonicalizeTimelineItem(item: RepoTimelineNode, repoFullName: string):
       `${isPr ? "PR" : "Issue"} #${item.number ?? ""}`.trim(),
       item.title ? `– ${collapseWhitespace(item.title)}` : undefined,
       `${eventType === "pr_opened" || eventType === "issue_opened" ? "recorded" : "updated"} by ${actor.ghLogin}`,
-    ])
+    ]),
   );
 
   return {
@@ -374,7 +429,11 @@ function normalizeRepo(repo?: GitHubRepository | null): CanonicalRepo | null {
   if (!repo) {
     return null;
   }
-  const fullName = repo.full_name ?? (repo.owner?.login && repo.name ? `${repo.owner.login}/${repo.name}` : undefined);
+  const fullName =
+    repo.full_name ??
+    (repo.owner?.login && repo.name
+      ? `${repo.owner.login}/${repo.name}`
+      : undefined);
   if (!fullName) {
     return null;
   }
@@ -388,7 +447,9 @@ function normalizeRepo(repo?: GitHubRepository | null): CanonicalRepo | null {
   };
 }
 
-function normalizeActor(user?: GitHubUser | CommitAuthor | null): CanonicalActor | null {
+function normalizeActor(
+  user?: GitHubUser | CommitAuthor | null,
+): CanonicalActor | null {
   if (!user) {
     return null;
   }
@@ -396,8 +457,12 @@ function normalizeActor(user?: GitHubUser | CommitAuthor | null): CanonicalActor
   const login =
     user.login ??
     user.username ??
-    (typeof user.name === "string" && user.name.trim().length > 0 ? user.name.trim() : undefined) ??
-    (typeof (user as CommitAuthor).email === "string" ? (user as CommitAuthor).email?.split("@")[0] : undefined);
+    (typeof user.name === "string" && user.name.trim().length > 0
+      ? user.name.trim()
+      : undefined) ??
+    (typeof (user as CommitAuthor).email === "string"
+      ? (user as CommitAuthor).email?.split("@")[0]
+      : undefined);
 
   if (!login) {
     return null;
@@ -412,8 +477,15 @@ function normalizeActor(user?: GitHubUser | CommitAuthor | null): CanonicalActor
   };
 }
 
-function resolvePullRequestEventType(action: string, merged: boolean): EventType | null {
-  if (action === "opened" || action === "reopened" || action === "ready_for_review") {
+function resolvePullRequestEventType(
+  action: string,
+  merged: boolean,
+): EventType | null {
+  if (
+    action === "opened" ||
+    action === "reopened" ||
+    action === "ready_for_review"
+  ) {
     return "pr_opened";
   }
   if (action === "closed") {
@@ -436,7 +508,7 @@ function resolveTimestamp(value?: string | number | null): number | null {
 function extractMetrics(
   additions?: number | null,
   deletions?: number | null,
-  filesChanged?: number | null
+  filesChanged?: number | null,
 ): CanonicalMetrics | undefined {
   const metrics: CanonicalMetrics = {};
   if (typeof additions === "number") {
@@ -480,11 +552,16 @@ function collapseWhitespace(value: string): string {
 }
 
 function joinParts(parts: Array<string | undefined>): string {
-  return parts.filter((part) => Boolean(part && part.trim())).join(" ").trim();
+  return parts
+    .filter((part) => Boolean(part && part.trim()))
+    .join(" ")
+    .trim();
 }
 
 function compact<T extends Record<string, unknown>>(obj: T): T {
-  const entries = Object.entries(obj).filter(([, value]) => value !== undefined && value !== null);
+  const entries = Object.entries(obj).filter(
+    ([, value]) => value !== undefined && value !== null,
+  );
   return Object.fromEntries(entries) as T;
 }
 
@@ -621,7 +698,4 @@ interface CommitLike {
   stats?: CommitStats;
 }
 
-export type {
-  GitHubRepository,
-  CommitLike,
-};
+export type { GitHubRepository, CommitLike };

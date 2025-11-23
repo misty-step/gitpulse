@@ -20,16 +20,14 @@ export function CoverageMeter({
     percentage === null
       ? "unknown"
       : percentage / 100 >= threshold
-      ? "good"
-      : "warning";
+        ? "good"
+        : "warning";
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">
         <span>{label}</span>
-        <span>
-          {percentage === null ? "N/A" : `${percentage}%`}
-        </span>
+        <span>{percentage === null ? "N/A" : `${percentage}%`}</span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-neutral-800">
         <div
@@ -38,15 +36,16 @@ export function CoverageMeter({
             status === "good"
               ? "bg-emerald-500"
               : status === "warning"
-              ? "bg-amber-500"
-              : "bg-gray-400 dark:bg-neutral-600"
+                ? "bg-amber-500"
+                : "bg-gray-400 dark:bg-neutral-600",
           )}
           style={{ width: `${Math.min(Math.max(percentage ?? 0, 0), 100)}%` }}
         />
       </div>
       {status === "warning" && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
-          Needs more citations & coverage (target ≥ {Math.round(threshold * 100)}%)
+          Needs more citations & coverage (target ≥{" "}
+          {Math.round(threshold * 100)}%)
         </p>
       )}
     </div>

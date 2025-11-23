@@ -1,5 +1,10 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 
@@ -26,7 +31,9 @@ export const latestByReport = query({
 
     return await ctx.db
       .query("reportRegenerations")
-      .withIndex("by_reportId_and_createdAt", (q) => q.eq("reportId", args.reportId))
+      .withIndex("by_reportId_and_createdAt", (q) =>
+        q.eq("reportId", args.reportId),
+      )
       .order("desc")
       .first();
   },
@@ -52,7 +59,9 @@ export const listByReport = query({
 
     return await ctx.db
       .query("reportRegenerations")
-      .withIndex("by_reportId_and_createdAt", (q) => q.eq("reportId", args.reportId))
+      .withIndex("by_reportId_and_createdAt", (q) =>
+        q.eq("reportId", args.reportId),
+      )
       .order("desc")
       .take(limit);
   },
@@ -76,18 +85,24 @@ export const createRequest = mutation({
     }
 
     if (report.scheduleType !== "daily" && report.scheduleType !== "weekly") {
-      throw new Error("Regeneration is only available for daily or weekly reports right now");
+      throw new Error(
+        "Regeneration is only available for daily or weekly reports right now",
+      );
     }
 
     const existingJob = await ctx.db
       .query("reportRegenerations")
-      .withIndex("by_reportId_and_createdAt", (q) => q.eq("reportId", args.reportId))
+      .withIndex("by_reportId_and_createdAt", (q) =>
+        q.eq("reportId", args.reportId),
+      )
       .order("desc")
       .take(1);
 
     if (
       existingJob.length > 0 &&
-      ACTIVE_STATUSES.has(existingJob[0].status as Doc<"reportRegenerations">["status"])
+      ACTIVE_STATUSES.has(
+        existingJob[0].status as Doc<"reportRegenerations">["status"],
+      )
     ) {
       return existingJob[0]._id;
     }
@@ -107,9 +122,13 @@ export const createRequest = mutation({
       updatedAt: now,
     });
 
-    await ctx.scheduler.runAfter(0, internal.actions.reports.runRegeneration.run, {
-      jobId,
-    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.actions.reports.runRegeneration.run,
+      {
+        jobId,
+      },
+    );
 
     return jobId;
   },
@@ -133,8 +152,8 @@ export const updateJob = internalMutation({
         v.literal("validating"),
         v.literal("saving"),
         v.literal("completed"),
-        v.literal("failed")
-      )
+        v.literal("failed"),
+      ),
     ),
     progress: v.optional(v.number()),
     message: v.optional(v.string()),

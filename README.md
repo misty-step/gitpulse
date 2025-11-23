@@ -53,6 +53,7 @@ Navigate to **Repositories** → Click **"Add Repository"**
 ### 2. Watch Ingestion Progress
 
 Real-time progress banner shows:
+
 - Current progress percentage
 - Events ingested count
 - Estimated time remaining
@@ -60,6 +61,7 @@ Real-time progress banner shows:
 ### 3. View Analytics
 
 Click **"View Details"** on any repo to see:
+
 - Activity charts (PRs, commits, reviews over time)
 - KPI cards (total counts, trends)
 - Event breakdown table
@@ -74,6 +76,7 @@ Navigate to **Reports** → **"Generate Report"**
 4. Wait 30-60 seconds for AI generation
 
 Reports include:
+
 - Activity summary with key highlights
 - Citation-backed analysis
 - GitHub URL references for every claim
@@ -96,6 +99,7 @@ pnpm reports:generate -- \
 ```
 
 Arguments:
+
 - `--ghLogin` or `--clerkId` (required – pick one)
 - `--kind` (`daily` | `weekly`)
 - `--endDate` (optional, defaults to now)
@@ -108,16 +112,19 @@ The command calls `actions/reports/regenerate` under the hood, persists the new 
 ### Tech Stack
 
 **Frontend**:
+
 - Next.js 16 with App Router + React 19
 - TypeScript 5.7
 - Tailwind CSS 4
 - Sonner for toast notifications
 
 **Backend**:
+
 - Convex (serverless functions + database + vector search)
 - Clerk (authentication + session management)
 
 **AI/ML**:
+
 - Voyage AI (1024-dim embeddings, $0.10/1M tokens)
 - Gemini 2.5 Flash (report generation, $0.15-0.60/1M tokens)
 - OpenAI GPT-5 Mini (fallback)
@@ -166,12 +173,14 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
 #### Convex Environment (set via Convex Dashboard)
 
 **Default Environment Variables** (applies to Preview + Development):
+
 ```bash
 # Clerk (for JWT validation in preview deployments)
 CLERK_JWT_ISSUER_DOMAIN=your-clerk-domain.clerk.accounts.dev
 ```
 
 **Development/Production Environment Variables** (set via `convex env set`):
+
 ```bash
 # GitHub API
 GITHUB_TOKEN=ghp_...
@@ -205,6 +214,7 @@ npx convex dev      # Creates deployment, pushes schema
 #### 3. API Keys
 
 Get API keys from:
+
 - **Voyage AI**: https://www.voyageai.com/
 - **Google AI Studio**: https://ai.google.dev/
 - **GitHub**: https://github.com/settings/tokens (needs `repo` scope)
@@ -218,6 +228,7 @@ pnpm dev
 ```
 
 This starts:
+
 - Next.js dev server (http://localhost:3000)
 - Convex dev watcher (syncs functions on file changes)
 
@@ -238,17 +249,20 @@ pnpm build
 This project uses [Lefthook](https://github.com/evilmartians/lefthook) for fast, parallel git hooks.
 
 **Pre-commit** (runs automatically on `git commit`):
+
 - Format code with Prettier
 - Lint code with ESLint
 - Scan for secrets with Gitleaks
 
 **Pre-push** (runs automatically on `git push`):
+
 - Type check with TypeScript
 - Run tests
 - Verify Convex types
 - **Build check** - ensures `pnpm build:app` succeeds
 
 **Bypass build check:**
+
 ```bash
 # Temporarily skip build check (use sparingly)
 SKIP_BUILD_CHECK=true git push
@@ -323,12 +337,14 @@ GitHub Actions CI → Quality Gates Only (typecheck, lint, test, security)
 ### Deployment Flow
 
 **Preview Deployments (PRs):**
+
 - Vercel creates preview deployment for each PR
 - Convex creates isolated preview backend (auto-cleanup after 14 days)
 - Preview URL commented on PR by Vercel bot
 - Perfect for testing changes before merge
 
 **Production Deployments:**
+
 - Merge to `master` triggers automatic production deployment
 - Convex production backend updated
 - Zero-downtime deployment
@@ -352,6 +368,7 @@ pnpm build
 ### Troubleshooting
 
 See [`docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md`](docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md) for:
+
 - Common deployment issues
 - Environment variable setup
 - Preview deployment configuration
@@ -371,6 +388,7 @@ npx convex dashboard
 ### API Rate Limits
 
 GitHub enforces 5000 requests/hour. GitPulse handles this with:
+
 - Exponential backoff (1s → 2s → 4s → 8s)
 - Automatic retry on 403/429 errors
 - Rate limit header parsing
@@ -421,6 +439,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## 🙏 Acknowledgments
 
 Built with:
+
 - [Next.js](https://nextjs.org/) - React framework
 - [Convex](https://www.convex.dev/) - Backend platform
 - [Clerk](https://clerk.com/) - Authentication
@@ -428,7 +447,7 @@ Built with:
 - [Google Gemini](https://ai.google.dev/) - LLM
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
 
-Inspired by John Ousterhout's *A Philosophy of Software Design* - fighting complexity through deep modules and information hiding.
+Inspired by John Ousterhout's _A Philosophy of Software Design_ - fighting complexity through deep modules and information hiding.
 
 ---
 

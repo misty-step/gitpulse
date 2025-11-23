@@ -25,11 +25,13 @@ This guide explains the best practices for managing preview deployments with the
 ## Current Problem
 
 **Symptom:** CI Build job fails with:
+
 ```
 ✖ Environment variable CLERK_JWT_ISSUER_DOMAIN is used in auth config file but its value was not set.
 ```
 
 **Root Cause:**
+
 - CI uses `CONVEX_DEPLOY_KEY` to deploy to Convex
 - This creates preview deployments (e.g., `hardy-bobcat-281.convex.cloud`)
 - Preview deployments are isolated and don't inherit environment variables
@@ -42,6 +44,7 @@ This guide explains the best practices for managing preview deployments with the
 **Philosophy:** Let Vercel handle builds/deployments, CI handles quality validation.
 
 #### Benefits
+
 - ✅ Official Convex best practice
 - ✅ Automatic preview deployments for every PR
 - ✅ No duplication between CI and Vercel
@@ -55,6 +58,7 @@ This guide explains the best practices for managing preview deployments with the
 **What:** Set environment variables that apply to ALL preview and dev deployments automatically.
 
 **How:**
+
 1. Go to [Convex Dashboard](https://dashboard.convex.dev/)
 2. Select your project
 3. Navigate to **Settings** → **Environment Variables**
@@ -112,30 +116,32 @@ CLERK_JWT_ISSUER_DOMAIN=finer-llama-61.clerk.accounts.dev
 Edit `.github/workflows/ci.yml`:
 
 **REMOVE:**
+
 ```yaml
-  build:
-    name: Build
-    needs: quality-gates
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Deploy Convex
-        run: npx convex deploy --cmd 'pnpm build:app'
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+build:
+  name: Build
+  needs: quality-gates
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: "pnpm"
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+    - name: Deploy Convex
+      run: npx convex deploy --cmd 'pnpm build:app'
+      env:
+        CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 ```
 
 **KEEP:**
+
 - `trufflehog` (secrets scanning)
 - `security-audit` (pnpm audit)
 - `quality-gates` (typecheck, lint, test)
@@ -145,6 +151,7 @@ Edit `.github/workflows/ci.yml`:
 ##### 4. Test the Setup
 
 **Test Preview Deployment:**
+
 1. Create a new branch and PR
 2. Vercel automatically creates preview deployment
 3. Verify:
@@ -154,6 +161,7 @@ Edit `.github/workflows/ci.yml`:
    - Check Convex Dashboard for new preview deployment
 
 **Test Production Deployment:**
+
 1. Merge PR to `master`
 2. Vercel automatically deploys to production
 3. Verify production site works
@@ -202,10 +210,12 @@ jobs:
 **Philosophy:** Keep deployment in CI, restrict to master branch only.
 
 #### Benefits
+
 - ✅ More control over deployment process
 - ✅ Centralized in one place
 
 #### Tradeoffs
+
 - ❌ No preview deployments for PRs
 - ❌ Against Convex official recommendations
 - ❌ More complex to maintain
@@ -221,14 +231,14 @@ jobs:
 Edit `.github/workflows/ci.yml`:
 
 ```yaml
-  build:
-    name: Build
-    needs: quality-gates
-    runs-on: ubuntu-latest
-    # Only build on master branch
-    if: github.ref == 'refs/heads/master'
-    steps:
-      # ... existing steps
+build:
+  name: Build
+  needs: quality-gates
+  runs-on: ubuntu-latest
+  # Only build on master branch
+  if: github.ref == 'refs/heads/master'
+  steps:
+    # ... existing steps
 ```
 
 ##### 3. Disable Vercel Auto-Deploy (Optional)
@@ -257,6 +267,7 @@ CLERK_JWT_ISSUER_DOMAIN=finer-llama-61.clerk.accounts.dev
 ### Vercel Environment Variables
 
 **Production Environment:**
+
 ```bash
 CONVEX_DEPLOY_KEY=<production-deploy-key>
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -267,6 +278,7 @@ GITHUB_OAUTH_CLIENT_SECRET=<production-oauth-secret>
 ```
 
 **Preview Environment:**
+
 ```bash
 CONVEX_DEPLOY_KEY=<preview-deploy-key>
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
@@ -277,6 +289,7 @@ GITHUB_OAUTH_CLIENT_SECRET=<dev-oauth-secret>
 ```
 
 **Note:** Many environment variables can be shared between Production and Preview. Use separate values when:
+
 - Authentication providers require different credentials per environment
 - API keys have environment-specific restrictions
 - You want cost/usage isolation
@@ -288,6 +301,7 @@ GITHUB_OAUTH_CLIENT_SECRET=<dev-oauth-secret>
 ### Current Setup (Development Instance)
 
 You're currently using a Clerk **test** instance:
+
 - Domain: `finer-llama-61.clerk.accounts.dev`
 - Publishable Key: `pk_test_...`
 - Secret Key: `sk_test_...`
@@ -301,11 +315,13 @@ When ready for production:
    - New domain: `your-app.clerk.accounts.dev` (or custom domain)
 
 2. **Update Convex Production Variables:**
+
    ```bash
    CLERK_JWT_ISSUER_DOMAIN=your-app.clerk.accounts.dev
    ```
 
 3. **Update Vercel Production Variables:**
+
    ```bash
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
    CLERK_SECRET_KEY=sk_live_...
@@ -319,10 +335,12 @@ When ready for production:
 ### For Preview Deployments
 
 **Option 1: Share Dev Instance (Simpler)**
+
 - Use same Clerk test instance for all previews
 - Set as Convex default variable (recommended)
 
 **Option 2: Separate Preview Instance (Advanced)**
+
 - Create dedicated Clerk instance for previews
 - Useful if you need isolation from dev environment
 - More complex to set up
@@ -336,6 +354,7 @@ When ready for production:
 **Cause:** Convex default variables not configured.
 
 **Fix:**
+
 1. Verify Convex Dashboard → Default Environment Variables
 2. Ensure variables are set for "Preview + Development"
 3. Create new preview deployment to test
@@ -345,6 +364,7 @@ When ready for production:
 **Cause:** Vercel not configured with preview deploy key.
 
 **Fix:**
+
 1. Check Vercel → Settings → Environment Variables
 2. Ensure `CONVEX_DEPLOY_KEY` is set for **Preview** environment
 3. Check Vercel build logs for errors
@@ -360,6 +380,7 @@ When ready for production:
 **Cause:** Clerk instance doesn't allow preview URLs.
 
 **Fix:**
+
 1. Clerk Dashboard → Domains
 2. Add preview domain pattern: `*.vercel.app` (for Vercel previews)
 3. Or use Clerk development instance which allows all origins

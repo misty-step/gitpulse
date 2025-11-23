@@ -29,7 +29,7 @@ export function CitationDrawer({
         <span
           className={clsx(
             "ml-3 inline-flex items-center text-xs uppercase tracking-wide",
-            open ? "text-blue-600 dark:text-blue-400" : "text-gray-400"
+            open ? "text-blue-600 dark:text-blue-400" : "text-gray-400",
           )}
         >
           {open ? "Hide" : "Show"}

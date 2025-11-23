@@ -1,5 +1,10 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
 export const upsert = mutation({
@@ -22,7 +27,7 @@ export const upsert = mutation({
     const existing = await ctx.db
       .query("installations")
       .withIndex("by_installationId", (q) =>
-        q.eq("installationId", args.installationId)
+        q.eq("installationId", args.installationId),
       )
       .unique();
 
@@ -50,7 +55,7 @@ export const getByInstallationId = query({
     return ctx.db
       .query("installations")
       .withIndex("by_installationId", (q) =>
-        q.eq("installationId", args.installationId)
+        q.eq("installationId", args.installationId),
       )
       .unique();
   },
@@ -90,7 +95,7 @@ export const updateRateLimitBudget = mutation({
     const installation = await ctx.db
       .query("installations")
       .withIndex("by_installationId", (q) =>
-        q.eq("installationId", args.installationId)
+        q.eq("installationId", args.installationId),
       )
       .unique();
 
@@ -118,7 +123,7 @@ export const updateSyncState = internalMutation({
     const installation = await ctx.db
       .query("installations")
       .withIndex("by_installationId", (q) =>
-        q.eq("installationId", args.installationId)
+        q.eq("installationId", args.installationId),
       )
       .unique();
 

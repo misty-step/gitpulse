@@ -27,7 +27,8 @@ beforeEach(() => {
   __resetGithubAppInternalState();
   signMock.mockClear();
   process.env.GITHUB_APP_ID = "123";
-  process.env.GITHUB_APP_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----";
+  process.env.GITHUB_APP_PRIVATE_KEY =
+    "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----";
 });
 
 describe("mintInstallationToken", () => {
@@ -51,7 +52,9 @@ describe("mintInstallationToken", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const mockFetch = global.fetch as jest.Mock;
     const [, requestInit] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect((requestInit?.headers as any)?.Authorization).toBe("Bearer signed-jwt");
+    expect((requestInit?.headers as any)?.Authorization).toBe(
+      "Bearer signed-jwt",
+    );
   });
 });
 
@@ -99,7 +102,7 @@ describe("fetchRepoTimeline", () => {
       status: 200,
       ok: true,
       headers,
-      json: async () => ([
+      json: async () => [
         {
           id: 1,
           node_id: "MDQ6",
@@ -108,7 +111,7 @@ describe("fetchRepoTimeline", () => {
           updated_at: new Date().toISOString(),
           user: { id: 7, login: "octocat", node_id: "MDQ6U" },
         },
-      ]),
+      ],
     });
     global.fetch = fetchMock as unknown as typeof fetch;
 

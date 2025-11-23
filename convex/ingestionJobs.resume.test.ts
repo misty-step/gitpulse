@@ -16,7 +16,10 @@ describe("ingestionJobs.resume", () => {
     const patch = jest.fn();
     const ctx = { db: { get, patch } } as any;
 
-    await (resume as any).handler(ctx, { jobId, reposRemaining: ["next/repo"] });
+    await (resume as any).handler(ctx, {
+      jobId,
+      reposRemaining: ["next/repo"],
+    });
 
     expect(patch).toHaveBeenCalledTimes(1);
     expect(patch).toHaveBeenCalledWith(
@@ -26,7 +29,7 @@ describe("ingestionJobs.resume", () => {
         blockedUntil: undefined,
         reposRemaining: ["next/repo"],
         startedAt: job.createdAt,
-      })
+      }),
     );
 
     const updatedFields = patch.mock.calls[0][1];
@@ -41,7 +44,10 @@ describe("ingestionJobs.resume", () => {
       },
     } as any;
 
-    await (resume as any).handler(ctx, { jobId: "missing" as any, reposRemaining: [] });
+    await (resume as any).handler(ctx, {
+      jobId: "missing" as any,
+      reposRemaining: [],
+    });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 });

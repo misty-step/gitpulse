@@ -16,7 +16,9 @@ export function normalizeUrl(url?: string | null): string | undefined {
 
   // Avoid stripping double slashes in protocols, only drop a single trailing slash.
   const withoutTrailingSlash =
-    trimmed.length > 1 && trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+    trimmed.length > 1 && trimmed.endsWith("/")
+      ? trimmed.slice(0, -1)
+      : trimmed;
 
   return withoutTrailingSlash;
 }

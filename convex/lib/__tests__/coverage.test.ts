@@ -28,7 +28,11 @@ describe("computeCoverageSummary", () => {
 });
 
 describe("validateCoverage", () => {
-  const baseEvent = (id: string, repoId: string, url: string): Doc<"events"> => ({
+  const baseEvent = (
+    id: string,
+    repoId: string,
+    url: string,
+  ): Doc<"events"> => ({
     _id: id as Id<"events">,
     _creationTime: Date.now(),
     repoId: repoId as Id<"repos">,
@@ -55,9 +59,14 @@ describe("validateCoverage", () => {
       events,
       {
         markdown: "",
-        citations: ["https://example.com/1", "https://example.com/2", "https://example.com/3", "https://example.com/4"],
+        citations: [
+          "https://example.com/1",
+          "https://example.com/2",
+          "https://example.com/3",
+          "https://example.com/4",
+        ],
       },
-      0.95
+      0.95,
     );
 
     expect(result.pass).toBe(true);
@@ -79,8 +88,8 @@ describe("validateCoverage", () => {
           markdown: "",
           citations: ["https://example.com/1"],
         },
-        0.75
-      )
+        0.75,
+      ),
     ).toThrow(CoverageValidationError);
   });
 
@@ -97,16 +106,14 @@ describe("validateCoverage", () => {
       baseEvent(
         `evt-${index}`,
         index % 2 === 0 ? "repo1" : "repo2",
-        `https://example.com/${index}`
-      )
+        `https://example.com/${index}`,
+      ),
     );
-    const citations = events.slice(0, citedCount).map((event) => event.sourceUrl!);
+    const citations = events
+      .slice(0, citedCount)
+      .map((event) => event.sourceUrl!);
 
-    const result = validateCoverage(
-      events,
-      { markdown: "", citations },
-      0.95
-    );
+    const result = validateCoverage(events, { markdown: "", citations }, 0.95);
 
     expect(result.pass).toBe(true);
     expect(result.coverageScore).toBeCloseTo(citedCount / eventCount);
@@ -120,23 +127,21 @@ describe("validateCoverage", () => {
       baseEvent(
         `evt-${index}`,
         index % 3 === 0 ? "repo-alpha" : "repo-beta",
-        `https://example.org/${index}`
-      )
+        `https://example.org/${index}`,
+      ),
     );
-    const citations = events.slice(0, citedCount).map((event) => event.sourceUrl!);
+    const citations = events
+      .slice(0, citedCount)
+      .map((event) => event.sourceUrl!);
 
     expect.assertions(5);
     try {
-      validateCoverage(
-        events,
-        { markdown: "", citations },
-        0.95
-      );
+      validateCoverage(events, { markdown: "", citations }, 0.95);
     } catch (error) {
       expect(error).toBeInstanceOf(CoverageValidationError);
       const coverageError = error as CoverageValidationError;
       expect(coverageError.summary.coverageScore).toBeCloseTo(
-        citedCount / eventCount
+        citedCount / eventCount,
       );
       expect(coverageError.summary.breakdown.length).toBeGreaterThan(0);
       expect(coverageError.threshold).toBe(0.95);

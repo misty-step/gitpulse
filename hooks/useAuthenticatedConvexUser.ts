@@ -22,11 +22,12 @@ export function useAuthenticatedConvexUser() {
   // Query with "skip" returns undefined forever - we avoid that by checking isClerkLoaded first
   const convexUser = useQuery(
     api.users.getByClerkId,
-    isClerkLoaded && clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+    isClerkLoaded && clerkUser?.id ? { clerkId: clerkUser.id } : "skip",
   );
 
   // Loading: Either Clerk hasn't loaded yet, OR Clerk loaded with user but Convex query pending
-  const isLoading = !isClerkLoaded || (clerkUser?.id && convexUser === undefined);
+  const isLoading =
+    !isClerkLoaded || (clerkUser?.id && convexUser === undefined);
 
   // Authenticated: Clerk has loaded and user exists (even if Convex user not found yet)
   const isAuthenticated = isClerkLoaded && !!clerkUser;

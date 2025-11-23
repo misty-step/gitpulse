@@ -23,7 +23,7 @@ describe("verifyWebhookSignature", () => {
     const signature = sign(previousSecret);
 
     expect(
-      verifyWebhookSignature(payload, signature, currentSecret, previousSecret)
+      verifyWebhookSignature(payload, signature, currentSecret, previousSecret),
     ).toBe(true);
   });
 
@@ -35,8 +35,7 @@ describe("verifyWebhookSignature", () => {
   it("rejects mismatched signatures", () => {
     const secret = "secret";
     const valid = sign(secret);
-    const tampered =
-      valid.slice(0, -1) + (valid.endsWith("0") ? "1" : "0");
+    const tampered = valid.slice(0, -1) + (valid.endsWith("0") ? "1" : "0");
     expect(verifyWebhookSignature(payload, tampered, secret)).toBe(false);
   });
 });

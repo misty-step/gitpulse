@@ -14,7 +14,7 @@ interface EnsureBatchArgs {
 
 export async function ensureBatchHandler(
   ctx: ActionCtx,
-  args: EnsureBatchArgs
+  args: EnsureBatchArgs,
 ): Promise<{ processed: number }> {
   const limit = Math.min(Math.max(args.limit ?? DEFAULT_BATCH_SIZE, 1), 50);
 
@@ -22,7 +22,7 @@ export async function ensureBatchHandler(
     api.embeddingQueue.listPending,
     {
       limit,
-    }
+    },
   );
 
   if (pending.length === 0) {
@@ -31,8 +31,8 @@ export async function ensureBatchHandler(
 
   await Promise.all(
     pending.map((job) =>
-      ctx.runMutation(internal.embeddingQueue.markProcessing, { id: job._id })
-    )
+      ctx.runMutation(internal.embeddingQueue.markProcessing, { id: job._id }),
+    ),
   );
 
   const eventIds = pending.map((job) => job.eventId);
@@ -44,21 +44,22 @@ export async function ensureBatchHandler(
 
     await Promise.all(
       pending.map((job) =>
-        ctx.runMutation(internal.embeddingQueue.complete, { id: job._id })
-      )
+        ctx.runMutation(internal.embeddingQueue.complete, { id: job._id }),
+      ),
     );
 
     return { processed: pending.length };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
 
     await Promise.all(
       pending.map((job) =>
         ctx.runMutation(internal.embeddingQueue.fail, {
           id: job._id,
           errorMessage,
-        })
-      )
+        }),
+      ),
     );
 
     throw error;

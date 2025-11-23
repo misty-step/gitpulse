@@ -66,6 +66,7 @@ GitHub Actions CI → Quality Gates Only
 ### 1. Immediate Fix (Do Now)
 
 Follow [QUICK_START.md](./QUICK_START.md):
+
 1. Set Convex default environment variable
 2. Rerun CI
 3. Verify build passes
@@ -77,11 +78,13 @@ Follow [QUICK_START.md](./QUICK_START.md):
 Read [PREVIEW_DEPLOYMENTS_GUIDE.md](./PREVIEW_DEPLOYMENTS_GUIDE.md) and choose:
 
 **Option A: Vercel-Managed (Recommended)**
+
 - Official Convex best practice
 - Automatic preview deployments
 - Simpler setup
 
 **Option B: CI-Managed**
+
 - More control
 - No preview deployments for PRs
 - More complex
@@ -91,6 +94,7 @@ Read [PREVIEW_DEPLOYMENTS_GUIDE.md](./PREVIEW_DEPLOYMENTS_GUIDE.md) and choose:
 ### 3. Implement & Test
 
 Follow the chosen approach from the guide:
+
 - Configure Convex/Vercel
 - Update CI configuration
 - Test with new PR
@@ -117,11 +121,13 @@ Follow the chosen approach from the guide:
 ### Deploy Keys
 
 **Production Deploy Key:**
+
 - Deploys to production Convex deployment
 - Use in Vercel production environment
 - Use in CI for master branch only
 
 **Preview Deploy Key:**
+
 - Creates new Convex deployment per branch
 - Use in Vercel preview environment
 - Use in CI for all branches (current setup)
@@ -163,11 +169,13 @@ Your `CONVEX_DEPLOY_KEY` secret is a **preview deploy key**, which creates isola
 ### Should I use Vercel or CI for deployments?
 
 **Vercel (Recommended):**
+
 - Official Convex best practice
 - Simpler setup
 - Automatic preview deployments
 
 **CI:**
+
 - More control
 - Centralized deployment logic
 - Requires more configuration
@@ -175,17 +183,20 @@ Your `CONVEX_DEPLOY_KEY` secret is a **preview deploy key**, which creates isola
 ### What's the difference between dev, preview, and production?
 
 **Development:**
+
 - Your local environment
 - Convex dev deployment
 - Environment variables in `.env.local`
 
 **Preview:**
+
 - PR branches
 - Temporary Convex deployments
 - Auto-cleanup after 14 days
 - Use default environment variables
 
 **Production:**
+
 - Master branch
 - Permanent Convex deployment
 - Dedicated environment variables
@@ -211,6 +222,7 @@ Different environment variable configuration. Ensure production environment has 
 ### Vercel deployment fails
 
 Check Vercel build logs for specific error. Common issues:
+
 - Missing `CONVEX_DEPLOY_KEY` in Vercel environment variables
 - Incorrect build command
 - Missing other required environment variables

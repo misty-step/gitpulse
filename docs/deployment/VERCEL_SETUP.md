@@ -60,6 +60,7 @@ This ensures ALL preview deployments automatically receive the required configur
 3. **Save Changes**
 
 **Verification:**
+
 - The variable should show as applying to "Preview + Development" environments
 - It should NOT be set for Production (production will use its own value later)
 
@@ -75,11 +76,13 @@ This ensures ALL preview deployments automatically receive the required configur
    - Navigate to **Settings** → **Environment Variables**
 
 2. **Add Production Deploy Key:**
+
    ```
    Variable Name: CONVEX_DEPLOY_KEY
    Value: prod:... (paste your production deploy key from Step 1.1)
    Environments: ✅ Production ONLY
    ```
+
    - Click **Save**
 
 3. **Add Preview Deploy Key:**
@@ -88,9 +91,11 @@ This ensures ALL preview deployments automatically receive the required configur
    Value: preview:... (paste your preview deploy key from Step 1.2)
    Environments: ✅ Preview ONLY
    ```
+
    - Click **Save**
 
 **Result:** You should now have TWO `CONVEX_DEPLOY_KEY` entries:
+
 - One for Production
 - One for Preview
 
@@ -99,6 +104,7 @@ This ensures ALL preview deployments automatically receive the required configur
 Ensure these are already configured (they should be from initial setup):
 
 **Production Environment:**
+
 ```bash
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
@@ -106,6 +112,7 @@ CLERK_SECRET_KEY=sk_test_...
 ```
 
 **Preview Environment:**
+
 ```bash
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
@@ -122,6 +129,7 @@ CLERK_SECRET_KEY=sk_test_...
    - Settings → **Build & Development Settings**
 
 2. **Verify/Set Build Command:**
+
    ```bash
    npx convex deploy --cmd 'pnpm build:app'
    ```
@@ -226,6 +234,7 @@ gh pr create \
    - No authentication errors
 
 **Success Criteria:**
+
 - ✅ Vercel deployment completes successfully
 - ✅ Preview site loads and works
 - ✅ Clerk authentication works
@@ -266,6 +275,7 @@ git pull
    - Verify core functionality
 
 **Success Criteria:**
+
 - ✅ Production deployment completes
 - ✅ Production site works correctly
 - ✅ No regressions
@@ -283,6 +293,7 @@ gh secret remove CONVEX_DEPLOY_KEY
 ```
 
 **Verify:**
+
 ```bash
 gh secret list
 # Should NOT show CONVEX_DEPLOY_KEY
@@ -291,6 +302,7 @@ gh secret list
 ### 8.2 Update Documentation
 
 The secret removal is already documented in:
+
 - `docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md`
 - This file
 
@@ -323,6 +335,7 @@ For the next 2-3 PRs, keep an eye on:
 ### Preview Deployment Fails with "CLERK_JWT_ISSUER_DOMAIN not set"
 
 **Solution:**
+
 1. Check Convex Dashboard → Environment Variables → Defaults
 2. Verify variable is set for **Preview + Development**
 3. Create new preview deployment to test
@@ -330,6 +343,7 @@ For the next 2-3 PRs, keep an eye on:
 ### Vercel Build Fails
 
 **Check:**
+
 1. Vercel build logs for specific error
 2. Build command is correct: `npx convex deploy --cmd 'pnpm build:app'`
 3. `CONVEX_DEPLOY_KEY` is set for the correct environment
@@ -339,6 +353,7 @@ For the next 2-3 PRs, keep an eye on:
 **Cause:** Different environment variable configuration
 
 **Solution:**
+
 1. Check production environment variables in Vercel
 2. Ensure production has all required variables
 3. Check Convex production environment variables
@@ -346,6 +361,7 @@ For the next 2-3 PRs, keep an eye on:
 ### Clerk Authentication Fails
 
 **Check:**
+
 1. Clerk Dashboard → Domains
 2. Ensure preview domain pattern is allowed: `*.vercel.app`
 3. Verify Clerk keys are correct in Vercel environment variables
@@ -386,6 +402,7 @@ After completing this guide, you should have:
 - ✅ Documentation updated
 
 **Deployment Flow:**
+
 ```
 PR Created → Vercel Detects → Creates Preview Deployment
   ↓
@@ -401,6 +418,7 @@ PR Comment: Vercel bot posts preview URL
 ```
 
 **Merge to Master:**
+
 ```
 PR Merged → Vercel Detects → Deploys to Production
   ↓

@@ -65,7 +65,7 @@ export function buildReportContext({
 } {
   const sorted = [...events].sort((a, b) => b.ts - a.ts);
   const timeline = sorted.map((event) =>
-    normalizeEvent(event, reposById.get(event.repoId) ?? null)
+    normalizeEvent(event, reposById.get(event.repoId) ?? null),
   );
 
   const byType = sorted.reduce<Record<string, number>>((acc, event) => {
@@ -77,17 +77,15 @@ export function buildReportContext({
   for (const event of sorted) {
     const repoDoc = reposById.get(event.repoId) ?? null;
     const key = event.repoId;
-    const existing =
-      repoStats.get(key) ??
-      {
-        repo: repoDoc?.fullName ?? `repo:${event.repoId}`,
-        repoUrl: repoDoc?.url,
-        eventCount: 0,
-        commits: 0,
-        pullRequests: 0,
-        reviews: 0,
-        issues: 0,
-      };
+    const existing = repoStats.get(key) ?? {
+      repo: repoDoc?.fullName ?? `repo:${event.repoId}`,
+      repoUrl: repoDoc?.url,
+      eventCount: 0,
+      commits: 0,
+      pullRequests: 0,
+      reviews: 0,
+      issues: 0,
+    };
 
     existing.eventCount += 1;
     if (event.type.startsWith("pr_")) {
@@ -111,8 +109,8 @@ export function buildReportContext({
         1,
         Math.round(
           (new Date(endDate).getTime() - new Date(startDate).getTime()) /
-            (24 * 60 * 60 * 1000)
-        )
+            (24 * 60 * 60 * 1000),
+        ),
       ),
     },
     totals: {
@@ -120,9 +118,7 @@ export function buildReportContext({
       repoCount: repoStats.size,
       byType,
     },
-    repos: [...repoStats.values()].sort(
-      (a, b) => b.eventCount - a.eventCount
-    ),
+    repos: [...repoStats.values()].sort((a, b) => b.eventCount - a.eventCount),
     timeline,
   };
 
@@ -130,8 +126,8 @@ export function buildReportContext({
     new Set(
       timeline
         .map((event) => event.url)
-        .filter((url): url is string => Boolean(url))
-    )
+        .filter((url): url is string => Boolean(url)),
+    ),
   );
 
   return { context, timeline, allowedUrls };
@@ -156,7 +152,9 @@ function normalizeEvent(event: EventDoc, repo: RepoDoc | null): ContextEvent {
         }
       : undefined);
 
-  const resolvedUrl = normalizeUrl(event.sourceUrl ?? resolveMetadataUrl(metadata));
+  const resolvedUrl = normalizeUrl(
+    event.sourceUrl ?? resolveMetadataUrl(metadata),
+  );
 
   return {
     id: event._id,
@@ -174,7 +172,7 @@ function normalizeEvent(event: EventDoc, repo: RepoDoc | null): ContextEvent {
 
 function deriveDescriptions(
   type: string,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
 ): {
   title: string;
   summary: string;
@@ -226,9 +224,10 @@ function deriveDescriptions(
       ? `Review ${stateValue.toLowerCase()}`
       : "Pull request review";
     return {
-      title: getNumber(metadata, "prNumber") !== undefined
-        ? `${header} on PR #${getNumber(metadata, "prNumber")}`
-        : header,
+      title:
+        getNumber(metadata, "prNumber") !== undefined
+          ? `${header} on PR #${getNumber(metadata, "prNumber")}`
+          : header,
       summary: body ? body.slice(0, 400) : header,
     };
   }
@@ -260,7 +259,9 @@ function deriveDescriptions(
   };
 }
 
-function resolveMetadataUrl(metadata: Record<string, unknown>): string | undefined {
+function resolveMetadataUrl(
+  metadata: Record<string, unknown>,
+): string | undefined {
   if (typeof metadata.url === "string") {
     return metadata.url;
   }
@@ -272,7 +273,7 @@ function resolveMetadataUrl(metadata: Record<string, unknown>): string | undefin
 
 function getString(
   metadata: Record<string, unknown>,
-  key: string
+  key: string,
 ): string | undefined {
   const value = metadata[key];
   return typeof value === "string" ? value : undefined;
@@ -280,7 +281,7 @@ function getString(
 
 function getNumber(
   metadata: Record<string, unknown>,
-  key: string
+  key: string,
 ): number | undefined {
   const value = metadata[key];
   return typeof value === "number" ? value : undefined;

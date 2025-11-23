@@ -38,6 +38,7 @@ Before starting, ensure you have:
    - Click **Save**
 
 **Verification:**
+
 - [ ] Variable shows as applying to "Preview + Development"
 - [ ] Variable NOT applied to Production
 
@@ -80,6 +81,7 @@ Before starting, ensure you have:
    - Click "Save"
 
 **Verification:**
+
 - [ ] Two `CONVEX_DEPLOY_KEY` entries exist
 - [ ] One for Production, one for Preview
 - [ ] Values are different (prod vs preview keys)
@@ -114,6 +116,7 @@ Before starting, ensure you have:
 ### 3.1 Remove Build Job from CI
 
 **Status:** ✅ Already completed
+
 - Build job removed from `.github/workflows/ci.yml`
 - CI now runs quality gates only (typecheck, lint, test, security)
 
@@ -131,10 +134,12 @@ gh secret list
 ```
 
 **Verification:**
+
 - [ ] `gh secret list` shows no `CONVEX_DEPLOY_KEY`
 - [ ] Secret successfully removed
 
 **Alternative (via GitHub UI):**
+
 1. Go to repository Settings → Secrets and variables → Actions
 2. Find `CONVEX_DEPLOY_KEY`
 3. Click "Remove"
@@ -187,6 +192,7 @@ gh pr create \
    - GitHub Actions should show quality gates passing
 
 **Verification:**
+
 - [ ] Vercel deployment completes successfully
 - [ ] Convex preview deployment created
 - [ ] Preview deployment has `CLERK_JWT_ISSUER_DOMAIN` set
@@ -204,6 +210,7 @@ gh pr create \
    - [ ] No console errors
 
 **Success Criteria:**
+
 - ✅ All tests pass
 - ✅ No environment variable errors
 - ✅ Clerk authentication works
@@ -243,6 +250,7 @@ git pull
    - Verify core functionality
 
 **Verification:**
+
 - [ ] Production deployment completes
 - [ ] No errors in Vercel logs
 - [ ] No errors in Convex logs
@@ -265,6 +273,7 @@ git push
 ### 6.2 Update Documentation
 
 **Status:** ✅ Already completed
+
 - README.md updated with Vercel-managed deployment workflow
 - Comprehensive guides created in `docs/deployment/`
 
@@ -277,6 +286,7 @@ If issues arise, you can rollback:
 ### Restore CI Deployments
 
 1. **Add back Build job to `.github/workflows/ci.yml`:**
+
    ```yaml
    build:
      name: Build
@@ -290,8 +300,8 @@ If issues arise, you can rollback:
        - name: Setup Node.js
          uses: actions/setup-node@v4
          with:
-           node-version: '22'
-           cache: 'pnpm'
+           node-version: "22"
+           cache: "pnpm"
        - name: Install dependencies
          run: pnpm install --frozen-lockfile
        - name: Deploy Convex
@@ -301,6 +311,7 @@ If issues arise, you can rollback:
    ```
 
 2. **Re-add GitHub secret:**
+
    ```bash
    # Add preview deploy key back to GitHub
    gh secret set CONVEX_DEPLOY_KEY
@@ -371,6 +382,7 @@ After migration is complete:
 ## Summary
 
 **Before Migration:**
+
 ```
 GitHub PR → GitHub Actions → Convex Deploy → Build
                 ↓
@@ -378,6 +390,7 @@ GitHub PR → GitHub Actions → Convex Deploy → Build
 ```
 
 **After Migration:**
+
 ```
 GitHub PR → Vercel → Convex Deploy → Build → Preview URL ✅
           ↓
@@ -385,6 +398,7 @@ GitHub Actions → Quality Gates Only ✅
 ```
 
 **Key Changes:**
+
 - ✅ Vercel handles all deployments
 - ✅ CI runs quality validation only
 - ✅ Preview deployments automatic for PRs

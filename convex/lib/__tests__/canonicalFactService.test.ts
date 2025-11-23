@@ -97,26 +97,25 @@ describe("persistCanonicalEvent", () => {
       scheduler: { runAfter: schedulerRunAfter },
     });
 
-    const result = await persistCanonicalEvent(
-      ctx,
-      canonical,
-      { repoPayload, installationId: 123 }
-    );
+    const result = await persistCanonicalEvent(ctx, canonical, {
+      repoPayload,
+      installationId: 123,
+    });
 
     expect(result).toEqual({ status: "inserted", eventId: newEventId });
 
     expect(runMutation).toHaveBeenCalledWith(
       internal.events.upsertCanonical,
-      expect.objectContaining({ canonicalText: canonical.canonicalText })
+      expect.objectContaining({ canonicalText: canonical.canonicalText }),
     );
     expect(runMutation).toHaveBeenCalledWith(
       internal.embeddingQueue.enqueue,
-      expect.objectContaining({ contentHash: expect.any(String) })
+      expect.objectContaining({ contentHash: expect.any(String) }),
     );
     expect(schedulerRunAfter).toHaveBeenCalledWith(
       0,
       internal.actions.embeddings.ensureBatch.ensureBatch,
-      {}
+      {},
     );
   });
 
@@ -127,17 +126,11 @@ describe("persistCanonicalEvent", () => {
     const runQuery = createAsyncMock<{ _id: Id<"events"> }>();
     runQuery.mockResolvedValueOnce({ _id: existingId });
     const runMutation = createAsyncMock<string>();
-    runMutation
-      .mockResolvedValueOnce("user_1")
-      .mockResolvedValueOnce("repo_1");
+    runMutation.mockResolvedValueOnce("user_1").mockResolvedValueOnce("repo_1");
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await persistCanonicalEvent(
-      ctx,
-      canonical,
-      { repoPayload }
-    );
+    const result = await persistCanonicalEvent(ctx, canonical, { repoPayload });
 
     expect(result).toEqual({ status: "duplicate", eventId: existingId });
     expect(runMutation).toHaveBeenCalledTimes(2);
@@ -151,7 +144,9 @@ describe("persistCanonicalEvent", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await persistCanonicalEvent(ctx, canonical, { repoPayload: null });
+    const result = await persistCanonicalEvent(ctx, canonical, {
+      repoPayload: null,
+    });
 
     expect(result).toEqual({ status: "skipped" });
     expect(runQuery).not.toHaveBeenCalled();

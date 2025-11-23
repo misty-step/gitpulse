@@ -1,5 +1,8 @@
 import { query } from "./_generated/server";
-import type { IntegrationJobSummary, IntegrationStatus } from "@/lib/integrationStatus";
+import type {
+  IntegrationJobSummary,
+  IntegrationStatus,
+} from "@/lib/integrationStatus";
 
 const STALE_EVENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
@@ -38,10 +41,11 @@ export const getStatus = query({
     const installCount = installations.length;
     const lastSyncedAtValue = installations.reduce<number>(
       (latest, installation) => {
-        const candidate = installation.lastSyncedAt ?? installation.updatedAt ?? 0;
+        const candidate =
+          installation.lastSyncedAt ?? installation.updatedAt ?? 0;
         return candidate > latest ? candidate : latest;
       },
-      0
+      0,
     );
     const lastSyncedAt = lastSyncedAtValue > 0 ? lastSyncedAtValue : null;
 
@@ -55,7 +59,9 @@ export const getStatus = query({
 
     const latestJob = await ctx.db
       .query("ingestionJobs")
-      .withIndex("by_userId_and_createdAt", (q) => q.eq("userId", identity.subject))
+      .withIndex("by_userId_and_createdAt", (q) =>
+        q.eq("userId", identity.subject),
+      )
       .order("desc")
       .first();
 

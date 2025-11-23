@@ -13,7 +13,9 @@ jest.mock("../../../_generated/api", () => ({
   api: {
     embeddingQueue: { listPending: "api.embeddingQueue.listPending" },
     actions: {
-      generateEmbeddings: { generateBatch: "api.actions.generateEmbeddings.generateBatch" },
+      generateEmbeddings: {
+        generateBatch: "api.actions.generateEmbeddings.generateBatch",
+      },
     },
   },
   internal: {
@@ -75,15 +77,14 @@ describe("ensureBatchHandler", () => {
     expect(result).toEqual({ processed: jobs.length });
     expect(runMutation).toHaveBeenCalledWith(
       internal.embeddingQueue.markProcessing,
-      { id: jobs[0]._id }
+      { id: jobs[0]._id },
     );
-    expect(runMutation).toHaveBeenCalledWith(
-      internal.embeddingQueue.complete,
-      { id: jobs[1]._id }
-    );
+    expect(runMutation).toHaveBeenCalledWith(internal.embeddingQueue.complete, {
+      id: jobs[1]._id,
+    });
     expect(runAction).toHaveBeenCalledWith(
       api.actions.generateEmbeddings.generateBatch,
-      { eventIds: [jobs[0].eventId, jobs[1].eventId] }
+      { eventIds: [jobs[0].eventId, jobs[1].eventId] },
     );
   });
 
@@ -111,9 +112,9 @@ describe("ensureBatchHandler", () => {
 
     await expect(ensureBatchHandler(ctx, {})).rejects.toThrow("boom");
 
-    expect(runMutation).toHaveBeenCalledWith(
-      internal.embeddingQueue.fail,
-      { id: jobs[0]._id, errorMessage: "boom" }
-    );
+    expect(runMutation).toHaveBeenCalledWith(internal.embeddingQueue.fail, {
+      id: jobs[0]._id,
+      errorMessage: "boom",
+    });
   });
 });

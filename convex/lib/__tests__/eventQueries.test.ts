@@ -43,7 +43,7 @@ describe("Event Query Service", () => {
     ]);
 
     const batches = await collectBatches(
-      listByActorComplete(helper.ctx, ACTOR_ID)
+      listByActorComplete(helper.ctx, ACTOR_ID),
     );
 
     expect(batches).toHaveLength(0);
@@ -61,7 +61,7 @@ describe("Event Query Service", () => {
     ]);
 
     const batches = await collectBatches(
-      listByActorComplete(helper.ctx, ACTOR_ID)
+      listByActorComplete(helper.ctx, ACTOR_ID),
     );
 
     expect(batches).toEqual([page]);
@@ -79,7 +79,7 @@ describe("Event Query Service", () => {
     const helper = createPaginatedCtx(pages);
 
     const batches = await collectBatches(
-      listByActorComplete(helper.ctx, ACTOR_ID)
+      listByActorComplete(helper.ctx, ACTOR_ID),
     );
 
     expect(batches).toHaveLength(5);
@@ -94,12 +94,7 @@ describe("Event Query Service", () => {
   });
 
   it("remains stable when new events are inserted mid-pagination", async () => {
-    const original = [
-      makeEvent(1),
-      makeEvent(2),
-      makeEvent(3),
-      makeEvent(4),
-    ];
+    const original = [makeEvent(1), makeEvent(2), makeEvent(3), makeEvent(4)];
     const inserted = makeEvent(999);
 
     let callCount = 0;
@@ -132,7 +127,7 @@ describe("Event Query Service", () => {
       .map((event) => event._id);
 
     expect(resultIds).toEqual(
-      original.map((event) => event._id).concat(inserted._id)
+      original.map((event) => event._id).concat(inserted._id),
     );
     expect(new Set(resultIds).size).toBe(resultIds.length);
     expect(helper.paginateCalls).toEqual([null, "cursor-1"]);
@@ -140,7 +135,9 @@ describe("Event Query Service", () => {
   });
 
   it("reports the same total as countByActor", async () => {
-    const events = Array.from({ length: 175 }, (_, idx) => makeEvent(idx + 1000));
+    const events = Array.from({ length: 175 }, (_, idx) =>
+      makeEvent(idx + 1000),
+    );
     const pages = chunk(events, 100).map((page, index, all) => ({
       page,
       continueCursor: index === all.length - 1 ? null : `cursor-${index}`,
@@ -149,7 +146,7 @@ describe("Event Query Service", () => {
 
     const pagination = createPaginatedCtx(pages);
     const batches = await collectBatches(
-      listByActorComplete(pagination.ctx, ACTOR_ID, 0, 10)
+      listByActorComplete(pagination.ctx, ACTOR_ID, 0, 10),
     );
     const flattened = batches.flat();
 
@@ -164,7 +161,7 @@ describe("Event Query Service", () => {
 });
 
 async function collectBatches(
-  generator: AsyncGenerator<EventDoc[]>
+  generator: AsyncGenerator<EventDoc[]>,
 ): Promise<EventDoc[][]> {
   const batches: EventDoc[][] = [];
   for await (const batch of generator) {
@@ -214,14 +211,13 @@ function createPaginatedCtx(plan: PaginatePage[] | PaginateFn): {
       })()
     : plan;
 
-  queryChain.paginate.mockImplementation((args: {
-    cursor: string | null;
-    numItems: number;
-  }) => {
-    const normalizedCursor = args.cursor ?? null;
-    cursorCalls.push(normalizedCursor);
-    return impl({ cursor: normalizedCursor, numItems: args.numItems });
-  });
+  queryChain.paginate.mockImplementation(
+    (args: { cursor: string | null; numItems: number }) => {
+      const normalizedCursor = args.cursor ?? null;
+      cursorCalls.push(normalizedCursor);
+      return impl({ cursor: normalizedCursor, numItems: args.numItems });
+    },
+  );
 
   const ctx = {
     db: {

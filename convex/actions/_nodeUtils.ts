@@ -16,7 +16,7 @@ import jwt from "jsonwebtoken";
 export function computeContentHashNode(
   canonicalText: string,
   sourceUrl: string,
-  metrics?: Record<string, unknown>
+  metrics?: Record<string, unknown>,
 ): string {
   const normalizedText = canonicalText.trim();
   const normalizedUrl = sourceUrl.trim();
@@ -52,6 +52,10 @@ export function stableStringify(value: unknown): string {
 /**
  * Sign JWT for GitHub App authentication
  */
-export function signJwt(payload: object, privateKey: string, options: jwt.SignOptions): string {
+export function signJwt(
+  payload: object,
+  privateKey: string,
+  options: jwt.SignOptions,
+): string {
   return jwt.sign(payload, privateKey, options);
 }

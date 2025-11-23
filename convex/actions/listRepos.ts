@@ -33,12 +33,13 @@ export const listReposForScope = action({
     }
 
     // Call appropriate GitHub API helper
-    const repos = scopeType === "user"
-      ? await listUserRepositories(githubToken, identifier)
-      : await listOrgRepositories(githubToken, identifier);
+    const repos =
+      scopeType === "user"
+        ? await listUserRepositories(githubToken, identifier)
+        : await listOrgRepositories(githubToken, identifier);
 
     // Return array of full names for batch ingestion
-    return repos.map(r => ({
+    return repos.map((r) => ({
       fullName: r.full_name,
       name: r.name,
       description: r.description,

@@ -19,7 +19,7 @@ export function verifyWebhookSignature(
   payload: string,
   signature: string,
   currentSecret: string,
-  previousSecret?: string
+  previousSecret?: string,
 ): boolean {
   // Signature format: "sha256=<hex-digest>"
   if (!signature || !signature.startsWith("sha256=")) {
@@ -47,7 +47,7 @@ export function verifyWebhookSignature(
 function verifyAgainstSecret(
   payload: string,
   providedSignature: string,
-  secret: string
+  secret: string,
 ): boolean {
   const expectedSignature = createHmac("sha256", secret)
     .update(payload)
@@ -57,7 +57,7 @@ function verifyAgainstSecret(
   try {
     return timingSafeEqual(
       Buffer.from(providedSignature, "hex"),
-      Buffer.from(expectedSignature, "hex")
+      Buffer.from(expectedSignature, "hex"),
     );
   } catch {
     // timingSafeEqual throws if buffers have different lengths

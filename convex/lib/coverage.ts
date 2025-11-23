@@ -27,7 +27,7 @@ export interface CoverageReportPayload {
 }
 
 export function computeCoverageSummary(
-  candidates: CoverageCandidate[]
+  candidates: CoverageCandidate[],
 ): CoverageSummary {
   if (candidates.length === 0) {
     return { coverageScore: 0, breakdown: [] };
@@ -56,19 +56,21 @@ export function computeCoverageSummary(
 
   return {
     coverageScore,
-    breakdown: Array.from(totals.values()).sort((a, b) => a.scopeKey.localeCompare(b.scopeKey)),
+    breakdown: Array.from(totals.values()).sort((a, b) =>
+      a.scopeKey.localeCompare(b.scopeKey),
+    ),
   };
 }
 
 export class CoverageValidationError extends Error {
   constructor(
     public readonly summary: CoverageSummary,
-    public readonly threshold: number
+    public readonly threshold: number,
   ) {
     super(
       `Coverage ${formatPercent(summary.coverageScore)} below threshold ${formatPercent(
-        threshold
-      )}`
+        threshold,
+      )}`,
     );
     this.name = "CoverageValidationError";
   }
@@ -77,7 +79,7 @@ export class CoverageValidationError extends Error {
 export function validateCoverage(
   events: Doc<"events">[],
   report: CoverageReportPayload,
-  threshold = 0.95
+  threshold = 0.95,
 ): CoverageValidationResult {
   if (events.length === 0) {
     return { pass: true, coverageScore: 1, breakdown: [] };
@@ -87,7 +89,7 @@ export function validateCoverage(
   const normalizedCitations = new Set(
     citations
       .map((url) => normalizeUrl(url))
-      .filter((url): url is string => Boolean(url))
+      .filter((url): url is string => Boolean(url)),
   );
 
   const candidates: CoverageCandidate[] = events.map((event) => ({
@@ -106,7 +108,7 @@ export function validateCoverage(
 
 export function isEventCited(
   event: Doc<"events">,
-  citationSet: Set<string>
+  citationSet: Set<string>,
 ): boolean {
   if (!citationSet.size) {
     return false;
@@ -146,7 +148,7 @@ function collectCitations(report: CoverageReportPayload): string[] {
   }
 
   return Array.from(
-    report.markdown.matchAll(/\[[^\]]+\]\((https?:[^)\s]+)\)/g)
+    report.markdown.matchAll(/\[[^\]]+\]\((https?:[^)\s]+)\)/g),
   ).map((match) => match[1]);
 }
 

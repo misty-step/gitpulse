@@ -29,6 +29,7 @@
 3. **Save Changes**
 
 4. **Trigger New CI Run:**
+
    ```bash
    # Option 1: Rerun existing workflow
    gh run rerun 19588412912
@@ -49,11 +50,13 @@
 **What:** Remove build from CI, let Vercel handle deployments
 
 **Why:**
+
 - ✅ Official Convex best practice
 - ✅ Automatic preview deployments for PRs
 - ✅ Simpler setup
 
 **Next Steps:**
+
 1. Configure Vercel with Convex deploy keys (see full guide)
 2. Remove Build job from `.github/workflows/ci.yml`
 3. Test with new PR
@@ -67,11 +70,13 @@
 **What:** Keep CI in control, only build master branch
 
 **Why:**
+
 - ✅ More control over deployment
 - ❌ No preview deployments for PRs
 - ❌ More complex
 
 **Next Steps:**
+
 1. Restrict Build job to master branch only:
    ```yaml
    build:
@@ -101,6 +106,7 @@ gh pr checks
 ```
 
 **Success Criteria:**
+
 - ✅ Build job passes
 - ✅ No "environment variable not set" error
 - ✅ Convex deploys successfully

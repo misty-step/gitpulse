@@ -4,7 +4,7 @@ import { buildReportContext } from "../reportContext";
 
 function createEvent(overrides: Partial<Doc<"events">> = {}): Doc<"events"> {
   return {
-    _id: (`event_${Math.random()}`) as Id<"events">,
+    _id: `event_${Math.random()}` as Id<"events">,
     _creationTime: Date.now(),
     type: "pr_opened",
     actorId: "user_1" as Id<"users">,
@@ -53,9 +53,7 @@ describe("buildReportContext", () => {
     });
 
     expect(timeline[0]?.url).toBe("https://github.com/acme/gitpulse/pull/123");
-    expect(allowedUrls).toEqual([
-      "https://github.com/acme/gitpulse/pull/123",
-    ]);
+    expect(allowedUrls).toEqual(["https://github.com/acme/gitpulse/pull/123"]);
   });
 
   it("includes every event in the timeline and surfaces canonicalText", () => {
@@ -94,7 +92,7 @@ describe("buildReportContext", () => {
       createEvent({
         _id: `event_${idx}` as Id<"events">,
         ts: Date.now() + idx,
-      })
+      }),
     );
 
     const { timeline, context } = buildReportContext({

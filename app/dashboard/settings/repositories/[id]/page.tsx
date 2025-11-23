@@ -22,13 +22,20 @@ export default function RepoDetailPage() {
   const [showReviews, setShowReviews] = useState(true);
 
   // Hover state for activity chart
-  const [hoveredDay, setHoveredDay] = useState<{ date: string; prs: number; commits: number; reviews: number } | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<{
+    date: string;
+    prs: number;
+    commits: number;
+    reviews: number;
+  } | null>(null);
 
   // Repository details collapsed state
   const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   // Event type filter state (for clicking event breakdown rows)
-  const [selectedEventTypes, setSelectedEventTypes] = useState<Set<string>>(new Set());
+  const [selectedEventTypes, setSelectedEventTypes] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Analytics Timestamp Semantics: Frozen Snapshot
   // Decision: Use frozen snapshot approach (endDate fixed at page load)
@@ -39,7 +46,7 @@ export default function RepoDetailPage() {
   const [endDate] = useState(() => Date.now());
   const startDate = useMemo(
     () => endDate - timeRange * 24 * 60 * 60 * 1000,
-    [endDate, timeRange]
+    [endDate, timeRange],
   );
 
   // Fetch repository details
@@ -54,7 +61,7 @@ export default function RepoDetailPage() {
           startDate,
           endDate,
         }
-      : "skip"
+      : "skip",
   );
 
   // Fetch events for the repository
@@ -67,7 +74,7 @@ export default function RepoDetailPage() {
           endDate,
           limit: 500,
         }
-      : "skip"
+      : "skip",
   );
 
   // Calculate event breakdown by type
@@ -89,7 +96,10 @@ export default function RepoDetailPage() {
     if (!events) return [];
 
     // Group events by day
-    const dailyCounts: Record<string, { date: string; prs: number; commits: number; reviews: number }> = {};
+    const dailyCounts: Record<
+      string,
+      { date: string; prs: number; commits: number; reviews: number }
+    > = {};
 
     events.forEach((event) => {
       const date = new Date(event.ts).toISOString().split("T")[0];
@@ -107,14 +117,16 @@ export default function RepoDetailPage() {
     });
 
     // Convert to sorted array
-    return Object.values(dailyCounts).sort((a, b) => a.date.localeCompare(b.date));
+    return Object.values(dailyCounts).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
   }, [events]);
 
   // Calculate max value for chart scaling
   const maxActivityValue = useMemo(() => {
     if (activityOverTime.length === 0) return 1;
     return Math.max(
-      ...activityOverTime.map((day) => day.prs + day.commits + day.reviews)
+      ...activityOverTime.map((day) => day.prs + day.commits + day.reviews),
     );
   }, [activityOverTime]);
 
@@ -164,7 +176,9 @@ export default function RepoDetailPage() {
         </Link>
         <div className="flex items-start justify-between mt-2">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{repo.fullName}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {repo.fullName}
+            </h1>
             {repo.description && (
               <p className="text-gray-600 mt-2">{repo.description}</p>
             )}
@@ -175,10 +189,14 @@ export default function RepoDetailPage() {
                 </span>
               )}
               {repo.stars !== undefined && (
-                <span className="text-gray-600">⭐ {repo.stars.toLocaleString()}</span>
+                <span className="text-gray-600">
+                  ⭐ {repo.stars.toLocaleString()}
+                </span>
               )}
               {repo.forks !== undefined && (
-                <span className="text-gray-600">🔱 {repo.forks.toLocaleString()}</span>
+                <span className="text-gray-600">
+                  🔱 {repo.forks.toLocaleString()}
+                </span>
               )}
             </div>
           </div>
@@ -214,7 +232,8 @@ export default function RepoDetailPage() {
           </div>
         </div>
         <p className="text-xs text-gray-500">
-          Data snapshot: {new Date(endDate).toLocaleString()} (refresh page for latest data)
+          Data snapshot: {new Date(endDate).toLocaleString()} (refresh page for
+          latest data)
         </p>
       </div>
 
@@ -222,7 +241,10 @@ export default function RepoDetailPage() {
       {kpis === undefined ? (
         <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+            <div
+              key={i}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+            >
               <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2" />
               <div className="flex items-baseline gap-2 mb-1">
                 <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
@@ -265,7 +287,10 @@ export default function RepoDetailPage() {
           </h2>
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="p-3 rounded-lg border-2 border-transparent bg-white">
+              <div
+                key={i}
+                className="p-3 rounded-lg border-2 border-transparent bg-white"
+              >
                 <div className="flex items-center justify-between text-sm mb-2">
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 bg-gray-200 rounded animate-pulse" />
@@ -288,69 +313,76 @@ export default function RepoDetailPage() {
             Event Breakdown ({totalEvents.toLocaleString()} total)
           </h2>
           {eventBreakdown.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-              <span className="text-3xl">📋</span>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                <span className="text-3xl">📋</span>
+              </div>
+              <p className="text-gray-900 font-medium mb-1">
+                No events in this period
+              </p>
+              <p className="text-sm text-gray-500 max-w-sm">
+                There&apos;s no activity recorded for this time range. Try
+                selecting a longer period or check back later.
+              </p>
             </div>
-            <p className="text-gray-900 font-medium mb-1">No events in this period</p>
-            <p className="text-sm text-gray-500 max-w-sm">
-              There&apos;s no activity recorded for this time range. Try selecting a longer period or check back later.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {eventBreakdown.map(({ type, count }) => {
-              const percentage = (count / totalEvents) * 100;
-              const metadata = getEventTypeMetadata(type);
-              const isSelected = selectedEventTypes.has(type);
-              const duration = timeRange;
-              const rate = count / duration;
+          ) : (
+            <div className="space-y-3">
+              {eventBreakdown.map(({ type, count }) => {
+                const percentage = (count / totalEvents) * 100;
+                const metadata = getEventTypeMetadata(type);
+                const isSelected = selectedEventTypes.has(type);
+                const duration = timeRange;
+                const rate = count / duration;
 
-              return (
-                <button
-                  key={type}
-                  onClick={() => toggleEventType(type)}
-                  className={`w-full text-left p-3 rounded-lg border-2 transition-all hover:shadow-md ${
-                    isSelected
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-transparent bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{metadata.icon}</span>
-                      <span className={`font-medium ${isSelected ? "text-blue-900" : "text-gray-700"}`}>
-                        {formatEventType(type)}
-                      </span>
-                      {isSelected && (
-                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                          Active Filter
+                return (
+                  <button
+                    key={type}
+                    onClick={() => toggleEventType(type)}
+                    className={`w-full text-left p-3 rounded-lg border-2 transition-all hover:shadow-md ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-transparent bg-white hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{metadata.icon}</span>
+                        <span
+                          className={`font-medium ${isSelected ? "text-blue-900" : "text-gray-700"}`}
+                        >
+                          {formatEventType(type)}
                         </span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className={`font-semibold ${isSelected ? "text-blue-900" : "text-gray-900"}`}>
-                        {count.toLocaleString()}
+                        {isSelected && (
+                          <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                            Active Filter
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {rate.toFixed(1)}/day
+                      <div className="text-right">
+                        <div
+                          className={`font-semibold ${isSelected ? "text-blue-900" : "text-gray-900"}`}
+                        >
+                          {count.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {rate.toFixed(1)}/day
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`${metadata.bgColor} h-2 rounded-full transition-all`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {percentage.toFixed(1)}% of all events
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`${metadata.bgColor} h-2 rounded-full transition-all`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      {percentage.toFixed(1)}% of all events
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -400,7 +432,8 @@ export default function RepoDetailPage() {
               </h2>
               {selectedEventTypes.size > 0 && (
                 <p className="text-xs text-blue-600 mt-1">
-                  Filtered by {selectedEventTypes.size} event type{selectedEventTypes.size > 1 ? "s" : ""} •
+                  Filtered by {selectedEventTypes.size} event type
+                  {selectedEventTypes.size > 1 ? "s" : ""} •
                   <button
                     onClick={() => setSelectedEventTypes(new Set())}
                     className="ml-1 underline hover:text-blue-800"
@@ -421,7 +454,9 @@ export default function RepoDetailPage() {
                       : "bg-gray-100 text-gray-400"
                   }`}
                 >
-                  <div className={`w-2.5 h-2.5 rounded ${showPRs ? "bg-blue-500" : "bg-gray-300"}`} />
+                  <div
+                    className={`w-2.5 h-2.5 rounded ${showPRs ? "bg-blue-500" : "bg-gray-300"}`}
+                  />
                   PRs
                 </button>
                 <button
@@ -432,7 +467,9 @@ export default function RepoDetailPage() {
                       : "bg-gray-100 text-gray-400"
                   }`}
                 >
-                  <div className={`w-2.5 h-2.5 rounded ${showCommits ? "bg-purple-500" : "bg-gray-300"}`} />
+                  <div
+                    className={`w-2.5 h-2.5 rounded ${showCommits ? "bg-purple-500" : "bg-gray-300"}`}
+                  />
                   Commits
                 </button>
                 <button
@@ -443,7 +480,9 @@ export default function RepoDetailPage() {
                       : "bg-gray-100 text-gray-400"
                   }`}
                 >
-                  <div className={`w-2.5 h-2.5 rounded ${showReviews ? "bg-green-500" : "bg-gray-300"}`} />
+                  <div
+                    className={`w-2.5 h-2.5 rounded ${showReviews ? "bg-green-500" : "bg-gray-300"}`}
+                  />
                   Reviews
                 </button>
               </div>
@@ -457,7 +496,8 @@ export default function RepoDetailPage() {
               </div>
               <p className="text-gray-900 font-medium mb-1">No activity yet</p>
               <p className="text-sm text-gray-500">
-                There&apos;s no activity in this time range. Try selecting a different period.
+                There&apos;s no activity in this time range. Try selecting a
+                different period.
               </p>
             </div>
           ) : (
@@ -466,10 +506,10 @@ export default function RepoDetailPage() {
               {hoveredDay && (
                 <div className="bg-gray-900 text-white px-3 py-2 rounded text-sm">
                   <div className="font-medium mb-1">
-                    {new Date(hoveredDay.date).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
+                    {new Date(hoveredDay.date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
                     })}
                   </div>
                   <div className="space-y-0.5 text-xs">
@@ -505,17 +545,29 @@ export default function RepoDetailPage() {
 
                   // If event types are selected, override the layer toggles
                   if (selectedEventTypes.size > 0) {
-                    const hasAnyPRType = ["pr_opened", "pr_closed", "pr_comment"].some(t => selectedEventTypes.has(t));
+                    const hasAnyPRType = [
+                      "pr_opened",
+                      "pr_closed",
+                      "pr_comment",
+                    ].some((t) => selectedEventTypes.has(t));
                     const hasCommitType = selectedEventTypes.has("commit");
-                    const hasAnyReviewType = ["review", "pr_review"].some(t => selectedEventTypes.has(t));
+                    const hasAnyReviewType = ["review", "pr_review"].some((t) =>
+                      selectedEventTypes.has(t),
+                    );
 
                     shouldShowPRs = hasAnyPRType;
                     shouldShowCommits = hasCommitType;
                     shouldShowReviews = hasAnyReviewType;
                   }
 
-                  const visibleTotal = (shouldShowPRs ? day.prs : 0) + (shouldShowCommits ? day.commits : 0) + (shouldShowReviews ? day.reviews : 0);
-                  const height = visibleTotal > 0 ? (visibleTotal / maxActivityValue) * 100 : 0;
+                  const visibleTotal =
+                    (shouldShowPRs ? day.prs : 0) +
+                    (shouldShowCommits ? day.commits : 0) +
+                    (shouldShowReviews ? day.reviews : 0);
+                  const height =
+                    visibleTotal > 0
+                      ? (visibleTotal / maxActivityValue) * 100
+                      : 0;
 
                   return (
                     <div
@@ -555,17 +607,21 @@ export default function RepoDetailPage() {
 
               {/* Date labels (show first, middle, last) */}
               <div className="flex items-center justify-between text-xs text-gray-500 px-2">
-                <span>{new Date(activityOverTime[0].date).toLocaleDateString()}</span>
+                <span>
+                  {new Date(activityOverTime[0].date).toLocaleDateString()}
+                </span>
                 {activityOverTime.length > 2 && (
                   <span>
                     {new Date(
-                      activityOverTime[Math.floor(activityOverTime.length / 2)].date
+                      activityOverTime[
+                        Math.floor(activityOverTime.length / 2)
+                      ].date,
                     ).toLocaleDateString()}
                   </span>
                 )}
                 <span>
                   {new Date(
-                    activityOverTime[activityOverTime.length - 1].date
+                    activityOverTime[activityOverTime.length - 1].date,
                   ).toLocaleDateString()}
                 </span>
               </div>
@@ -698,17 +754,42 @@ function formatEventType(type: string): string {
 }
 
 // Helper function to get event type metadata (icon and color)
-function getEventTypeMetadata(type: string): { icon: string; color: string; bgColor: string } {
-  const metadataMap: Record<string, { icon: string; color: string; bgColor: string }> = {
+function getEventTypeMetadata(type: string): {
+  icon: string;
+  color: string;
+  bgColor: string;
+} {
+  const metadataMap: Record<
+    string,
+    { icon: string; color: string; bgColor: string }
+  > = {
     pr_opened: { icon: "🔀", color: "text-blue-700", bgColor: "bg-blue-600" },
     pr_closed: { icon: "✅", color: "text-green-700", bgColor: "bg-green-600" },
     pr_review: { icon: "👁️", color: "text-green-700", bgColor: "bg-green-600" },
     review: { icon: "👁️", color: "text-green-700", bgColor: "bg-green-600" },
     commit: { icon: "📝", color: "text-purple-700", bgColor: "bg-purple-600" },
-    issue_opened: { icon: "❗", color: "text-orange-700", bgColor: "bg-orange-600" },
-    issue_closed: { icon: "✔️", color: "text-gray-700", bgColor: "bg-gray-600" },
-    issue_comment: { icon: "💬", color: "text-indigo-700", bgColor: "bg-indigo-600" },
+    issue_opened: {
+      icon: "❗",
+      color: "text-orange-700",
+      bgColor: "bg-orange-600",
+    },
+    issue_closed: {
+      icon: "✔️",
+      color: "text-gray-700",
+      bgColor: "bg-gray-600",
+    },
+    issue_comment: {
+      icon: "💬",
+      color: "text-indigo-700",
+      bgColor: "bg-indigo-600",
+    },
     pr_comment: { icon: "💭", color: "text-cyan-700", bgColor: "bg-cyan-600" },
   };
-  return metadataMap[type] || { icon: "📊", color: "text-gray-700", bgColor: "bg-gray-600" };
+  return (
+    metadataMap[type] || {
+      icon: "📊",
+      color: "text-gray-700",
+      bgColor: "bg-gray-600",
+    }
+  );
 }
