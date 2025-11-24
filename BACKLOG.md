@@ -1849,6 +1849,8 @@ jobs:
 
 ## Later (Someday/Maybe, 6+ months)
 
+- **[Reliability] Health deep flag strictness** — Parse `deep` query as `1` only and add edge-case tests (`?deep=0/false/true`); source: PR #7 comment https://github.com/misty-step/gitpulse/pull/7#issuecomment-3568633304
+- **[Reliability] Tunable health timeouts** — Make deep health timeout configurable (env + docs) to align with tighter probe SLAs; source: PR #7 comment https://github.com/misty-step/gitpulse/pull/7#issuecomment-3568633304
 - **[Platform] REST API + Developer Docs** - Programmatic access, enterprise requirement
 - **[Platform] Plugin System** - User-extensible commands, differentiation play
 - **[Differentiation] AI-Powered Code Review Summaries** - Analyze diffs, auto-categorize PRs, release notes
