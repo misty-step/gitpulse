@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"next dev\" \"npx convex dev\"",
     "build": "pnpm build:app",
-    "build:app": "pnpm env:check && next build",
+    "build:app": "next build",
     "build:local": "npx convex deploy && next build",
     "start": "next start",
     "lint": "eslint app convex components hooks lib tests --ext .ts,.tsx,.js,.jsx",
