@@ -13,25 +13,56 @@ Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high 
 
 ## Now (Sprint-Ready, <2 weeks)
 
-### [CI/CD] Investigate Claude Review Action Failures
+### [TESTING] Add Test Coverage for Footer and HeroMetadata Components
 
-**Files**: `.github/workflows/claude-code-review.yml`
+**Files**: Create `components/__tests__/Footer.test.tsx`, `components/__tests__/HeroMetadata.test.tsx`
 **Perspectives**: maintainability-maven
-**Impact**: Enable automated code review feedback on PRs
+**Impact**: Prevent regressions in new UI components, validate clipboard and health check logic
+**Source**: PR #9 review feedback
 
-**Problem**: Claude Code Review action failing with generic error "I'll analyze this and get back to you" (Run ID: 19576735656). No detailed error logs available in PR comments.
+**Problem**: New Footer and HeroMetadata components lack test coverage. Clipboard interaction, health check states, and error handling paths are untested.
 
-**Investigation Steps**:
+**Fix**: Add Jest/React Testing Library tests
 
-1. Check Claude action logs via `gh run view 19576735656 --log-failed`
-2. Verify `ANTHROPIC_API_KEY` secret exists and is valid
-3. Check action configuration (model, token limits, custom instructions)
-4. Validate PR diff size doesn't exceed Claude's context window
-5. Test with minimal PR to isolate issue
+```typescript
+// components/__tests__/Footer.test.tsx
+describe('Footer', () => {
+  it('copies email to clipboard on support click', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) }
+    });
+    // ... test implementation
+  });
 
-**Effort**: 2h investigation + 1h fix | **Priority**: P2
-**Acceptance**: Claude review action completes successfully, provides constructive feedback on PRs
-**Deferral Rationale**: Non-blocking for MVP - human code reviews sufficient, automated review is enhancement
+  it('falls back to mailto when clipboard fails', async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: jest.fn().mockRejectedValue(new Error()) }
+    });
+    // ... test implementation
+  });
+});
+
+// components/__tests__/HeroMetadata.test.tsx
+describe('HeroMetadata', () => {
+  it('displays operational status when health check succeeds', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+    // ... test implementation
+  });
+
+  it('displays degraded status when health check fails', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false });
+    // ... test implementation
+  });
+
+  it('cleans up AbortController on unmount', async () => {
+    // ... test implementation
+  });
+});
+```
+
+**Effort**: 2-3h | **Priority**: P2
+**Acceptance**: Tests pass, coverage for clipboard/health check logic
+**Deferral Rationale**: Components functional and reviewed, tests prevent future regressions
 
 ---
 
