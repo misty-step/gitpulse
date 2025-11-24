@@ -4,7 +4,8 @@
  * Verifies health endpoint behavior for various scenarios
  */
 
-import { GET } from "../route";
+import { GET, HEAD } from "../route";
+import { PUBLIC_ROUTES } from "@/lib/auth/publicRoutes";
 
 // Save original fetch before mocking
 const originalFetch = global.fetch;
@@ -12,10 +13,12 @@ const originalFetch = global.fetch;
 // Mock fetch globally
 global.fetch = jest.fn();
 
+const makeRequest = (path: string) =>
+  new Request(`http://localhost${path}`, { method: "GET" });
+
 describe("/api/health", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Reset environment
     process.env.NEXT_PUBLIC_CONVEX_URL = "https://test.convex.cloud";
   });
 
@@ -24,84 +27,102 @@ describe("/api/health", () => {
     global.fetch = originalFetch;
   });
 
-  it("returns 200 when all systems are healthy", async () => {
-    // Mock successful Convex health check
+  it("returns liveness 200 without touching Convex", async () => {
+    const response = await GET(makeRequest("/api/health"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(data.status).toBe("ok");
+    expect(data.mode).toBe("liveness");
+    expect(data.convex).toBeUndefined();
+    expect(data.error).toBeUndefined();
+    expect(data.timestamp).toBeGreaterThan(0);
+  });
+
+  it("returns 200 in deep mode when Convex is healthy", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: "ok" }),
     });
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.server).toBe("ok");
+    expect(data.status).toBe("ok");
+    expect(data.mode).toBe("deep");
     expect(data.convex).toBe("ok");
-    expect(data.timestamp).toBeGreaterThan(0);
     expect(data.error).toBeUndefined();
+    expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("returns 503 when Convex is unhealthy", async () => {
-    // Mock failed Convex health check
+  it("returns 503 in deep mode when Convex is unhealthy", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: false,
       status: 503,
     });
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const data = await response.json();
 
     expect(response.status).toBe(503);
-    expect(data.server).toBe("ok");
+    expect(data.status).toBe("error");
     expect(data.convex).toBe("error");
     expect(data.error).toContain("Convex health check failed");
+    expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("returns 503 when Convex times out", async () => {
-    // Mock timeout
+  it("returns 503 in deep mode when Convex times out", async () => {
     (global.fetch as jest.Mock).mockRejectedValueOnce(
       new Error("Request timeout"),
     );
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const data = await response.json();
 
     expect(response.status).toBe(503);
+    expect(data.status).toBe("error");
     expect(data.convex).toBe("error");
+    expect(data.error).toContain("Convex health check failed");
+    expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("returns 503 when Convex URL is not configured", async () => {
+  it("returns 503 in deep mode when Convex URL is not configured", async () => {
     delete process.env.NEXT_PUBLIC_CONVEX_URL;
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const data = await response.json();
 
     expect(response.status).toBe(503);
     expect(data.convex).toBe("degraded");
     expect(data.error).toContain("Convex health check failed");
+    expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("returns 503 when Convex returns degraded status", async () => {
-    // Mock Convex returning "degraded" status
+  it("returns 503 when Convex reports degraded status", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: "degraded" }),
     });
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const data = await response.json();
 
     expect(response.status).toBe(503);
     expect(data.convex).toBe("degraded");
+    expect(data.status).toBe("error");
+    expect(data.error).toContain("Convex health check failed");
+    expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("calls Convex health endpoint with correct URL", async () => {
+  it("calls Convex health endpoint with correct URL in deep mode", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: "ok" }),
     });
 
-    await GET();
+    await GET(makeRequest("/api/health?deep=1"));
 
     expect(global.fetch).toHaveBeenCalledWith(
       "https://test.convex.cloud/health",
@@ -111,7 +132,7 @@ describe("/api/health", () => {
     );
   });
 
-  it("strips trailing slash from Convex URL", async () => {
+  it("strips trailing slash from Convex URL in deep mode", async () => {
     process.env.NEXT_PUBLIC_CONVEX_URL = "https://test.convex.cloud/";
 
     (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -119,7 +140,7 @@ describe("/api/health", () => {
       json: async () => ({ status: "ok" }),
     });
 
-    await GET();
+    await GET(makeRequest("/api/health?deep=1"));
 
     expect(global.fetch).toHaveBeenCalledWith(
       "https://test.convex.cloud/health",
@@ -127,13 +148,13 @@ describe("/api/health", () => {
     );
   });
 
-  it("includes no-cache headers in response", async () => {
+  it("includes no-cache headers in responses", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: "ok" }),
     });
 
-    const response = await GET();
+    const response = await GET(makeRequest("/api/health?deep=1"));
     const headers = response.headers;
 
     expect(headers.get("Cache-Control")).toBe(
@@ -141,5 +162,58 @@ describe("/api/health", () => {
     );
     expect(headers.get("Pragma")).toBe("no-cache");
     expect(headers.get("Expires")).toBe("0");
+  });
+
+  it("returns liveness HEAD with no body and matching headers", async () => {
+    const response = await HEAD(new Request("http://localhost/api/health"));
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toBe("");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "no-cache, no-store, must-revalidate",
+    );
+  });
+
+  it("returns deep HEAD mirroring GET success", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "ok" }),
+    });
+
+    const response = await HEAD(
+      new Request("http://localhost/api/health?deep=1"),
+    );
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toBe("");
+    expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it("returns deep HEAD with 503 when Convex fails", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+    });
+
+    const response = await HEAD(
+      new Request("http://localhost/api/health?deep=1"),
+    );
+    const text = await response.text();
+
+    expect(response.status).toBe(503);
+    expect(text).toBe("");
+  });
+});
+
+describe("health contract guards", () => {
+  it("exposes health endpoint as public", () => {
+    expect(PUBLIC_ROUTES).toContain("/api/health(.*)");
+  });
+
+  it("exports HEAD handler alongside GET", () => {
+    expect(typeof HEAD).toBe("function");
+    expect(typeof GET).toBe("function");
   });
 });
