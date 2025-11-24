@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Footer } from "@/components/Footer";
+import { HeroMetadata } from "@/components/HeroMetadata";
 
 const features = [
   {
@@ -91,31 +93,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right: The Artifact (Abstract Visualization) */}
+              {/* Right: The Artifact (Real-time System Metadata) */}
               <div className="lg:col-span-4 lg:h-full flex flex-col justify-end">
-                <div className="border-l border-border pl-8 space-y-8">
-                  <div className="space-y-2">
-                    <div className="text-xs font-mono text-muted uppercase tracking-widest">
-                      Status
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="font-medium">System Operational</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-xs font-mono text-muted uppercase tracking-widest">
-                      Version
-                    </div>
-                    <div className="font-mono">2.0.1 (Stable)</div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-xs font-mono text-muted uppercase tracking-widest">
-                      Latency
-                    </div>
-                    <div className="font-mono">24ms</div>
-                  </div>
-                </div>
+                <HeroMetadata />
               </div>
             </div>
           </div>
@@ -203,32 +183,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Footer - "The Appendix" */}
-        <footer className="border-t border-border py-12 px-6">
-          <div className="mx-auto max-w-[1400px] flex flex-col md:flex-row justify-between items-end gap-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="h-3 w-3 rounded-sm bg-foreground" />
-                <span className="font-bold tracking-tight">GitPulse</span>
-              </div>
-              <p className="text-sm text-muted max-w-xs">
-                Engineering intelligence for high-performance teams.
-                <br />© {new Date().getFullYear()} Misty Step Inc.
-              </p>
-            </div>
-            <div className="flex gap-8 text-sm">
-              <Link href="/dashboard" className="hover:underline">
-                Dashboard
-              </Link>
-              <Link href="/docs" className="hover:underline">
-                Documentation
-              </Link>
-              <Link href="/status" className="hover:underline">
-                Status
-              </Link>
-            </div>
-          </div>
-        </footer>
+        <Footer />
       </main>
     </div>
   );
