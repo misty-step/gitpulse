@@ -1,5 +1,6 @@
 import { createRouteMatcher } from "@clerk/nextjs/server";
 
+// Immutable source of truth for public paths (keep data readonly to avoid drift).
 export const PUBLIC_ROUTES = [
   "/",
   "/sign-in(.*)",
@@ -8,4 +9,12 @@ export const PUBLIC_ROUTES = [
   "/api/health(.*)",
 ] as const;
 
-export const publicRouteMatcher = createRouteMatcher(PUBLIC_ROUTES);
+/**
+ * Clerk's createRouteMatcher expects a mutable array; wrap to avoid leaking that
+ * requirement to callers and keep PUBLIC_ROUTES readonly.
+ */
+export function createPublicRouteMatcher() {
+  return createRouteMatcher([...PUBLIC_ROUTES]);
+}
+
+export const publicRouteMatcher = createPublicRouteMatcher();

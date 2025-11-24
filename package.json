@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:coverage": "jest --coverage",
+    "verify:hooks": "scripts/check-hooks.sh",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "convex": "npx convex dev",
     "convex:deploy": "npx convex deploy",

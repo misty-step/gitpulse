@@ -13,6 +13,7 @@ We split `/api/health` into fast liveness (default) and deep Convex-aware mode (
   - `ok` → 200
   - `degraded | error | missing URL | timeout` → 503 and `status: "error"`
 - Enforce shared cache headers and consistent body/HEAD semantics via a dedicated health module.
+- Public route matcher is generated from an immutable allowlist; callers never deal with Clerk's mutable matcher API.
 
 ## Consequences
 - Instances are removed from pools when Convex is degraded, prioritizing correctness over availability for deep probes.
