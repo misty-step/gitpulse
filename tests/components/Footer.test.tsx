@@ -7,6 +7,7 @@ import { Footer } from "@/components/Footer";
 
 const toastFn = jest.fn();
 const toastSuccessFn = jest.fn();
+let writeTextSpy: jest.SpyInstance | undefined;
 
 jest.mock("sonner", () => ({
   toast: Object.assign((message: string) => toastFn(message), {
@@ -18,32 +19,40 @@ describe("Footer", () => {
   beforeEach(() => {
     toastFn.mockClear();
     toastSuccessFn.mockClear();
+    writeTextSpy?.mockRestore();
+
+    if (!navigator.clipboard) {
+      // jsdom may not define clipboard; create a minimal mock shape
+      Object.assign(navigator, { clipboard: { writeText: async () => {} } });
+    }
   });
 
   it("copies support email to clipboard", async () => {
-    const writeText = jest.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
+    writeTextSpy = jest
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
 
     render(<Footer />);
 
     fireEvent.click(screen.getByText("Support"));
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("hello@mistystep.io");
+      expect(writeTextSpy).toHaveBeenCalledWith("hello@mistystep.io");
       expect(toastSuccessFn).toHaveBeenCalledWith("Email copied to clipboard");
     });
   });
 
   it("falls back to mailto when clipboard fails", async () => {
-    const writeText = jest.fn().mockRejectedValue(new Error("denied"));
-    Object.assign(navigator, { clipboard: { writeText } });
+    writeTextSpy = jest
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValue(new Error("denied"));
 
     render(<Footer />);
 
     fireEvent.click(screen.getByText("Support"));
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith("hello@mistystep.io");
+      expect(writeTextSpy).toHaveBeenCalledWith("hello@mistystep.io");
       expect(toastFn).toHaveBeenCalledWith("Opening your email client...");
     });
   });
