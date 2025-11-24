@@ -3,6 +3,8 @@ import { Skeleton } from "@/components/Skeleton";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
 import { MinimalHeader } from "@/components/MinimalHeader";
 
+export const dynamic = "force-dynamic";
+
 export default function DashboardLayout({
   children,
 }: {
