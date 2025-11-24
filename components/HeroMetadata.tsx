@@ -20,22 +20,34 @@ export function HeroMetadata() {
     const checkHealth = async () => {
       const start = performance.now();
       try {
-        const response = await fetch("/api/health?mode=liveness", {
+        const response = await fetch("/api/health?deep=1", {
           signal: controller.signal,
         });
         const end = performance.now();
         const latency = Math.round(end - start);
 
-        if (response.ok) {
+        const body = await response.json().catch(() => null);
+        const isOperational = response.ok && body?.status === "ok";
+
+        if (isOperational) {
           setHealth({ status: "operational", latency });
-        } else {
-          setHealth({ status: "degraded", latency });
+          return;
         }
+
+        console.error("Health check degraded", {
+          httpStatus: response.status,
+          mode: body?.mode,
+          convex: body?.convex,
+        });
+
+        setHealth({ status: "degraded", latency });
       } catch (error: unknown) {
-        // Ignore abort errors from cleanup
-        if (error instanceof Error && error.name !== "AbortError") {
-          setHealth({ status: "degraded", latency: null });
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
         }
+
+        console.error("Health check failed", error);
+        setHealth({ status: "degraded", latency: null });
       }
     };
 

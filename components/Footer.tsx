@@ -12,9 +12,10 @@ export function Footer() {
       // public on the website and scraper protection is not a priority
       await navigator.clipboard.writeText("hello@mistystep.io");
       toast.success("Email copied to clipboard");
-    } catch (err) {
+    } catch (_error) {
       // Graceful fallback to mailto
-      window.location.href = "mailto:hello@mistystep.io";
+      toast("Opening your email client...");
+      window.location.assign("mailto:hello@mistystep.io");
     }
   };
 

@@ -13,56 +13,29 @@ Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high 
 
 ## Now (Sprint-Ready, <2 weeks)
 
-### [TESTING] Add Test Coverage for Footer and HeroMetadata Components
+### [PERF] Cache homepage health check
 
-**Files**: Create `components/__tests__/Footer.test.tsx`, `components/__tests__/HeroMetadata.test.tsx`
-**Perspectives**: maintainability-maven
-**Impact**: Prevent regressions in new UI components, validate clipboard and health check logic
-**Source**: PR #9 review feedback
+**Files**: `components/HeroMetadata.tsx`, `lib/health`
+**Perspectives**: performance-scout, complexity-hunter
+**Impact**: Avoid duplicate `/api/health?deep=1` calls on every landing visit; reduce Convex load and page-time noise
 
-**Problem**: New Footer and HeroMetadata components lack test coverage. Clipboard interaction, health check states, and error handling paths are untested.
+**Fix**: Add component-level caching (SWR/timed cache) with sensible stale/refresh interval; surface cached latency separately from status freshness.
 
-**Fix**: Add Jest/React Testing Library tests
+**Effort**: 1h | **Priority**: P3
+**Acceptance**: Health badge uses cached result for repeat renders within TTL; no extra fetches per navigation.
 
-```typescript
-// components/__tests__/Footer.test.tsx
-describe('Footer', () => {
-  it('copies email to clipboard on support click', async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) }
-    });
-    // ... test implementation
-  });
+---
 
-  it('falls back to mailto when clipboard fails', async () => {
-    Object.assign(navigator, {
-      clipboard: { writeText: jest.fn().mockRejectedValue(new Error()) }
-    });
-    // ... test implementation
-  });
-});
+### [UX] Split Footer client boundary
 
-// components/__tests__/HeroMetadata.test.tsx
-describe('HeroMetadata', () => {
-  it('displays operational status when health check succeeds', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: true });
-    // ... test implementation
-  });
+**Files**: `components/Footer.tsx`
+**Perspectives**: ux-crafter, performance-scout
+**Impact**: Shrinks client bundle by keeping static footer server-rendered; isolates clipboard logic to a tiny client leaf.
 
-  it('displays degraded status when health check fails', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
-    // ... test implementation
-  });
+**Fix**: Extract a client-only SupportButton, keep layout/text as a server component.
 
-  it('cleans up AbortController on unmount', async () => {
-    // ... test implementation
-  });
-});
-```
-
-**Effort**: 2-3h | **Priority**: P2
-**Acceptance**: Tests pass, coverage for clipboard/health check logic
-**Deferral Rationale**: Components functional and reviewed, tests prevent future regressions
+**Effort**: 1h | **Priority**: P2
+**Acceptance**: Hydration limited to Support button; footer renders server-side with identical visuals.
 
 ---
 

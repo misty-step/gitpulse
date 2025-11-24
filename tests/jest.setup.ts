@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
 import { TextDecoder, TextEncoder } from "util";
+import "@testing-library/jest-dom";
 
 if (typeof global.TextEncoder === "undefined") {
   global.TextEncoder = TextEncoder as typeof global.TextEncoder;

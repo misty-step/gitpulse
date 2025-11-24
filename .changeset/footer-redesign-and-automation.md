@@ -6,7 +6,7 @@ Redesigned footer with improved brand consistency and automated versioning infra
 
 - Fixed brand casing: "A Misty Step Project" and "© Misty Step LLC" footer line (Title Case)
 - Changed legal entity from Inc. to LLC
-- Added copy-to-clipboard interaction for support email (no longer exposes email directly)
+- Added copy-to-clipboard interaction for support email (explicitly surfaced for fast support)
 - Removed version number display from footer (will be re-added when automated releases are active)
 - Removed system status section from footer (logical fallacy: badge wouldn't be visible if system down)
 - Simplified footer to clean 2-column layout (brand + navigation)
