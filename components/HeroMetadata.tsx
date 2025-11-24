@@ -15,10 +15,14 @@ export function HeroMetadata() {
   });
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const checkHealth = async () => {
       const start = performance.now();
       try {
-        const response = await fetch("/api/health?mode=liveness");
+        const response = await fetch("/api/health?mode=liveness", {
+          signal: controller.signal,
+        });
         const end = performance.now();
         const latency = Math.round(end - start);
 
@@ -27,12 +31,17 @@ export function HeroMetadata() {
         } else {
           setHealth({ status: "degraded", latency });
         }
-      } catch (error) {
-        setHealth({ status: "degraded", latency: null });
+      } catch (error: unknown) {
+        // Ignore abort errors from cleanup
+        if (error instanceof Error && error.name !== "AbortError") {
+          setHealth({ status: "degraded", latency: null });
+        }
       }
     };
 
     checkHealth();
+
+    return () => controller.abort();
   }, []);
 
   const statusColor =

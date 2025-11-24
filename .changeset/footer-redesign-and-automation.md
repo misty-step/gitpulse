@@ -4,7 +4,7 @@
 
 Redesigned footer with improved brand consistency and automated versioning infrastructure
 
-- Fixed brand casing: "A Misty Step Project" and "© 2025 Misty Step LLC" (Title Case)
+- Fixed brand casing: "A Misty Step Project" and "© Misty Step LLC" footer line (Title Case)
 - Changed legal entity from Inc. to LLC
 - Added copy-to-clipboard interaction for support email (no longer exposes email directly)
 - Removed version number display from footer (will be re-added when automated releases are active)

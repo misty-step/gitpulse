@@ -8,6 +8,8 @@ export function Footer() {
 
   const handleSupportClick = async () => {
     try {
+      // Note: Email is intentionally exposed in client bundle - it's already
+      // public on the website and scraper protection is not a priority
       await navigator.clipboard.writeText("hello@mistystep.io");
       toast.success("Email copied to clipboard");
     } catch (err) {
@@ -48,6 +50,7 @@ export function Footer() {
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -71,8 +74,10 @@ export function Footer() {
             <ul className="space-y-2.5">
               <li>
                 <button
+                  type="button"
                   onClick={handleSupportClick}
                   className="text-sm text-foreground-muted hover:text-foreground transition-colors hover:underline underline-offset-2 cursor-pointer"
+                  aria-label="Copy support email to clipboard"
                 >
                   Support
                 </button>

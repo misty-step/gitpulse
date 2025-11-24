@@ -111,7 +111,7 @@ cat .changeset/*.md
 
 GitPulse follows [Conventional Commits](https://www.conventionalcommits.org/) format:
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
