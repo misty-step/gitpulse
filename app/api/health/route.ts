@@ -1,55 +1,38 @@
-/**
- * Next.js Health Check API Route
- *
- * Provides comprehensive health status for the application:
- * - Next.js server availability
- * - Convex backend connectivity
- * - Overall system health
- *
- * Used by:
- * - Vercel health checks
- * - External monitoring (UptimeRobot, Pingdom, etc.)
- * - Load balancers
- * - Kubernetes liveness/readiness probes
- *
- * Response codes:
- * - 200 OK: All systems operational
- * - 503 Service Unavailable: One or more systems degraded
- */
-
 import { NextResponse } from "next/server";
 
-interface HealthCheck {
-  server: "ok";
-  convex: "ok" | "degraded" | "error";
+type HealthMode = "liveness" | "deep";
+type ConvexStatus = "ok" | "degraded" | "error";
+
+interface HealthResponse {
+  status: "ok" | "error";
+  mode: HealthMode;
   timestamp: number;
+  convex?: ConvexStatus;
   error?: string;
 }
 
+const CACHE_HEADERS = {
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+} as const;
+
 /**
- * Check Convex backend health
- *
- * Attempts to connect to Convex /health endpoint to verify:
- * - Network connectivity to Convex
- * - Convex runtime availability
- * - Database connectivity (tested by Convex health endpoint)
+ * Deep Convex health check for diagnostics (not used in default liveness probe).
  */
-async function checkConvexHealth(): Promise<"ok" | "degraded" | "error"> {
+async function checkConvexHealth(): Promise<ConvexStatus> {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
   if (!convexUrl) {
-    // Convex URL not configured - degraded state
     return "degraded";
   }
 
   try {
-    // Remove trailing slash if present
     const baseUrl = convexUrl.replace(/\/$/, "");
     const healthUrl = `${baseUrl}/health`;
 
     const response = await fetch(healthUrl, {
       method: "GET",
-      // Timeout after 5 seconds to avoid hanging health checks
       signal: AbortSignal.timeout(5000),
       headers: {
         "Content-Type": "application/json",
@@ -64,38 +47,48 @@ async function checkConvexHealth(): Promise<"ok" | "degraded" | "error"> {
     // Non-200 response from Convex
     return "error";
   } catch (error) {
-    // Network error, timeout, or other failure
     return "error";
   }
 }
 
-/**
- * GET /api/health
- *
- * Returns comprehensive health status
- */
-export async function GET() {
-  const checks: HealthCheck = {
-    server: "ok", // Next.js server is responding (we're in this handler)
-    convex: await checkConvexHealth(),
+function jsonResponse(body: HealthResponse, ok: boolean) {
+  return NextResponse.json(body, {
+    status: ok ? 200 : 503,
+    headers: CACHE_HEADERS,
+  });
+}
+
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const isDeep = url.searchParams.has("deep");
+
+  if (!isDeep) {
+    const body: HealthResponse = {
+      status: "ok",
+      mode: "liveness",
+      timestamp: Date.now(),
+    };
+    return jsonResponse(body, true);
+  }
+
+  const convex = await checkConvexHealth();
+  const healthy = convex === "ok";
+
+  const body: HealthResponse = {
+    status: healthy ? "ok" : "error",
+    mode: "deep",
+    convex,
     timestamp: Date.now(),
   };
 
-  // Overall health is OK only if all checks pass
-  const allHealthy = checks.convex === "ok";
-
-  if (!allHealthy) {
-    // Include error context for debugging
-    checks.error = `Convex health check failed: ${checks.convex}`;
+  if (!healthy) {
+    body.error = `Convex health check failed: ${convex}`;
   }
 
-  return NextResponse.json(checks, {
-    status: allHealthy ? 200 : 503,
-    headers: {
-      // Prevent caching of health check responses
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Pragma: "no-cache",
-      Expires: "0",
-    },
-  });
+  return jsonResponse(body, healthy);
+}
+
+// Keep HEAD aligned with GET for uptime monitors that default to HEAD.
+export async function HEAD(request: Request) {
+  return GET(request);
 }
