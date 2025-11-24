@@ -23,6 +23,12 @@ export async function GET(request: Request) {
   return handle(request, "GET");
 }
 
+// Some uptime monitors (including UptimeRobot keyword checks) default to POST when a body is configured.
+// Treat POST like GET so probes never fail with 405.
+export async function POST(request: Request) {
+  return handle(request, "GET");
+}
+
 export async function HEAD(request: Request) {
   return handle(request, "HEAD");
 }

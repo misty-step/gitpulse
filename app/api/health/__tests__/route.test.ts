@@ -4,7 +4,7 @@
  * Verifies health endpoint behavior for various scenarios
  */
 
-import { GET, HEAD } from "../route";
+import { GET, HEAD, POST } from "../route";
 import { PUBLIC_ROUTES } from "@/lib/auth/publicRoutes";
 
 // Save original fetch before mocking
@@ -38,6 +38,17 @@ describe("/api/health", () => {
     expect(data.convex).toBeUndefined();
     expect(data.error).toBeUndefined();
     expect(data.timestamp).toBeGreaterThan(0);
+  });
+
+  it("treats POST like GET for uptime probes", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/health", { method: "POST" }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.mode).toBe("liveness");
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("returns 200 in deep mode when Convex is healthy", async () => {
@@ -215,5 +226,6 @@ describe("health contract guards", () => {
   it("exports HEAD handler alongside GET", () => {
     expect(typeof HEAD).toBe("function");
     expect(typeof GET).toBe("function");
+    expect(typeof POST).toBe("function");
   });
 });
