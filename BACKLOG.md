@@ -13,25 +13,29 @@ Quality gates audit: 2025-11-20 (12 infrastructure items added: 8 critical/high 
 
 ## Now (Sprint-Ready, <2 weeks)
 
-### [CI/CD] Investigate Claude Review Action Failures
+### [PERF] Cache homepage health check
 
-**Files**: `.github/workflows/claude-code-review.yml`
-**Perspectives**: maintainability-maven
-**Impact**: Enable automated code review feedback on PRs
+**Files**: `components/HeroMetadata.tsx`, `lib/health`
+**Perspectives**: performance-scout, complexity-hunter
+**Impact**: Avoid duplicate `/api/health?deep=1` calls on every landing visit; reduce Convex load and page-time noise
 
-**Problem**: Claude Code Review action failing with generic error "I'll analyze this and get back to you" (Run ID: 19576735656). No detailed error logs available in PR comments.
+**Fix**: Add component-level caching (SWR/timed cache) with sensible stale/refresh interval; surface cached latency separately from status freshness.
 
-**Investigation Steps**:
+**Effort**: 1h | **Priority**: P3
+**Acceptance**: Health badge uses cached result for repeat renders within TTL; no extra fetches per navigation.
 
-1. Check Claude action logs via `gh run view 19576735656 --log-failed`
-2. Verify `ANTHROPIC_API_KEY` secret exists and is valid
-3. Check action configuration (model, token limits, custom instructions)
-4. Validate PR diff size doesn't exceed Claude's context window
-5. Test with minimal PR to isolate issue
+---
 
-**Effort**: 2h investigation + 1h fix | **Priority**: P2
-**Acceptance**: Claude review action completes successfully, provides constructive feedback on PRs
-**Deferral Rationale**: Non-blocking for MVP - human code reviews sufficient, automated review is enhancement
+### [UX] Split Footer client boundary
+
+**Files**: `components/Footer.tsx`
+**Perspectives**: ux-crafter, performance-scout
+**Impact**: Shrinks client bundle by keeping static footer server-rendered; isolates clipboard logic to a tiny client leaf.
+
+**Fix**: Extract a client-only SupportButton, keep layout/text as a server component.
+
+**Effort**: 1h | **Priority**: P2
+**Acceptance**: Hydration limited to Support button; footer renders server-side with identical visuals.
 
 ---
 
