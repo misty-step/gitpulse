@@ -8,34 +8,10 @@ import {
   listOrgRepositories,
   RateLimitError,
 } from "../github";
+import { createMockResponse, createMockErrorResponse } from "../../../tests/utils/factories";
 
 // Store original fetch
 const originalFetch = global.fetch;
-
-function createMockResponse(data: any, init?: Partial<Response>) {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: async () => data,
-    headers: new Headers(init?.headers || {}),
-    ...init,
-  } as Response);
-}
-
-function createMockErrorResponse(
-  status: number,
-  statusText: string,
-  body: any,
-  headers?: Record<string, string>,
-) {
-  return Promise.resolve({
-    ok: false,
-    status,
-    statusText,
-    json: async () => body,
-    headers: new Headers(headers || {}),
-  } as Response);
-}
 
 beforeEach(() => {
   jest.clearAllMocks();

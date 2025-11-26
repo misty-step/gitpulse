@@ -4,6 +4,7 @@ import * as reportGenerator from "../reportGenerator";
 import * as promptsModule from "../prompts";
 import * as markdownModule from "../markdown";
 import * as llmOrchestratorModule from "../llmOrchestrator";
+import { createMockReportContext } from "../../../tests/utils/factories";
 
 const {
   generateDailyReportFromContext,
@@ -43,26 +44,9 @@ beforeEach(() => {
   llmOrchestrator.validateLLMMarkdown.mockReturnValue([]);
 });
 
-function createMockContext(overrides?: Partial<ReportContext>): ReportContext {
-  return {
-    timeframe: { start: 1000, end: 2000 },
-    totals: {
-      eventCount: 5,
-      byType: {
-        commit: 3,
-        pr_opened: 1,
-        review: 1,
-      },
-    },
-    repos: [{ id: "repo1", name: "test-repo", owner: "acme" }],
-    events: [],
-    ...overrides,
-  } as ReportContext;
-}
-
 describe("generateDailyReportFromContext", () => {
   it("generates daily report with LLM for non-empty context", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
@@ -101,7 +85,7 @@ describe("generateDailyReportFromContext", () => {
   });
 
   it("returns no-activity message for empty event context", async () => {
-    const context = createMockContext({
+    const context = createMockReportContext({
       totals: { eventCount: 0, byType: {} },
     });
 
@@ -119,7 +103,7 @@ describe("generateDailyReportFromContext", () => {
   });
 
   it("falls back to synthetic report when LLM orchestrator fails", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
       system: "Generate standup",
@@ -146,7 +130,7 @@ describe("generateDailyReportFromContext", () => {
 
 describe("generateWeeklyReportFromContext", () => {
   it("generates weekly report with LLM for non-empty context", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildWeeklyRetroPrompt.mockReturnValue({
@@ -184,7 +168,7 @@ describe("generateWeeklyReportFromContext", () => {
   });
 
   it("returns no-activity message for empty event context", async () => {
-    const context = createMockContext({
+    const context = createMockReportContext({
       totals: { eventCount: 0, byType: {} },
     });
 
@@ -203,7 +187,7 @@ describe("generateWeeklyReportFromContext", () => {
 
 describe("citation filtering", () => {
   it("filters citations to only allowed URLs", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
     const allowedUrls = [
       "https://github.com/acme/test-repo/pull/1",
       "https://github.com/acme/test-repo/pull/2",
@@ -243,7 +227,7 @@ describe("citation filtering", () => {
   });
 
   it("deduplicates citations", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
@@ -278,7 +262,7 @@ describe("citation filtering", () => {
   });
 
   it("returns empty citations when allowedUrls is empty", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
       system: "Generate standup",
@@ -305,7 +289,7 @@ describe("citation filtering", () => {
 
 describe("markdown to HTML conversion", () => {
   it("converts markdown to HTML for generated reports", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
       system: "Generate standup",
@@ -330,7 +314,7 @@ describe("markdown to HTML conversion", () => {
 
 describe("synthetic reports (LLM fallback)", () => {
   it("buildSyntheticDailyReport includes event counts", () => {
-    const context = createMockContext({
+    const context = createMockReportContext({
       totals: {
         eventCount: 10,
         byType: {
@@ -352,7 +336,7 @@ describe("synthetic reports (LLM fallback)", () => {
   });
 
   it("buildSyntheticWeeklyReport includes event counts and repo count", () => {
-    const context = createMockContext({
+    const context = createMockReportContext({
       totals: {
         eventCount: 20,
         byType: {
@@ -380,7 +364,7 @@ describe("synthetic reports (LLM fallback)", () => {
 
 describe("validation errors", () => {
   it("falls back to synthetic report when LLM output fails validation", async () => {
-    const context = createMockContext();
+    const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
       system: "Generate standup",

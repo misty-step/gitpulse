@@ -1,6 +1,7 @@
 import { describe, expect, it, jest, beforeEach, afterEach } from "@jest/globals";
 import * as llmOrchestrator from "../llmOrchestrator";
 import type { PromptPayload } from "../prompts";
+import { createMockPrompt } from "../../../tests/utils/factories";
 
 const { generateWithOrchestrator, validateLLMMarkdown } = llmOrchestrator;
 
@@ -8,15 +9,6 @@ const { generateWithOrchestrator, validateLLMMarkdown } = llmOrchestrator;
 const originalEnv = { ...process.env };
 const originalFetch = global.fetch;
 
-function createMockPrompt(): PromptPayload {
-  return {
-    systemPrompt: "You are a helpful assistant",
-    userPrompt: "Generate a report",
-    allowedUrls: [],
-    requiredHeadings: ["## Work Completed", "## Key Decisions"],
-    minWordCount: 50,
-  };
-}
 
 function makeOpenAISuccessResponse(content: string) {
   return Promise.resolve({
