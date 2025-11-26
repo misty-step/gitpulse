@@ -1,4 +1,9 @@
 import { computeContentHash, stableStringify } from "../contentHash";
+import {
+  expectValidContentHash,
+  expectIdenticalHashes,
+  expectDifferentHashes,
+} from "../../../tests/utils/assertions";
 
 describe("contentHash", () => {
   const baseInput = {
@@ -11,15 +16,14 @@ describe("contentHash", () => {
     const first = computeContentHash(baseInput);
     const second = computeContentHash({ ...baseInput });
 
-    expect(first).toBe(second);
-    expect(first).toMatch(/^[a-f0-9]{64}$/);
+    expectIdenticalHashes(first, second);
   });
 
   it("changes hash when canonicalText differs", () => {
     const a = computeContentHash(baseInput);
     const b = computeContentHash({ ...baseInput, canonicalText: "PR #1 – add auth (v2)" });
 
-    expect(a).not.toBe(b);
+    expectDifferentHashes(a, b);
   });
 
   it("normalizes whitespace in canonicalText and sourceUrl", () => {
@@ -30,7 +34,7 @@ describe("contentHash", () => {
     });
     const trimmed = computeContentHash(baseInput);
 
-    expect(spaced).toBe(trimmed);
+    expectIdenticalHashes(spaced, trimmed);
   });
 
   it("is stable across object key ordering in metrics", () => {
@@ -40,7 +44,7 @@ describe("contentHash", () => {
       metrics: { deletions: 2, filesChanged: 3, additions: 10 },
     });
 
-    expect(m1).toBe(m2);
+    expectIdenticalHashes(m1, m2);
   });
 
   it("handles undefined metrics by omitting them", () => {
@@ -50,7 +54,7 @@ describe("contentHash", () => {
       sourceUrl: baseInput.sourceUrl,
     });
 
-    expect(withMetrics).not.toBe(withoutMetrics);
+    expectDifferentHashes(withMetrics, withoutMetrics);
   });
 
   it("supports unicode content deterministically", () => {
@@ -63,7 +67,7 @@ describe("contentHash", () => {
       canonicalText: "修复：非ASCII 🚀",
     });
 
-    expect(unicode).toBe(unicodeAgain);
+    expectIdenticalHashes(unicode, unicodeAgain);
   });
 
   it("handles nested metrics structures with stableStringify", () => {
@@ -86,7 +90,7 @@ describe("contentHash", () => {
       metrics: { additions: 11, deletions: 2, filesChanged: 3 },
     });
 
-    expect(base).not.toBe(changed);
+    expectDifferentHashes(base, changed);
   });
 
   it("array ordering influences hash deterministically", () => {
