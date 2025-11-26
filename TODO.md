@@ -343,7 +343,7 @@
 
 ### Test Utilities
 
-- [ ] Create test fixture factories
+- [x] Create test fixture factories ✅ 2025-11-26
   ```
   Files: tests/utils/factories.ts (new)
   Architecture: Shared test data builders (reduce duplication)
@@ -359,7 +359,7 @@
     }
   ```
 
-- [ ] Create custom assertions
+- [x] Create custom assertions ✅ 2025-11-26
   ```
   Files: tests/utils/assertions.ts (new)
   Architecture: Shared test assertions (reduce duplication)
