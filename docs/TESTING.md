@@ -283,89 +283,134 @@ it("throws RateLimitError on 429 with proper reset time", async () => {
 
 ## E2E Testing
 
-### Playwright Configuration
+### Quick Start
 
-E2E tests use Playwright with Chromium browser:
+```bash
+# Run all E2E tests
+pnpm test:e2e
 
-```typescript
-// playwright.config.ts
-export default defineConfig({
-  testDir: './e2e',
-  baseURL: 'http://localhost:3000',
-  workers: process.env.CI ? 1 : 4,
-  retries: process.env.CI ? 2 : 0,
-  use: {
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-  },
-  webServer: {
-    command: 'pnpm dev',
-    port: 3000,
-    reuseExistingServer: !process.env.CI,
-  },
-});
+# Run with browser UI visible
+pnpm test:e2e --headed
+
+# Interactive debugging mode
+pnpm test:e2e --ui
+
+# Run specific test file
+pnpm test:e2e auth.spec.ts
 ```
 
-### Basic E2E Test Pattern
+### Authentication in E2E Tests
 
-```typescript
-import { test, expect } from '@playwright/test';
+E2E tests use Clerk's `@clerk/testing` package for authentication:
 
-test('user can sign in via GitHub OAuth', async ({ page }) => {
-  // Navigate to landing page
-  await page.goto('/');
+1. **Global Setup**: Authenticates once before all tests (`e2e/global.setup.ts`)
+2. **Session Reuse**: Saves auth state to `playwright/.clerk/user.json`
+3. **All Tests Authenticated**: Tests load saved state automatically
+4. **Test Credentials**: Uses dedicated test user with username/password
 
-  // Click sign in button
-  await page.click('button:has-text("Sign in with GitHub")');
-
-  // Wait for OAuth redirect
-  await page.waitForURL('/dashboard', { timeout: 10000 });
-
-  // Verify dashboard loaded
-  await expect(page.locator('h1')).toContainText('Dashboard');
-});
+**Environment Variables**:
+```bash
+E2E_CLERK_USER_USERNAME=gitpulse_test
+E2E_CLERK_USER_PASSWORD=TestPassword123!
 ```
 
-### Using Fixtures
+**How It Works**:
 
-Create reusable test data in `e2e/fixtures/`:
-
-```typescript
-// e2e/fixtures/users.ts
-export const testUsers = {
-  alice: {
-    ghLogin: "alice",
-    ghId: 1,
-    email: "alice@example.com",
-  },
-  bob: {
-    ghLogin: "bob",
-    ghId: 2,
-    email: "bob@example.com",
-  },
-};
-```
-
-### Mocking OAuth in E2E
+The global setup runs once before all tests:
 
 ```typescript
-test('authentication flow with mocked OAuth', async ({ page }) => {
-  // Set mock auth environment variable
-  process.env.E2E_MOCK_AUTH_ENABLED = 'true';
+// e2e/global.setup.ts
+import { clerkSetup, clerk } from "@clerk/testing/playwright";
+import { test as setup } from "@playwright/test";
 
-  // Intercept OAuth callback
-  await page.route('**/api/auth/callback/**', (route) => {
-    route.fulfill({
-      status: 302,
-      headers: { Location: '/dashboard' },
-    });
+setup("authenticate test user", async ({ page }) => {
+  await page.goto("/sign-in");
+
+  await clerk.signIn({
+    page,
+    signInParams: {
+      strategy: "password",
+      identifier: process.env.E2E_CLERK_USER_USERNAME!,
+      password: process.env.E2E_CLERK_USER_PASSWORD!,
+    },
   });
 
-  await page.goto('/');
-  await page.click('button:has-text("Sign in")');
-  await expect(page).toHaveURL('/dashboard');
+  await page.waitForURL("/dashboard");
+  await page.context().storageState({ path: authFile });
 });
 ```
+
+All subsequent tests load this auth state from `playwright.config.ts`:
+
+```typescript
+projects: [
+  {
+    name: "setup",
+    testMatch: /global\.setup\.ts/,
+  },
+  {
+    name: "chromium",
+    use: {
+      ...devices["Desktop Chrome"],
+      storageState: "playwright/.clerk/user.json", // Pre-authenticated
+    },
+    dependencies: ["setup"], // Run setup first
+  },
+],
+```
+
+### Creating New E2E Tests
+
+Tests start with authentication already loaded:
+
+```typescript
+import { test, expect } from "@playwright/test";
+
+test.describe("My Feature", () => {
+  test.beforeEach(async ({ page }) => {
+    // Auth state already loaded - go straight to protected routes
+    await page.goto("/dashboard/my-feature");
+  });
+
+  test("feature works correctly", async ({ page }) => {
+    // Test implementation
+    await expect(page.getByRole("heading")).toContainText("My Feature");
+  });
+});
+```
+
+### Testing Unauthenticated Flows
+
+Create a new context without auth state:
+
+```typescript
+test("unauthenticated user redirected to sign-in", async ({ browser }) => {
+  const context = await browser.newContext(); // No auth state
+  const page = await context.newPage();
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/sign-in/);
+
+  await context.close();
+});
+```
+
+### Debugging E2E Failures
+
+```bash
+# Show browser during test
+pnpm test:e2e --headed --debug
+
+# Generate trace for viewing
+pnpm test:e2e --trace on
+npx playwright show-trace trace.zip
+```
+
+### CI/CD Integration
+
+E2E tests run automatically on every PR via `.github/workflows/e2e.yml`.
+
+Screenshots and videos are saved on failure - check GitHub Actions artifacts.
 
 ## Test Utilities
 

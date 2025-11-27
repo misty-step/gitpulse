@@ -18,7 +18,7 @@ jest.mock("convex/browser", () => ({
   })),
 }));
 
-// eslint-disable-next-line import/order
+ 
 import { ConvexHttpClient } from "convex/browser";
 
 const originalEnv = { ...process.env };

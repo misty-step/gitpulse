@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",
+    "@clerk/testing": "^1.13.19",
     "@eslint/eslintrc": "^3.3.1",
     "@jest/globals": "^30.2.0",
     "@playwright/test": "^1.57.0",

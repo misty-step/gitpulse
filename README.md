@@ -6,6 +6,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![Convex](https://img.shields.io/badge/Convex-1.28-orange)](https://www.convex.dev/)
 [![Coverage](https://github.com/misty-step/gitpulse/actions/workflows/coverage.yml/badge.svg)](https://github.com/misty-step/gitpulse/actions/workflows/coverage.yml)
+[![E2E Tests](https://github.com/misty-step/gitpulse/actions/workflows/e2e.yml/badge.svg)](https://github.com/misty-step/gitpulse/actions/workflows/e2e.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Transform raw GitHub events into cited, trustworthy insights. Ask "What did the React team ship last quarter?" and get factual summaries with GitHub URL citations for every claim.

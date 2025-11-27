@@ -18,10 +18,26 @@ export default defineConfig({
     video: "retain-on-failure",
     trace: "retain-on-failure",
   },
+
+  // Global setup runs once before all tests to configure Clerk and authenticate
+  globalSetup: require.resolve("./e2e/global.setup.ts"),
+
   projects: [
+    // Setup project: Runs global.setup.ts to authenticate and save state
+    {
+      name: "setup",
+      testMatch: /global\.setup\.ts/,
+    },
+    // Chromium tests: Load pre-authenticated state from global setup
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        // Load pre-authenticated state - tests start authenticated
+        storageState: "playwright/.clerk/user.json",
+      },
+      // Run setup project first to ensure auth state exists
+      dependencies: ["setup"],
     },
   ],
   webServer: {

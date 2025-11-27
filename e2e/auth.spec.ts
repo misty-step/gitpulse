@@ -1,51 +1,52 @@
 import { test, expect } from "@playwright/test";
-import { mockAuth, mockHeaders } from "./fixtures/auth";
-import { primaryUser } from "./fixtures/users";
 
-test.describe("Auth flow", () => {
-  test("signs in via GitHub mock and reaches dashboard", async ({ page }) => {
-    // landing
-    await page.goto("/");
-    await expect(page).toHaveTitle(/GitPulse/i);
+test.describe("Authentication Flow", () => {
+  test("user can access dashboard with valid session", async ({ page }) => {
+    // Auth state already loaded from global setup - go straight to protected route
+    await page.goto("/dashboard");
 
-    // go to sign in
-    const signInLink = page.getByRole("link", { name: /sign in/i });
-    if (await signInLink.isVisible()) {
-      await signInLink.click();
-    } else {
-      await page.goto("/sign-in");
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(
+      page.getByRole("heading", { name: /dashboard/i })
+    ).toBeVisible();
+  });
+
+  test("session persists across page refreshes", async ({ page }) => {
+    await page.goto("/dashboard");
+    await page.reload();
+
+    // Should still be authenticated after refresh
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(
+      page.getByRole("heading", { name: /dashboard/i })
+    ).toBeVisible();
+  });
+
+  test("session persists across navigation", async ({ page }) => {
+    await page.goto("/dashboard");
+
+    // Navigate to another protected route
+    const reportsLink = page.getByRole("link", { name: /reports/i });
+    if (await reportsLink.isVisible()) {
+      await reportsLink.click();
+      await expect(page).toHaveURL(/\/reports/);
     }
 
-    // mock OAuth redirect flow
-    await page.route("**/api/auth/github**", (route) => {
-      route.fulfill({
-        status: 302,
-        headers: { Location: `/dashboard?code=${mockAuth.githubOauthCode}` },
-      });
-    });
+    // Navigate back
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
 
-    // pretend Clerk session cookie already present (mock auth mode)
-    await page.context().addCookies([
-      {
-        name: "__session",
-        value: mockAuth.sessionToken,
-        url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
-      },
-    ]);
+  test("unauthenticated user redirected to sign-in", async ({ browser }) => {
+    // Create new context WITHOUT auth state to test unauthenticated flow
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-    // complete redirect
-    await page.goto(`/auth/callback?code=${mockAuth.githubOauthCode}`, {
-      waitUntil: "networkidle",
-    });
+    await page.goto("/dashboard");
 
-    // dashboard assertion
-    await expect(page).toHaveURL(/dashboard/);
-    await expect(
-      page.getByRole("heading", { name: /dashboard/i }),
-    ).toBeVisible();
+    // Clerk should redirect to sign-in
+    await expect(page).toHaveURL(/\/sign-in/);
 
-    // session persists across refresh
-    await page.reload();
-    await expect(page).toHaveURL(/dashboard/);
+    await context.close();
   });
 });
