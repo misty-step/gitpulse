@@ -357,6 +357,16 @@
     export function createMockEvent(type: EventType, overrides?: Partial<EventFact>): EventFact {
       return { /* defaults */ ...overrides };
     }
+
+  COMPLETED: 13 factory functions created
+  - Core entities: createMockUser, createMockRepo, createMockEvent, createMockReport, createMockInstallation
+  - GitHub API: createMockGitHubUser, createMockWebhookPayload, createMockTimelineNode, createMockTimelineResult
+  - Report generation: createMockReportContext, createMockPrompt
+  - HTTP responses: createMockResponse, createMockErrorResponse
+  - Convex: createMockActionCtx
+  - Refactored 3 test files to use factories (reportGenerator, llmOrchestrator, github)
+  - Eliminated 60+ lines of duplicate mock creation code
+  - All 200 tests passing ✅
   ```
 
 - [x] Create custom assertions ✅ 2025-11-26
@@ -373,6 +383,18 @@
     export function expectValidCitation(url: string) {
       expect(url).toMatch(/^https:\/\/github\.com\/[\w-]+\/[\w-]+\/(pull|issues)\/\d+/);
     }
+
+  COMPLETED: 23 assertion helper functions created
+  - Content Hash: expectValidContentHash, expectIdenticalHashes, expectDifferentHashes
+  - Citations: expectValidCitation, expectValidCitations, expectDeduplicatedCitations, expectCitationsFromAllowedUrls
+  - Coverage: expectValidCoverageScore, expectCoverageAboveThreshold, expectValidCoverageBreakdown
+  - Reports: expectReportHasRequiredSections, expectReportMeetsWordCount, expectValidLLMMetadata
+  - Events: expectValidCanonicalEvent, expectValidEventType
+  - HTTP: expectResponseStatus, expectResponseHeaders
+  - Convex: expectValidConvexId, expectValidTimestamps
+  - Refactored contentHash.test.ts to demonstrate usage (6 inline assertions → helpers)
+  - Improved error messages and test expressiveness
+  - All 200 tests passing ✅
   ```
 
 ### Documentation
