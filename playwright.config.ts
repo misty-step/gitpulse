@@ -1,8 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
+import { fileURLToPath } from "url";
+import * as path from "path";
 
 // Use unique port to avoid conflicts with other projects on localhost:3000
 const PORT = process.env.PORT ?? "3010";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
+
+// ES module-compatible path resolution
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,9 +23,6 @@ export default defineConfig({
     video: "retain-on-failure",
     trace: "retain-on-failure",
   },
-
-  // Global setup runs once before all tests to configure Clerk and authenticate
-  globalSetup: require.resolve("./e2e/global.setup.ts"),
 
   projects: [
     // Setup project: Runs global.setup.ts to authenticate and save state

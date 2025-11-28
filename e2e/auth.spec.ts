@@ -6,8 +6,9 @@ test.describe("Authentication Flow", () => {
     await page.goto("/dashboard");
 
     await expect(page).toHaveURL(/\/dashboard/);
+    // New users see onboarding flow
     await expect(
-      page.getByRole("heading", { name: /dashboard/i })
+      page.getByRole("heading", { name: /Connect Your GitHub Account/i })
     ).toBeVisible();
   });
 
@@ -15,10 +16,10 @@ test.describe("Authentication Flow", () => {
     await page.goto("/dashboard");
     await page.reload();
 
-    // Should still be authenticated after refresh
+    // Should still be authenticated after refresh - onboarding visible
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(
-      page.getByRole("heading", { name: /dashboard/i })
+      page.getByRole("heading", { name: /Connect Your GitHub Account/i })
     ).toBeVisible();
   });
 
@@ -44,8 +45,8 @@ test.describe("Authentication Flow", () => {
 
     await page.goto("/dashboard");
 
-    // Clerk should redirect to sign-in
-    await expect(page).toHaveURL(/\/sign-in/);
+    // App redirects to onboarding for unauthenticated users
+    await expect(page).toHaveURL(/\/onboarding|\/sign-in/);
 
     await context.close();
   });

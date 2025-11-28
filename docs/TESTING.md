@@ -310,8 +310,11 @@ E2E tests use Clerk's `@clerk/testing` package for authentication:
 
 **Environment Variables**:
 ```bash
-E2E_CLERK_USER_USERNAME=gitpulse_test
-E2E_CLERK_USER_PASSWORD=TestPassword123!
+E2E_CLERK_USER_EMAIL=test+clerk_test@gitpulse.app
+E2E_CLERK_USER_PASSWORD=your-unique-secure-password
+
+# IMPORTANT: Clerk checks passwords against breach databases
+# Use a unique, strong password. Generate with: openssl rand -base64 24
 ```
 
 **How It Works**:
@@ -324,18 +327,27 @@ import { clerkSetup, clerk } from "@clerk/testing/playwright";
 import { test as setup } from "@playwright/test";
 
 setup("authenticate test user", async ({ page }) => {
-  await page.goto("/sign-in");
+  // Configure Clerk for testing (required for @clerk/testing)
+  await clerkSetup();
 
+  // Navigate to index page (loads Clerk, required before signIn)
+  await page.goto("/");
+
+  // Sign in using Clerk's test helper
   await clerk.signIn({
     page,
     signInParams: {
       strategy: "password",
-      identifier: process.env.E2E_CLERK_USER_USERNAME!,
+      identifier: process.env.E2E_CLERK_USER_EMAIL!,
       password: process.env.E2E_CLERK_USER_PASSWORD!,
     },
   });
 
-  await page.waitForURL("/dashboard");
+  // Navigate to dashboard and verify authentication
+  await page.goto("/dashboard");
+  await page.waitForSelector('h1:has-text("Connect Your GitHub Account")');
+
+  // Save authenticated state for reuse across tests
   await page.context().storageState({ path: authFile });
 });
 ```

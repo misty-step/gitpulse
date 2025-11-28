@@ -7,8 +7,9 @@ test.describe("GitHub Webhook Processing", () => {
 
   test("dashboard loads successfully", async ({ page }) => {
     await expect(page).toHaveURL(/\/dashboard/);
+    // New users see onboarding flow
     await expect(
-      page.getByRole("heading", { name: /dashboard/i })
+      page.getByRole("heading", { name: /Connect Your GitHub Account/i })
     ).toBeVisible();
   });
 
