@@ -3,11 +3,6 @@ import { createMockActionCtx } from "../../../../tests/__mocks__/convexCtx";
 import { createAsyncMock } from "../../../../tests/utils/jestMocks";
 import { Id } from "../../../_generated/dataModel";
 
-// Mock internalAction to return the config (so we can access .handler)
-jest.mock("../../../_generated/server", () => ({
-  internalAction: (config: any) => config,
-}));
-
 // Mock generated API
 jest.mock("../../../_generated/api", () => ({
   api: {
@@ -79,7 +74,7 @@ const canonicalFactService = jest.requireMock("../../../lib/canonicalFactService
 const github = jest.requireMock("../../../lib/github") as any;
 
 // Import after mocking
-import { adminStartBackfill } from "../startBackfill";
+import { adminStartBackfillHandler } from "../startBackfill";
 import { api, internal } from "../../../_generated/api";
 
 function createMockInstallation() {
@@ -209,7 +204,7 @@ describe("adminStartBackfill - timeline pagination", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -255,7 +250,7 @@ describe("adminStartBackfill - timeline pagination", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    await adminStartBackfill.handler(ctx, {
+    await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -301,7 +296,7 @@ describe("adminStartBackfill - rate limiting", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -341,7 +336,7 @@ describe("adminStartBackfill - rate limiting", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -402,7 +397,7 @@ describe("adminStartBackfill - deduplication", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -436,7 +431,7 @@ describe("adminStartBackfill - job completion", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],
@@ -475,7 +470,7 @@ describe("adminStartBackfill - job completion", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
-    await adminStartBackfill.handler(ctx, {
+    await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/repo1", "acme/repo2"], // Multiple repos
@@ -510,7 +505,7 @@ describe("adminStartBackfill - error handling", () => {
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
     await expect(
-      adminStartBackfill.handler(ctx, {
+      adminStartBackfillHandler(ctx, {
         installationId: 12345,
         clerkUserId: "user_123",
         repositories: ["acme/test-repo"],
@@ -537,7 +532,7 @@ describe("adminStartBackfill - error handling", () => {
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
     await expect(
-      adminStartBackfill.handler(ctx, {
+      adminStartBackfillHandler(ctx, {
         installationId: 12345,
         clerkUserId: "user_123",
         repositories: ["acme/test-repo"],
@@ -556,7 +551,7 @@ describe("adminStartBackfill - error handling", () => {
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
     await expect(
-      adminStartBackfill.handler(ctx, {
+      adminStartBackfillHandler(ctx, {
         installationId: 12345,
         clerkUserId: "user_123",
         repositories: [], // Empty
@@ -587,7 +582,7 @@ describe("adminStartBackfill - empty repository", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/empty-repo"],
@@ -622,7 +617,7 @@ describe("adminStartBackfill - etag caching", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    const result = await adminStartBackfill.handler(ctx, {
+    const result = await adminStartBackfillHandler(ctx, {
       installationId: 12345,
       clerkUserId: "user_123",
       repositories: ["acme/test-repo"],

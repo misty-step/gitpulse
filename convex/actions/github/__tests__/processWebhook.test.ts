@@ -1,15 +1,12 @@
 import { describe, expect, it, beforeEach, jest } from "@jest/globals";
-import { processWebhook } from "../processWebhook";
+import { processWebhookHandler } from "../processWebhook";
 import { createMockActionCtx } from "../../../../tests/__mocks__/convexCtx";
 import { createAsyncMock } from "../../../../tests/utils/jestMocks";
 import { api, internal } from "../../../_generated/api";
 import { canonicalizeEvent } from "../../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../../lib/canonicalFactService";
 import { logger } from "../../../lib/logger";
-
-jest.mock("../../../_generated/server", () => ({
-  internalAction: (config: any) => config,
-}));
+import { Id } from "../../../_generated/dataModel";
 
 jest.mock("../../../_generated/api", () => ({
   api: {
@@ -49,7 +46,7 @@ jest.mock("../../../lib/logger", () => ({
 }));
 
 const baseWebhook = {
-  _id: "webhook-1",
+  _id: "webhook-1" as Id<"webhookEvents">,
   deliveryId: "delivery-1",
   event: "pull_request",
   payload: {
@@ -86,7 +83,7 @@ describe("processWebhook", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
-    await processWebhook.handler(ctx, { webhookEventId: baseWebhook._id });
+    await processWebhookHandler(ctx, { webhookEventId: baseWebhook._id });
 
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: baseWebhook._id,
@@ -114,7 +111,7 @@ describe("processWebhook", () => {
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
-    await processWebhook.handler(ctx, { webhookEventId: baseWebhook._id });
+    await processWebhookHandler(ctx, { webhookEventId: baseWebhook._id });
 
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: baseWebhook._id,
@@ -132,7 +129,7 @@ describe("processWebhook", () => {
     const runMutation = createAsyncMock();
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    await processWebhook.handler(ctx, { webhookEventId: "webhook-unsupported" });
+    await processWebhookHandler(ctx, { webhookEventId: "webhook-unsupported" as Id<"webhookEvents"> });
 
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: "webhook-unsupported",
@@ -147,7 +144,7 @@ describe("processWebhook", () => {
     const runMutation = createAsyncMock();
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    await processWebhook.handler(ctx, { webhookEventId: "missing-id" });
+    await processWebhookHandler(ctx, { webhookEventId: "missing-id" as Id<"webhookEvents"> });
 
     expect(runMutation).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalled();
@@ -176,7 +173,7 @@ describe("processWebhook", () => {
     const runAction = createAsyncMock();
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
-    await processWebhook.handler(ctx, { webhookEventId: "install-1" });
+    await processWebhookHandler(ctx, { webhookEventId: "install-1" as Id<"webhookEvents"> });
 
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: "install-1",
@@ -202,7 +199,7 @@ describe("processWebhook", () => {
     (canonicalizeEvent as jest.Mock).mockReturnValue(canonical);
     (persistCanonicalEvent as jest.Mock).mockRejectedValue(new Error("boom"));
 
-    await processWebhook.handler(ctx, { webhookEventId: baseWebhook._id });
+    await processWebhookHandler(ctx, { webhookEventId: baseWebhook._id });
 
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: baseWebhook._id,
