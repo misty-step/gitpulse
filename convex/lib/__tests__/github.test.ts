@@ -10,6 +10,11 @@ import {
 } from "../github";
 import { createMockResponse, createMockErrorResponse } from "../../../tests/utils/factories";
 
+// Type for fetch mock that properly types parameters for toHaveBeenCalledWith assertions
+type FetchMock = jest.Mock<
+  (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+>;
+
 // Store original fetch
 const originalFetch = global.fetch;
 
@@ -23,10 +28,10 @@ afterEach(() => {
 
 describe("githubFetch - request construction", () => {
   it("constructs proper API request with auth headers", async () => {
-    const mockFetch = jest.fn(() =>
+    const mockFetch: FetchMock = jest.fn(() =>
       createMockResponse({ id: 123, name: "test-repo" }),
     );
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as typeof fetch;
 
     await getRepository("test-token", "owner/repo");
 
@@ -146,9 +151,9 @@ describe("githubFetch - rate limit handling", () => {
         headers: new Headers({
           "x-ratelimit-remaining": "100", // Has remaining quota, so not rate limited
         }),
-      } as Response),
+      } as unknown as Response),
     );
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as typeof fetch;
 
     // Note: 403 errors retry with exponential backoff (1s, 2s, 4s, 8s)
     // This test verifies the error type, not the retry behavior
@@ -329,8 +334,8 @@ describe("pagination", () => {
 
 describe("listCommits", () => {
   it("constructs query with author filter when provided", async () => {
-    const mockFetch = jest.fn(() => createMockResponse([]));
-    global.fetch = mockFetch as any;
+    const mockFetch: FetchMock = jest.fn(() => createMockResponse([]));
+    global.fetch = mockFetch as typeof fetch;
 
     await listCommits(
       "test-token",
@@ -418,9 +423,9 @@ describe("error handling", () => {
         json: async () => {
           throw new Error("Invalid JSON");
         },
-      } as Response),
+      } as unknown as Response),
     );
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as typeof fetch;
 
     await expect(getRepository("test-token", "owner/repo")).rejects.toThrow(
       "Invalid JSON",
@@ -456,7 +461,7 @@ describe("error handling", () => {
 
 describe("listReviews", () => {
   it("fetches reviews for a pull request", async () => {
-    const mockFetch = jest.fn(() =>
+    const mockFetch: FetchMock = jest.fn(() =>
       createMockResponse([
         {
           id: 1,
@@ -470,7 +475,7 @@ describe("listReviews", () => {
         },
       ]),
     );
-    global.fetch = mockFetch as any;
+    global.fetch = mockFetch as typeof fetch;
 
     const reviews = await listReviews("test-token", "owner/repo", 42);
 

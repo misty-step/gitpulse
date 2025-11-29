@@ -453,19 +453,32 @@ export function createMockTimelineResult(overrides?: any) {
  */
 export function createMockReportContext(overrides?: Partial<ReportContext>): ReportContext {
   return {
-    timeframe: { start: 1000, end: 2000 },
+    timeframe: {
+      start: new Date(1000).toISOString(),
+      end: new Date(2000).toISOString(),
+      days: 1,
+    },
     totals: {
       eventCount: 5,
+      repoCount: 1,
       byType: {
         commit: 3,
         pr_opened: 1,
         review: 1,
       },
     },
-    repos: [{ id: "repo1", name: "test-repo", owner: "acme" }],
-    events: [],
+    repos: [{
+      repo: "acme/test-repo",
+      repoUrl: "https://github.com/acme/test-repo",
+      eventCount: 5,
+      commits: 3,
+      pullRequests: 1,
+      reviews: 1,
+      issues: 0,
+    }],
+    timeline: [],
     ...overrides,
-  } as ReportContext;
+  };
 }
 
 /**

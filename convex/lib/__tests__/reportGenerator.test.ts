@@ -50,9 +50,11 @@ describe("generateDailyReportFromContext", () => {
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: allowedUrls,
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls,
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -86,7 +88,7 @@ describe("generateDailyReportFromContext", () => {
 
   it("returns no-activity message for empty event context", async () => {
     const context = createMockReportContext({
-      totals: { eventCount: 0, byType: {} },
+      totals: { eventCount: 0, repoCount: 0, byType: {} },
     });
 
     const result = await generateDailyReportFromContext(
@@ -106,9 +108,11 @@ describe("generateDailyReportFromContext", () => {
     const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: [],
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls: [],
     });
 
     llmOrchestrator.generateWithOrchestrator.mockRejectedValue(
@@ -134,9 +138,11 @@ describe("generateWeeklyReportFromContext", () => {
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildWeeklyRetroPrompt.mockReturnValue({
-      system: "Generate retro",
-      user: "Context here",
-      githubUrls: allowedUrls,
+      systemPrompt: "Generate retro",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls,
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -169,7 +175,7 @@ describe("generateWeeklyReportFromContext", () => {
 
   it("returns no-activity message for empty event context", async () => {
     const context = createMockReportContext({
-      totals: { eventCount: 0, byType: {} },
+      totals: { eventCount: 0, repoCount: 0, byType: {} },
     });
 
     const result = await generateWeeklyReportFromContext(
@@ -194,9 +200,11 @@ describe("citation filtering", () => {
     ];
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: allowedUrls,
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls,
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -231,9 +239,11 @@ describe("citation filtering", () => {
     const allowedUrls = ["https://github.com/acme/test-repo/pull/1"];
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: allowedUrls,
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls,
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -265,9 +275,11 @@ describe("citation filtering", () => {
     const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: [],
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls: [],
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -292,9 +304,11 @@ describe("markdown to HTML conversion", () => {
     const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: [],
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls: [],
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({
@@ -317,6 +331,7 @@ describe("synthetic reports (LLM fallback)", () => {
     const context = createMockReportContext({
       totals: {
         eventCount: 10,
+        repoCount: 1,
         byType: {
           commit: 5,
           pr_opened: 3,
@@ -339,6 +354,7 @@ describe("synthetic reports (LLM fallback)", () => {
     const context = createMockReportContext({
       totals: {
         eventCount: 20,
+        repoCount: 2,
         byType: {
           commit: 15,
           pr_opened: 3,
@@ -346,8 +362,8 @@ describe("synthetic reports (LLM fallback)", () => {
         },
       },
       repos: [
-        { id: "repo1", name: "test-repo-1", owner: "acme" },
-        { id: "repo2", name: "test-repo-2", owner: "acme" },
+        { repo: "acme/test-repo-1", repoUrl: "https://github.com/acme/test-repo-1", eventCount: 10, commits: 8, pullRequests: 1, reviews: 1, issues: 0 },
+        { repo: "acme/test-repo-2", repoUrl: "https://github.com/acme/test-repo-2", eventCount: 10, commits: 7, pullRequests: 2, reviews: 1, issues: 0 },
       ],
     });
 
@@ -367,9 +383,11 @@ describe("validation errors", () => {
     const context = createMockReportContext();
 
     prompts.buildDailyStandupPrompt.mockReturnValue({
-      system: "Generate standup",
-      user: "Context here",
-      githubUrls: [],
+      systemPrompt: "Generate standup",
+      userPrompt: "Context here",
+      requiredHeadings: [],
+      minWordCount: 50,
+      allowedUrls: [],
     });
 
     llmOrchestrator.generateWithOrchestrator.mockResolvedValue({

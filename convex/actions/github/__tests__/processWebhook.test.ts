@@ -8,6 +8,9 @@ import { persistCanonicalEvent } from "../../../lib/canonicalFactService";
 import { logger } from "../../../lib/logger";
 import { Id } from "../../../_generated/dataModel";
 
+// Type alias for mocked functions to avoid 'never' type issues
+type MockedFn = jest.MockedFunction<(...args: any[]) => any>;
+
 jest.mock("../../../_generated/api", () => ({
   api: {
     webhookEvents: { enqueue: "api.webhookEvents.enqueue" },
@@ -57,7 +60,7 @@ const baseWebhook = {
 
 describe("processWebhook", () => {
   const canonical = {
-    type: "pr_opened",
+    type: "pr_opened" as const,
     repo: { fullName: "org/repo" },
     actor: { ghLogin: "alice" },
     ts: Date.now(),
@@ -78,8 +81,8 @@ describe("processWebhook", () => {
     const runMutation = createAsyncMock();
     const runAction = createAsyncMock();
 
-    (canonicalizeEvent as jest.Mock).mockReturnValue(canonical);
-    (persistCanonicalEvent as jest.Mock).mockResolvedValue({ status: "inserted" });
+    (canonicalizeEvent as MockedFn).mockReturnValue(canonical);
+    (persistCanonicalEvent as MockedFn).mockResolvedValue({ status: "inserted" });
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
@@ -106,8 +109,8 @@ describe("processWebhook", () => {
     const runMutation = createAsyncMock();
     const runAction = createAsyncMock();
 
-    (canonicalizeEvent as jest.Mock).mockReturnValue(canonical);
-    (persistCanonicalEvent as jest.Mock).mockResolvedValue({ status: "duplicate" });
+    (canonicalizeEvent as MockedFn).mockReturnValue(canonical);
+    (persistCanonicalEvent as MockedFn).mockResolvedValue({ status: "duplicate" });
 
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
@@ -196,8 +199,8 @@ describe("processWebhook", () => {
     const runMutation = createAsyncMock();
     const ctx = createMockActionCtx({ runQuery, runMutation });
 
-    (canonicalizeEvent as jest.Mock).mockReturnValue(canonical);
-    (persistCanonicalEvent as jest.Mock).mockRejectedValue(new Error("boom"));
+    (canonicalizeEvent as MockedFn).mockReturnValue(canonical);
+    (persistCanonicalEvent as MockedFn).mockRejectedValue(new Error("boom"));
 
     await processWebhookHandler(ctx, { webhookEventId: baseWebhook._id });
 
