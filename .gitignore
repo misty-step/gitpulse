@@ -8,6 +8,10 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+# Playwright auth state (contains JWT tokens)
+**/.clerk
 
 # next.js
 /.next/

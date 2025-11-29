@@ -206,28 +206,189 @@ app/
 
 ## Testing Strategy
 
-**Test Framework**: Jest 29 + ts-jest (ESM preset)
+**Complete testing guide**: See [docs/TESTING.md](docs/TESTING.md)
 
-**Test Locations**:
+**Test Framework**: Jest 29 + ts-jest (ESM preset) for unit/integration, Playwright for E2E
 
-- **Unit tests**: Alongside source (`.test.ts` pattern)
-  - `convex/lib/contentHash.test.ts` - Hash determinism
-  - `convex/lib/coverage.test.ts` - Coverage math
-  - `convex/lib/canonicalizeEvent.test.ts` - Event normalization
+### Coverage Targets
 
-- **Integration tests**: `convex/lib/__tests__/` directory
-  - `githubApp.test.ts` - Webhook + GitHub App integration
-  - `reportOrchestrator.test.ts` - Report generation flow
-  - `canonicalFactService.test.ts` - Fact upsertion pipeline
+- **Patch coverage**: ≥80% for new code (enforced in CI via GitHub Actions)
+- **Overall coverage**: ≥70% project-wide
+- **Critical paths**: 90%+ (auth, webhooks, content hashing, payment)
 
-**Test Coverage Areas**:
+### Test File Locations
 
-1. Event canonicalization + hash determinism
-2. Content-addressed upserts + deduplication
-3. Coverage scoring (fact-to-report mapping)
-4. LLM integration (citation extraction, prompt validation)
-5. Embedding batch processing + fallback logic
-6. GitHub App (signature verification, token handling)
+```
+app/api/__tests__/          # Next.js route tests
+convex/lib/__tests__/       # Library/utility tests
+convex/actions/__tests__/   # Convex action tests
+e2e/                        # Playwright E2E tests
+tests/utils/                # Shared test utilities
+  ├── factories.ts          # Test data factories (13 factories)
+  └── assertions.ts         # Custom assertions (23 helpers)
+```
+
+### Test Philosophy
+
+**Test behavior, not implementation**:
+```typescript
+// Good: Test what the code does
+it("generates report with citations when events exist", async () => {
+  const result = await generateReport(context);
+  expect(result.citations.length).toBeGreaterThan(0);
+});
+
+// Bad: Test how the code does it
+it("calls buildPrompt with correct arguments", () => {
+  expect(buildPrompt).toHaveBeenCalledWith(...); // Don't test internals
+});
+```
+
+**Use AAA pattern** (Arrange-Act-Assert):
+```typescript
+it("computes deterministic hash", () => {
+  // Arrange
+  const input = { canonicalText: "PR #1", sourceUrl: "..." };
+
+  // Act
+  const hash1 = computeContentHash(input);
+  const hash2 = computeContentHash(input);
+
+  // Assert
+  expectIdenticalHashes(hash1, hash2);
+});
+```
+
+**Minimize mocks** - prefer real implementations:
+```typescript
+// Good: Use real pure functions
+const hash = computeContentHash(data);
+
+// Good: Use factories for test data
+const user = createMockUser({ ghLogin: "alice" });
+
+// Necessary: Mock external APIs
+global.fetch = jest.fn(() => createMockResponse({ ... }));
+```
+
+### Test Utilities
+
+**Factories** (`tests/utils/factories.ts`) - Create test data with defaults:
+```typescript
+import { createMockUser, createMockEvent, createMockReportContext } from "../../../tests/utils/factories";
+
+const user = createMockUser(); // With defaults
+const alice = createMockUser({ ghLogin: "alice" }); // Override fields
+const prEvent = createMockEvent("pr_opened", { metadata: { prNumber: 42 } });
+```
+
+Available factories: `createMockUser`, `createMockRepo`, `createMockEvent`, `createMockReport`, `createMockInstallation`, `createMockGitHubUser`, `createMockWebhookPayload`, `createMockReportContext`, `createMockPrompt`, `createMockResponse`, `createMockErrorResponse`, `createMockActionCtx`
+
+**Custom Assertions** (`tests/utils/assertions.ts`) - Clear error messages:
+```typescript
+import { expectValidContentHash, expectIdenticalHashes, expectValidCitation } from "../../../tests/utils/assertions";
+
+expectValidContentHash(hash); // Checks SHA-256 format
+expectIdenticalHashes(hash1, hash2); // For idempotency tests
+expectValidCitation("https://github.com/owner/repo/pull/123");
+expectValidCoverageScore(0.85, { min: 0.8 });
+```
+
+Available assertions: Hash validation, citation validation, coverage validation, report validation, event validation, HTTP validation, Convex document validation
+
+### Running Tests
+
+```bash
+# Unit/integration tests
+pnpm test                              # Run all tests
+pnpm test contentHash.test.ts          # Run specific file
+pnpm test --watch                      # Watch mode
+pnpm test:coverage                     # With coverage report
+
+# E2E tests
+pnpm test:e2e                          # Run all E2E tests
+pnpm test:e2e --headed                 # See browser
+pnpm test:e2e --ui                     # Interactive debugging
+```
+
+### CI/CD Integration
+
+Tests run automatically on every PR:
+
+1. **Unit/Integration** (`.github/workflows/ci.yml`) - Runs `pnpm test`
+2. **Coverage Report** (`.github/workflows/coverage.yml`) - Posts coverage comment, enforces 80% patch threshold
+3. **E2E Tests** (`.github/workflows/e2e.yml`) - Runs Playwright tests, uploads screenshots on failure
+
+### Key Test Patterns
+
+**Testing Convex Actions**:
+```typescript
+import { createMockActionCtx } from "../../../tests/utils/factories";
+
+it("creates event when payload is valid", async () => {
+  const ctx = createMockActionCtx({
+    runQuery: jest.fn().mockResolvedValue(null),
+    runMutation: jest.fn().mockResolvedValue("event_123"),
+  });
+
+  await processWebhook(ctx, { payload: mockPayload });
+  expect(ctx.runMutation).toHaveBeenCalled();
+});
+```
+
+**Testing GitHub API calls**:
+```typescript
+import { createMockResponse, createMockErrorResponse } from "../../../tests/utils/factories";
+
+it("handles rate limit errors", async () => {
+  const resetTime = Math.floor(Date.now() / 1000) + 3600;
+  global.fetch = jest.fn(() =>
+    createMockErrorResponse(429, "Too Many Requests",
+      { message: "Rate limit exceeded" },
+      { "x-ratelimit-reset": String(resetTime) }
+    )
+  );
+
+  await expect(getRepository("token", "repo")).rejects.toThrow(RateLimitError);
+});
+```
+
+**Testing E2E flows**:
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('user can sign in and access dashboard', async ({ page }) => {
+  await page.goto('/');
+  await page.click('button:has-text("Sign in")');
+  await page.waitForURL('/dashboard', { timeout: 10000 });
+  await expect(page.locator('h1')).toContainText('Dashboard');
+});
+```
+
+### Best Practices
+
+1. **Test Independence** - Each test runs in isolation, no shared state
+2. **Clear Names** - Describe what and why: `"throws RateLimitError when API returns 429 with reset header"`
+3. **One Assertion Per Concept** - Test one thing, use multiple tests for multiple concepts
+4. **Test Error Cases** - Don't just test happy paths
+5. **Flaky Test Zero Tolerance** - Fix or delete flaky tests immediately
+6. **Keep Tests DRY** - Use factories and shared setup, avoid duplication
+
+### Debugging Tests
+
+```bash
+# Debug failing test
+pnpm test contentHash.test.ts --verbose
+
+# Run specific test by name
+pnpm test -t "produces deterministic hashes"
+
+# Debug E2E test
+pnpm test:e2e --headed --debug
+pnpm test:e2e --trace on  # Generate trace for viewer
+```
+
+For complete testing guide with examples, troubleshooting, and advanced patterns, see **[docs/TESTING.md](docs/TESTING.md)**
 
 ## Common Development Tasks
 

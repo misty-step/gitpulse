@@ -5,6 +5,7 @@ export interface MockActionCtx {
   runQuery: jest.Mock<any>;
   runMutation: jest.Mock<any>;
   runAction: jest.Mock<any>;
+  vectorSearch: jest.Mock<any>;
   scheduler: { runAfter: jest.Mock<any> };
   auth: { getUserIdentity: jest.Mock<any> };
 }
@@ -16,6 +17,7 @@ export function createMockActionCtx(
     runQuery: jest.fn() as any,
     runMutation: jest.fn() as any,
     runAction: jest.fn() as any,
+    vectorSearch: jest.fn() as any,
     scheduler: { runAfter: jest.fn() as any },
     auth: { getUserIdentity: jest.fn() as any },
   };

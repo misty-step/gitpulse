@@ -52,6 +52,26 @@ type BackfillReturn = {
  *
  * Use this when you need to run a backfill directly from the command line.
  */
+export async function adminStartBackfillHandler(
+  ctx: ActionCtx,
+  args: {
+    installationId: number;
+    clerkUserId: string;
+    repositories: string[];
+    since: number;
+    until?: number;
+  },
+): Promise<BackfillReturn> {
+  // Admin version - no auth check, uses provided clerkUserId
+  return runBackfillInternal(ctx, {
+    installationId: args.installationId,
+    userId: args.clerkUserId,
+    repositories: args.repositories,
+    since: args.since,
+    until: args.until,
+  });
+}
+
 export const adminStartBackfill = internalAction({
   args: {
     installationId: v.number(),
@@ -60,16 +80,7 @@ export const adminStartBackfill = internalAction({
     since: v.number(),
     until: v.optional(v.number()),
   },
-  handler: async (ctx, args): Promise<BackfillReturn> => {
-    // Admin version - no auth check, uses provided clerkUserId
-    return runBackfillInternal(ctx, {
-      installationId: args.installationId,
-      userId: args.clerkUserId,
-      repositories: args.repositories,
-      since: args.since,
-      until: args.until,
-    });
-  },
+  handler: adminStartBackfillHandler,
 });
 
 export const startBackfill = internalAction({

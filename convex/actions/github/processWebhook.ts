@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internalAction, ActionCtx } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
+import { Id } from "../../_generated/dataModel";
 import {
   canonicalizeEvent,
   type CanonicalizeInput,
@@ -105,133 +106,138 @@ interface InstallationRepositoriesWebhookEvent {
  * - Missing actor/repo → DLQ after upsert attempts
  * - Schema violations → DLQ
  */
-export const processWebhook = internalAction({
-  args: {
-    webhookEventId: v.id("webhookEvents"),
-  },
-  handler: async (ctx, args) => {
-    const startTime = Date.now();
+export async function processWebhookHandler(
+  ctx: ActionCtx,
+  args: { webhookEventId: Id<"webhookEvents"> },
+) {
+  const startTime = Date.now();
 
-    try {
-      const webhookEvent = await ctx.runQuery(internal.webhookEvents.getById, {
-        id: args.webhookEventId,
-      });
+  try {
+    const webhookEvent = await ctx.runQuery(internal.webhookEvents.getById, {
+      id: args.webhookEventId,
+    });
 
-      if (!webhookEvent) {
-        logger.error(
-          { webhookEventId: args.webhookEventId },
-          "Webhook event not found",
-        );
-        return;
-      }
+    if (!webhookEvent) {
+      logger.error(
+        { webhookEventId: args.webhookEventId },
+        "Webhook event not found",
+      );
+      return;
+    }
 
-      const { deliveryId, event, payload } = webhookEvent;
+    const { deliveryId, event, payload } = webhookEvent;
 
-      await ctx.runMutation(internal.webhookEvents.updateStatus, {
-        id: args.webhookEventId,
-        status: "processing",
-      });
+    await ctx.runMutation(internal.webhookEvents.updateStatus, {
+      id: args.webhookEventId,
+      status: "processing",
+    });
 
-      // Handle installation events separately (they create installation records, not events)
-      if (event === "installation" || event === "installation_repositories") {
-        const result = await handleInstallationEvent(
-          ctx,
-          event,
-          payload,
-          deliveryId,
-        );
-        await ctx.runMutation(internal.webhookEvents.updateStatus, {
-          id: args.webhookEventId,
-          status: "completed",
-        });
-        logger.info(
-          {
-            deliveryId,
-            event,
-            ...result,
-          },
-          "Installation event processed",
-        );
-        return;
-      }
-
-      const canonicalInputs = buildCanonicalInputs(event, payload);
-      if (canonicalInputs.length === 0) {
-        logger.warn({ event, deliveryId }, "Unsupported webhook event");
-        await ctx.runMutation(internal.webhookEvents.updateStatus, {
-          id: args.webhookEventId,
-          status: "completed",
-        });
-        return;
-      }
-
-      const repoPayload = (payload as any)?.repository ?? null;
-      const installationId = (payload as any)?.installation?.id;
-
-      let inserted = 0;
-      let duplicates = 0;
-
-      for (const input of canonicalInputs) {
-        const canonical = canonicalizeEvent(input);
-        if (!canonical) {
-          continue;
-        }
-
-        const result = await persistCanonicalEvent(ctx, canonical, {
-          installationId,
-          repoPayload,
-        });
-
-        if (result.status === "inserted") {
-          inserted++;
-        } else if (result.status === "duplicate") {
-          duplicates++;
-        }
-      }
-
+    // Handle installation events separately (they create installation records, not events)
+    if (event === "installation" || event === "installation_repositories") {
+      const result = await handleInstallationEvent(
+        ctx,
+        event,
+        payload,
+        deliveryId,
+      );
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
         status: "completed",
       });
-
       logger.info(
         {
           deliveryId,
           event,
-          inserted,
-          duplicates,
+          ...result,
         },
-        "Webhook processed",
+        "Installation event processed",
       );
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+      return;
+    }
 
-      logger.error(
-        {
-          err: error,
-          webhookEventId: args.webhookEventId,
-        },
-        "Webhook processing failed",
-      );
-
+    const canonicalInputs = buildCanonicalInputs(event, payload);
+    if (canonicalInputs.length === 0) {
+      logger.warn({ event, deliveryId }, "Unsupported webhook event");
       await ctx.runMutation(internal.webhookEvents.updateStatus, {
         id: args.webhookEventId,
-        status: "failed",
-        errorMessage,
-        retryCount: 0,
+        status: "completed",
       });
-    } finally {
-      const elapsed = Date.now() - startTime;
-      logger.info(
-        {
-          webhookEventId: args.webhookEventId,
-          elapsedMs: elapsed,
-        },
-        "Webhook processing finished",
-      );
+      return;
     }
+
+    const repoPayload = (payload as any)?.repository ?? null;
+    const installationId = (payload as any)?.installation?.id;
+
+    let inserted = 0;
+    let duplicates = 0;
+
+    for (const input of canonicalInputs) {
+      const canonical = canonicalizeEvent(input);
+      if (!canonical) {
+        continue;
+      }
+
+      const result = await persistCanonicalEvent(ctx, canonical, {
+        installationId,
+        repoPayload,
+      });
+
+      if (result.status === "inserted") {
+        inserted++;
+      } else if (result.status === "duplicate") {
+        duplicates++;
+      }
+    }
+
+    await ctx.runMutation(internal.webhookEvents.updateStatus, {
+      id: args.webhookEventId,
+      status: "completed",
+    });
+
+    logger.info(
+      {
+        deliveryId,
+        event,
+        inserted,
+        duplicates,
+      },
+      "Webhook processed",
+    );
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+
+    logger.error(
+      {
+        err: error,
+        webhookEventId: args.webhookEventId,
+      },
+      "Webhook processing failed",
+    );
+
+    await ctx.runMutation(internal.webhookEvents.updateStatus, {
+      id: args.webhookEventId,
+      status: "failed",
+      errorMessage,
+      retryCount: 0,
+    });
+  } finally {
+    const elapsed = Date.now() - startTime;
+    logger.info(
+      {
+        webhookEventId: args.webhookEventId,
+        elapsedMs: elapsed,
+      },
+      "Webhook processing finished",
+    );
+  }
+}
+
+export const processWebhook = internalAction({
+  args: {
+    webhookEventId: v.id("webhookEvents"),
   },
+  handler: processWebhookHandler,
 });
 
 function buildCanonicalInputs(
