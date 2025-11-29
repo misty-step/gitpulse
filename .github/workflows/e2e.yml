@@ -9,6 +9,8 @@ jobs:
   e2e-tests:
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    # Skip E2E for forked PRs (secrets not available)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == false
 
     steps:
       - name: Checkout code
