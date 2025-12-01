@@ -40,21 +40,22 @@ Create `convex/actions/sync/processSyncJob.ts` — a single worker action for al
 - [x] Finalize status on completion (`idle`) or failure (`error`)
 - [x] Success criteria: idempotent retries safe; only one job active per installation (14 tests passing)
 
-### Phase 4: Wire All Callers
+### Phase 4: Wire All Callers ✓
 
 Migrate all sync triggers to use `SyncService.request()`.
 
-- [ ] Cron scheduler → `SyncService.request({ trigger: 'cron' })`
-- [ ] Webhook auto-backfill → `SyncService.request({ trigger: 'webhook' })`
-- [ ] Manual "Sync Now" UI → `SyncService.request({ trigger: 'manual' })`
-- [ ] Maintenance recovery → `SyncService.request({ trigger: 'maintenance' })`
-- [ ] Delete `adminStartBackfill` and any direct job-creation paths
+- [x] Cron scheduler → `SyncService.request({ trigger: 'cron' })`
+- [x] Webhook auto-backfill → `SyncService.request({ trigger: 'webhook' })`
+- [x] Manual "Sync Now" UI → `SyncService.request({ trigger: 'manual' })`
+- [x] Maintenance recovery → `SyncService.request({ trigger: 'maintenance' })`
+- [x] Delete `adminStartBackfill` and any direct job-creation paths
+- [x] Success criteria: All callers route through SyncService; tests pass (532 tests passing)
 
-### Phase 5: Slim Status View-Model
+### Phase 5: Slim Status View-Model ✓
 
 Replace complex status queries with a minimal contract.
 
-- [ ] Create `convex/sync/getStatus.ts` returning:
+- [x] Create `convex/sync/getStatus.ts` returning:
   ```typescript
   {
     state: 'idle' | 'syncing' | 'blocked' | 'error',
@@ -66,8 +67,8 @@ Replace complex status queries with a minimal contract.
     lastSyncError?: string,
   }
   ```
+- [x] Normalize all user-facing error messages (hide raw Convex errors)
 - [ ] UI components depend only on this view-model — no direct access to `installations` or `ingestionJobs` tables
-- [ ] Normalize all user-facing error messages (hide raw Convex errors)
 
 ### Phase 6: UI Refactor
 
