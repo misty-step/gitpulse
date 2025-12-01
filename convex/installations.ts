@@ -145,6 +145,50 @@ export const updateSyncState = internalMutation({
 });
 
 /**
+ * Update sync orchestration status (Phase 2 - Sync Service)
+ */
+export const updateSyncStatus = internalMutation({
+  args: {
+    installationId: v.number(),
+    syncStatus: v.optional(
+      v.union(
+        v.literal("idle"),
+        v.literal("syncing"),
+        v.literal("rate_limited"),
+        v.literal("error")
+      )
+    ),
+    lastManualSyncAt: v.optional(v.number()),
+    nextSyncAt: v.optional(v.number()),
+    lastSyncError: v.optional(v.string()),
+    lastSyncDuration: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const installation = await ctx.db
+      .query("installations")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId),
+      )
+      .unique();
+
+    if (!installation) {
+      return;
+    }
+
+    const update: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    };
+
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "installationId" || value === undefined) continue;
+      update[key] = value;
+    }
+
+    await ctx.db.patch(installation._id, update);
+  },
+});
+
+/**
  * List all installations (internal use for reconciliation)
  */
 export const listAll = internalQuery({

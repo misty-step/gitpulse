@@ -373,12 +373,27 @@ export default defineSchema({
     rateLimitRemaining: v.optional(v.number()),
     rateLimitReset: v.optional(v.number()),
     status: v.optional(v.string()), // active, suspended, removed
+    // Sync orchestration fields (Phase 2)
+    syncStatus: v.optional(
+      v.union(
+        v.literal("idle"),
+        v.literal("syncing"),
+        v.literal("rate_limited"),
+        v.literal("error")
+      )
+    ),
+    lastManualSyncAt: v.optional(v.number()),
+    nextSyncAt: v.optional(v.number()),
+    lastSyncError: v.optional(v.string()),
+    lastSyncDuration: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_installationId", ["installationId"])
     // DEPRECATED: This field is deprecated in Phase 4. Use `userInstallations` table for user-installation mapping.
-    .index("by_clerkUserId", ["clerkUserId"]),
+    .index("by_clerkUserId", ["clerkUserId"])
+    .index("by_syncStatus", ["syncStatus"])
+    .index("by_lastSyncedAt", ["lastSyncedAt"]),
 
   /**
    * userInstallations table - Stores N:M mapping between Clerk users and GitHub App installations.
