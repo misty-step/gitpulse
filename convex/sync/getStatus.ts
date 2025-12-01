@@ -40,8 +40,16 @@ export interface SyncStatus {
 
   /** Progress of the active job, if any */
   activeJobProgress?: {
+    /** Events ingested so far */
     current: number;
+    /** Progress percentage (0-100) */
     total: number;
+    /** When the current sync started (epoch ms) */
+    startedAt?: number;
+    /** Current repo being synced */
+    currentRepo?: string;
+    /** Number of pending jobs for this installation */
+    pendingCount?: number;
   };
 
   /** Timestamp of last successful sync (epoch ms) */
@@ -189,12 +197,21 @@ export const getStatus = query({
     // 7. Build progress info
     let activeJobProgress: SyncStatus["activeJobProgress"];
     if (activeJob) {
-      const reposTotal = 1 + (activeJob.reposRemaining?.length ?? 0);
-      const reposDone =
-        reposTotal - (activeJob.reposRemaining?.length ?? 0) - 1;
+      // Count pending jobs for this installation
+      const pendingJobs = await ctx.db
+        .query("ingestionJobs")
+        .withIndex("by_installationId", (q) =>
+          q.eq("installationId", installationId)
+        )
+        .filter((q) => q.eq(q.field("status"), "pending"))
+        .collect();
+
       activeJobProgress = {
         current: activeJob.eventsIngested ?? 0,
-        total: reposDone * 100 + (activeJob.progress ?? 0), // Approximate based on repos
+        total: activeJob.progress ?? 0,
+        startedAt: activeJob.startedAt ?? activeJob.createdAt,
+        currentRepo: activeJob.repoFullName,
+        pendingCount: pendingJobs.length,
       };
     }
 
@@ -212,13 +229,25 @@ export const getStatus = query({
 });
 
 /**
+ * UserSyncStatus — Extended SyncStatus with installation identity.
+ *
+ * Used by getStatusForUser for multi-installation dashboards.
+ */
+export interface UserSyncStatus extends SyncStatus {
+  /** Installation ID */
+  installationId: number;
+  /** GitHub account name (org or user) */
+  accountLogin?: string;
+}
+
+/**
  * Get sync status for all user's installations.
  *
  * Convenience query for dashboards that show multiple installations.
  */
 export const getStatusForUser = query({
   args: {},
-  handler: async (ctx): Promise<Array<SyncStatus & { installationId: number }>> => {
+  handler: async (ctx): Promise<UserSyncStatus[]> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return [];
@@ -229,10 +258,10 @@ export const getStatusForUser = query({
       .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", identity.subject))
       .collect();
 
-    const results: Array<SyncStatus & { installationId: number }> = [];
+    const results: UserSyncStatus[] = [];
 
     for (const installation of installations) {
-      // Check for active job
+      // Check for active job (running or blocked - not pending for primary display)
       const activeJob = await ctx.db
         .query("ingestionJobs")
         .withIndex("by_installationId", (q) =>
@@ -241,16 +270,26 @@ export const getStatusForUser = query({
         .filter((q) =>
           q.or(
             q.eq(q.field("status"), "running"),
-            q.eq(q.field("status"), "pending"),
             q.eq(q.field("status"), "blocked")
           )
         )
         .first();
 
+      // Count pending jobs
+      const pendingJobs = await ctx.db
+        .query("ingestionJobs")
+        .withIndex("by_installationId", (q) =>
+          q.eq("installationId", installation.installationId)
+        )
+        .filter((q) => q.eq(q.field("status"), "pending"))
+        .collect();
+
       // Determine state
       let state: SyncStatus["state"] = "idle";
       if (activeJob) {
         state = activeJob.status === "blocked" ? "blocked" : "syncing";
+      } else if (pendingJobs.length > 0) {
+        state = "syncing"; // Pending jobs mean sync is in progress
       } else if (installation.syncStatus === "error") {
         state = "error";
       }
@@ -272,15 +311,20 @@ export const getStatusForUser = query({
 
       // Build progress
       let activeJobProgress: SyncStatus["activeJobProgress"];
-      if (activeJob) {
+      if (activeJob || pendingJobs.length > 0) {
+        const job = activeJob ?? pendingJobs[0];
         activeJobProgress = {
-          current: activeJob.eventsIngested ?? 0,
-          total: activeJob.progress ?? 0,
+          current: job?.eventsIngested ?? 0,
+          total: job?.progress ?? 0,
+          startedAt: job?.startedAt ?? job?.createdAt,
+          currentRepo: job?.repoFullName,
+          pendingCount: pendingJobs.length,
         };
       }
 
       results.push({
         installationId: installation.installationId,
+        accountLogin: installation.accountLogin,
         state,
         canSyncNow: decision.action === "start",
         cooldownMs:

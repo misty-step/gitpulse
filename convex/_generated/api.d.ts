@@ -68,6 +68,7 @@ import type * as reportJobHistory from "../reportJobHistory.js";
 import type * as reportRegenerations from "../reportRegenerations.js";
 import type * as reports from "../reports.js";
 import type * as repos from "../repos.js";
+import type * as sync_getStatus from "../sync/getStatus.js";
 import type * as users from "../users.js";
 import type * as webhookEvents from "../webhookEvents.js";
 
@@ -138,6 +139,7 @@ declare const fullApi: ApiFromModules<{
   reportRegenerations: typeof reportRegenerations;
   reports: typeof reports;
   repos: typeof repos;
+  "sync/getStatus": typeof sync_getStatus;
   users: typeof users;
   webhookEvents: typeof webhookEvents;
 }>;

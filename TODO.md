@@ -68,16 +68,16 @@ Replace complex status queries with a minimal contract.
   }
   ```
 - [x] Normalize all user-facing error messages (hide raw Convex errors)
-- [ ] UI components depend only on this view-model — no direct access to `installations` or `ingestionJobs` tables
+- [x] UI components depend only on this view-model — no direct access to `ingestionJobs` table (installations still used for listing)
 
-### Phase 6: UI Refactor
+### Phase 6: UI Refactor ✓
 
 Update frontend to the new contract.
 
-- [ ] `IntegrationStatusBanner`: call `SyncService.request`, read `sync/getStatus`
-- [ ] `IntegrationHealthCard`: same pattern
-- [ ] Remove all legacy props, direct installation lookups, and policy interpretation from components
-- [ ] Success criteria: UI is a thin view layer over the status query
+- [x] `IntegrationStatusBanner`: read `sync/getStatusForUser` for active sync state
+- [x] `IntegrationHealthCard`: use `sync/getStatusForUser` for sync errors and last sync time
+- [x] Remove direct `ingestionJobs.listActive` access from UI components
+- [x] Success criteria: UI is a thin view layer over the status query
 
 ### Phase 7: Testing
 

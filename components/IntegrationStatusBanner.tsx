@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Doc } from "@/convex/_generated/dataModel";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import {
   formatTimestamp,
@@ -12,32 +11,32 @@ import {
   needsIntegrationAttention,
 } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
+import type { UserSyncStatus } from "@/convex/sync/getStatus";
 
 /**
- * IntegrationStatusBanner - centralizes integration health + ingestion progress.
- * Renders at most one warning CTA per page plus any active ingestion jobs.
+ * IntegrationStatusBanner - centralizes integration health + sync progress.
+ * Renders at most one warning CTA per page plus any active sync operations.
  *
- * "Luminous Precision" Redesign:
- * - Single Card Summary
- * - "Active" vs "Queued" distinction
+ * Uses sync/getStatusForUser view-model for sync state (Phase 6 refactor).
  */
 export function IntegrationStatusBanner() {
-  const activeJobs = useQuery(api.ingestionJobs.listActive);
+  const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
   const { status: integrationStatus, isLoading: isIntegrationLoading } =
     useIntegrationStatus();
 
-  // Debugging active jobs state
-  if (activeJobs) {
-    console.log("[IntegrationStatusBanner] Active Jobs:", activeJobs);
-  }
-
-  if (activeJobs === undefined || isIntegrationLoading) {
+  if (syncStatuses === undefined || isIntegrationLoading) {
     return null;
   }
 
-  const hasJobs = activeJobs.length > 0;
+  // Filter to only active syncs (syncing or blocked)
+  const activeStatuses = syncStatuses.filter(
+    (s) => s.state === "syncing" || s.state === "blocked"
+  );
+
+  const hasActiveSyncs = activeStatuses.length > 0;
   const showWarning = needsIntegrationAttention(integrationStatus);
-  if (!showWarning && !hasJobs) {
+
+  if (!showWarning && !hasActiveSyncs) {
     return null;
   }
 
@@ -46,20 +45,26 @@ export function IntegrationStatusBanner() {
       {showWarning && integrationStatus ? (
         <IntegrationWarningCard status={integrationStatus} />
       ) : null}
-      {hasJobs ? <ActiveIngestionCard jobs={activeJobs} /> : null}
+      {hasActiveSyncs ? <ActiveSyncCard statuses={activeStatuses} /> : null}
     </div>
   );
 }
 
-function ActiveIngestionCard({ jobs }: { jobs: Doc<"ingestionJobs">[] }) {
-  // Identify the "Active" job (running or blocked)
-  const activeJob =
-    jobs.find((j) => j.status === "running" || j.status === "blocked") ||
-    jobs[0];
-  const pendingCount = jobs.filter((j) => j.status === "pending").length;
+function ActiveSyncCard({ statuses }: { statuses: UserSyncStatus[] }) {
+  // Show the first active sync (running/blocked takes precedence)
+  const activeStatus =
+    statuses.find((s) => s.state === "blocked") ??
+    statuses.find((s) => s.state === "syncing") ??
+    statuses[0];
 
-  const isBlocked = activeJob.status === "blocked";
-  const progress = activeJob.progress || 0;
+  if (!activeStatus) return null;
+
+  const isBlocked = activeStatus.state === "blocked";
+  const progress = activeStatus.activeJobProgress?.total ?? 0;
+  const displayName =
+    activeStatus.activeJobProgress?.currentRepo ??
+    activeStatus.accountLogin ??
+    `Installation ${activeStatus.installationId}`;
 
   // Tickers
   const [elapsedText, setElapsedText] = useState("0s");
@@ -70,16 +75,16 @@ function ActiveIngestionCard({ jobs }: { jobs: Doc<"ingestionJobs">[] }) {
       const now = Date.now();
 
       // Elapsed (Duration)
-      const start = activeJob.startedAt || activeJob.createdAt;
+      const start = activeStatus.activeJobProgress?.startedAt ?? now;
       const seconds = Math.floor((now - start) / 1000);
       if (seconds < 60) setElapsedText(`${seconds}s`);
       else setElapsedText(`${Math.floor(seconds / 60)}m ${seconds % 60}s`);
 
       // Countdown (if blocked)
-      if (isBlocked && activeJob.blockedUntil) {
+      if (isBlocked && activeStatus.blockedUntil) {
         const remaining = Math.max(
           0,
-          Math.floor((activeJob.blockedUntil - now) / 1000),
+          Math.floor((activeStatus.blockedUntil - now) / 1000)
         );
         if (remaining > 60) {
           setCountdownText(`${Math.floor(remaining / 60)}m ${remaining % 60}s`);
@@ -92,13 +97,16 @@ function ActiveIngestionCard({ jobs }: { jobs: Doc<"ingestionJobs">[] }) {
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, [
-    activeJob.startedAt,
-    activeJob.createdAt,
-    activeJob.blockedUntil,
+    activeStatus.activeJobProgress?.startedAt,
+    activeStatus.blockedUntil,
     isBlocked,
   ]);
 
-  const repoName = activeJob.repoFullName;
+  // Count total pending across all installations
+  const totalPending = statuses.reduce(
+    (sum, s) => sum + (s.activeJobProgress?.pendingCount ?? 0),
+    0
+  );
 
   return (
     <div className="bg-surface border border-border rounded-lg p-5 shadow-sm">
@@ -117,12 +125,12 @@ function ActiveIngestionCard({ jobs }: { jobs: Doc<"ingestionJobs">[] }) {
           </div>
 
           <h3 className="font-semibold text-sm tracking-tight text-foreground">
-            {isBlocked ? "Rate Limit Cooldown" : `Syncing ${repoName}`}
+            {isBlocked ? "Rate Limit Cooldown" : `Syncing ${displayName}`}
           </h3>
         </div>
 
         <div className="text-xs font-mono text-muted">
-          {activeJob.status.toUpperCase()}
+          {activeStatus.state.toUpperCase()}
         </div>
       </div>
 
@@ -143,18 +151,18 @@ function ActiveIngestionCard({ jobs }: { jobs: Doc<"ingestionJobs">[] }) {
       {/* Metadata Row */}
       <div className="flex items-center justify-between text-xs text-foreground-muted font-mono">
         <div className="flex gap-4">
-          <span>{activeJob.eventsIngested ?? 0} events</span>
+          <span>{activeStatus.activeJobProgress?.current ?? 0} events</span>
           <span className="text-muted">Duration: {elapsedText}</span>
         </div>
 
         <div className="flex items-center gap-4">
-          {isBlocked && activeJob.blockedUntil && (
+          {isBlocked && activeStatus.blockedUntil && (
             <span className="text-amber-600 font-semibold">
               Resuming in {countdownText}
             </span>
           )}
-          {pendingCount > 0 && (
-            <div className="text-muted">+ {pendingCount} queued</div>
+          {totalPending > 0 && (
+            <div className="text-muted">+ {totalPending} queued</div>
           )}
         </div>
       </div>

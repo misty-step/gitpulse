@@ -33,7 +33,10 @@ describe("SyncStatus type", () => {
       canSyncNow: false,
       activeJobProgress: {
         current: 150,
-        total: 500,
+        total: 50,
+        startedAt: Date.now() - 30000,
+        currentRepo: "owner/repo",
+        pendingCount: 2,
       },
       lastSyncedAt: Date.now() - 60000,
     };
@@ -41,7 +44,10 @@ describe("SyncStatus type", () => {
     expect(status.state).toBe("syncing");
     expect(status.canSyncNow).toBe(false);
     expect(status.activeJobProgress?.current).toBe(150);
-    expect(status.activeJobProgress?.total).toBe(500);
+    expect(status.activeJobProgress?.total).toBe(50);
+    expect(status.activeJobProgress?.startedAt).toBeDefined();
+    expect(status.activeJobProgress?.currentRepo).toBe("owner/repo");
+    expect(status.activeJobProgress?.pendingCount).toBe(2);
   });
 
   it("has correct shape for blocked state", () => {
