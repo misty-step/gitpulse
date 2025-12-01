@@ -49,8 +49,9 @@ jest.mock("../../../lib/github", () => ({
   getRepository: jest.fn(),
   RateLimitError: class RateLimitError extends Error {
     reset: number;
-    constructor(message: string, reset: number) {
-      super(message);
+    constructor(reset: number, message?: string) {
+      super(message || "GitHub API rate limit exceeded");
+      this.name = "RateLimitError";
       this.reset = reset;
     }
   },
@@ -78,6 +79,11 @@ jest.mock("../../../lib/logger.js", () => ({
     error: jest.fn(),
   },
 }));
+
+ 
+type AnyFunction = (...args: any[]) => any;
+// Helper to cast mocked functions to avoid type issues
+const asMock = <T extends AnyFunction>(fn: T) => fn as jest.MockedFunction<T>;
 
 // Import after mocks
 import {
@@ -195,9 +201,9 @@ describe("processSyncJob", () => {
       const resetTime = NOW + 60 * 60 * 1000;
 
       // Verify RateLimitError structure
-      const error = new RateLimitError("Rate limited", resetTime);
+      const error = new RateLimitError(resetTime);
       expect(error.reset).toBe(resetTime);
-      expect(error.message).toBe("Rate limited");
+      expect(error.message).toBe("GitHub API rate limit exceeded");
     });
 
     it("uses shouldPause to check rate limit", () => {
@@ -228,49 +234,61 @@ describe("processSyncJob", () => {
   describe("event processing", () => {
     it("canonicalizes and persists timeline events", async () => {
       // Setup mocks
-      (mintInstallationToken as jest.Mock).mockResolvedValue({ token: "test-token" });
-      (getRepository as jest.Mock).mockResolvedValue({
+      asMock(mintInstallationToken).mockResolvedValue({ token: "test-token", expiresAt: NOW + 3600000 });
+      asMock(getRepository).mockResolvedValue({
         id: 123,
         node_id: "R_123",
         name: "repo1",
         full_name: "owner/repo1",
         owner: { login: "owner" },
-      });
-      (fetchRepoTimeline as jest.Mock).mockResolvedValue({
-        nodes: [{ __typename: "PullRequest", number: 1 }],
+         
+      } as any);
+      asMock(fetchRepoTimeline).mockResolvedValue({
+        nodes: [{ __typename: "PullRequest", number: 1, id: "PR_1" }],
         hasNextPage: false,
         endCursor: null,
         totalCount: 1,
         rateLimit: { remaining: 4900, reset: NOW + 3600000 },
         notModified: false,
-      });
-      (canonicalizeEvent as jest.Mock).mockReturnValue({
+         
+      } as any);
+      asMock(canonicalizeEvent).mockReturnValue({
         type: "pr_opened",
         canonicalText: "Opened PR #1",
         sourceUrl: "https://github.com/owner/repo1/pull/1",
-      });
-      (persistCanonicalEvent as jest.Mock).mockResolvedValue({ status: "inserted" });
-      (shouldPause as jest.Mock).mockReturnValue(false);
+         
+      } as any);
+      asMock(persistCanonicalEvent).mockResolvedValue({ status: "inserted" });
+      asMock(shouldPause).mockReturnValue(false);
 
       // Verify mocks are set up correctly
-      const token = await (mintInstallationToken as jest.Mock)();
-      expect(token).toEqual({ token: "test-token" });
+      const token = await asMock(mintInstallationToken)(12345);
+      expect(token).toEqual({ token: "test-token", expiresAt: NOW + 3600000 });
 
-      const timeline = await (fetchRepoTimeline as jest.Mock)();
+      const timeline = await asMock(fetchRepoTimeline)({
+        token: "test",
+        repoFullName: "test",
+        sinceISO: "test",
+      });
       expect(timeline.nodes).toHaveLength(1);
       expect(timeline.hasNextPage).toBe(false);
 
-      const canonical = (canonicalizeEvent as jest.Mock)();
-      expect(canonical.type).toBe("pr_opened");
+       
+      const canonical = asMock(canonicalizeEvent)({ kind: "timeline", item: {} as any, repoFullName: "test" });
+      expect(canonical?.type).toBe("pr_opened");
 
-      const result = await (persistCanonicalEvent as jest.Mock)();
+      const result = await asMock(persistCanonicalEvent)(
+         
+        {} as any, {} as any, {} as any
+      );
       expect(result.status).toBe("inserted");
     });
 
     it("skips null canonicalized events", () => {
-      (canonicalizeEvent as jest.Mock).mockReturnValue(null);
+      asMock(canonicalizeEvent).mockReturnValue(null);
 
-      const result = (canonicalizeEvent as jest.Mock)({ kind: "unknown" });
+       
+      const result = asMock(canonicalizeEvent)({ kind: "timeline", item: {} as any, repoFullName: "test" });
       expect(result).toBeNull();
     });
   });

@@ -25,11 +25,12 @@ jest.mock("../../_generated/api", () => ({
     },
     ingestionJobs: {
       getActiveForInstallation: "internal.ingestionJobs.getActiveForInstallation",
+      create: "internal.ingestionJobs.create",
     },
     actions: {
-      github: {
-        startBackfill: {
-          adminStartBackfill: "internal.actions.github.startBackfill.adminStartBackfill",
+      sync: {
+        processSyncJob: {
+          processSyncJob: "internal.actions.sync.processSyncJob.processSyncJob",
         },
       },
     },
@@ -259,7 +260,7 @@ describe("syncService.request", () => {
   });
 
   describe("when sync starts successfully", () => {
-    it("updates status to syncing and enqueues backfill", async () => {
+    it("updates status to syncing and creates job", async () => {
       const installation = buildInstallation();
 
       const runQuery = createAsyncMock();
@@ -267,10 +268,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       const result = await request(ctx as any, {
         installationId: 12345,
@@ -289,14 +290,21 @@ describe("syncService.request", () => {
         })
       );
 
-      // Should call adminStartBackfill
-      expect(runAction).toHaveBeenCalledWith(
-        "internal.actions.github.startBackfill.adminStartBackfill",
+      // Should create ingestion job
+      expect(runMutation).toHaveBeenCalledWith(
+        "internal.ingestionJobs.create",
         expect.objectContaining({
           installationId: 12345,
-          clerkUserId: "user_123",
-          repositories: ["owner/repo1", "owner/repo2"],
+          userId: "user_123",
+          repoFullName: "owner/repo1",
         })
+      );
+
+      // Should schedule processSyncJob
+      expect(scheduler.runAfter).toHaveBeenCalledWith(
+        0,
+        "internal.actions.sync.processSyncJob.processSyncJob",
+        expect.objectContaining({ jobId: "job_123" })
       );
     });
 
@@ -308,10 +316,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123");
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       await request(ctx as any, {
         installationId: 12345,
@@ -335,10 +343,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123");
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       await request(ctx as any, {
         installationId: 12345,
@@ -362,10 +370,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123");
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       await request(ctx as any, {
         installationId: 12345,
@@ -374,9 +382,9 @@ describe("syncService.request", () => {
         until: customUntil,
       });
 
-      // Should pass custom timestamps to backfill
-      expect(runAction).toHaveBeenCalledWith(
-        "internal.actions.github.startBackfill.adminStartBackfill",
+      // Should pass custom timestamps to job creation
+      expect(runMutation).toHaveBeenCalledWith(
+        "internal.ingestionJobs.create",
         expect.objectContaining({
           since: customSince,
           until: customUntil,
@@ -385,7 +393,7 @@ describe("syncService.request", () => {
     });
   });
 
-  describe("when backfill fails to start", () => {
+  describe("when job creation fails", () => {
     it("updates status to error and returns failure", async () => {
       const installation = buildInstallation();
       const error = new Error("GitHub API unavailable");
@@ -395,10 +403,11 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockRejectedValue(error);
+      // First call is updateSyncStatus (succeeds), second is create (fails)
+      runMutation.mockResolvedValueOnce(undefined).mockRejectedValueOnce(error);
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       const result = await request(ctx as any, {
         installationId: 12345,
@@ -408,8 +417,8 @@ describe("syncService.request", () => {
       expect(result.started).toBe(false);
       expect(result.message).toBe("Sync failed to start. Please try again.");
 
-      // First call sets syncing, second call sets error
-      expect(runMutation).toHaveBeenCalledTimes(2);
+      // First call sets syncing, second call tries to create job (fails), third call sets error
+      expect(runMutation).toHaveBeenCalledTimes(3);
       expect(runMutation).toHaveBeenLastCalledWith(
         "internal.installations.updateSyncStatus",
         expect.objectContaining({
@@ -433,10 +442,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null); // No actual active job in DB
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       const result = await request(ctx as any, {
         installationId: 12345,
@@ -480,10 +489,10 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      const runAction = createAsyncMock();
-      runAction.mockResolvedValue({ ok: true, jobs: [] });
+      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      const scheduler = { runAfter: createAsyncMock() };
 
-      const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
+      const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
 
       const result = await request(ctx as any, {
         installationId: 12345,

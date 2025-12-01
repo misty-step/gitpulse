@@ -226,19 +226,24 @@ async function startSync(
     ...(trigger === "manual" ? { lastManualSyncAt: now } : {}),
   });
 
-  // Enqueue the backfill job
-  // Note: We use the existing adminStartBackfill for now.
-  // Phase 3 will replace this with a dedicated processSyncJob worker.
+  // Create the ingestion job
   try {
-    await ctx.runAction(
-      internal.actions.github.startBackfill.adminStartBackfill,
-      {
-        installationId,
-        clerkUserId,
-        repositories,
-        since,
-        until,
-      }
+    const jobId = await ctx.runMutation(internal.ingestionJobs.create, {
+      userId: clerkUserId,
+      repoFullName: repositories[0],
+      installationId,
+      since,
+      until,
+      status: "pending",
+      progress: 0,
+      reposRemaining: repositories.slice(1),
+    });
+
+    // Schedule the worker to process the job
+    await ctx.scheduler.runAfter(
+      0,
+      internal.actions.sync.processSyncJob.processSyncJob,
+      { jobId }
     );
 
     emitSyncMetric(installationId, trigger, "started");
@@ -248,6 +253,7 @@ async function startSync(
         installationId,
         trigger,
         repoCount: repositories.length,
+        jobId,
         since: new Date(since).toISOString(),
       },
       "Sync started"
@@ -256,6 +262,7 @@ async function startSync(
     return {
       started: true,
       message: "Sync started",
+      details: { jobId: jobId as string },
     };
   } catch (error) {
     // Backfill failed to start — update status to error

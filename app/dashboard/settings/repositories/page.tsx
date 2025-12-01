@@ -28,17 +28,19 @@ export default function RepositoriesPage() {
 
   const handleSync = async (installationId: number) => {
     try {
-      // eslint-disable-next-line react-hooks/purity
-      const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
-      await startBackfill({
+      const result = await startBackfill({
         installationId,
-        repositories: [], // Empty array means "sync all from installation"
-        since: ninetyDaysAgo,
       });
-      showSuccess(
-        "Sync started",
-        "Repository backfill is running in the background.",
-      );
+      
+      if (result.started) {
+        showSuccess(
+          "Sync started",
+          result.message,
+        );
+      } else {
+        // Show the reason why sync didn't start (cooldown, rate limit, etc.)
+        handleConvexError(new Error(result.message));
+      }
     } catch (err) {
       handleConvexError(err as Error);
     }

@@ -150,30 +150,26 @@ export const runCatchUpSync = internalAction({
     );
 
     for (const install of staleInstallations) {
-      // Sync from last known sync time (minus 1 hour buffer) or default to 30 days if never synced
-      const buffer = 60 * 60 * 1000;
-      const since = install.lastSyncedAt
-        ? install.lastSyncedAt - buffer
-        : now - 30 * 24 * 60 * 60 * 1000;
-
       try {
-        await ctx.runAction(
-          internal.actions.github.startBackfill.adminStartBackfill,
+        const result = await ctx.runAction(
+          internal.actions.sync.requestSync.requestSync,
           {
             installationId: install.installationId,
-            clerkUserId: install.clerkUserId!,
-            repositories: install.repositories!,
-            since,
+            trigger: "maintenance" as const,
           },
         );
         logger.info(
-          { installationId: install.installationId },
-          "Triggered catch-up sync for installation",
+          {
+            installationId: install.installationId,
+            started: result.started,
+            message: result.message,
+          },
+          "Catch-up sync request completed",
         );
       } catch (error) {
         logger.error(
           { err: error, installationId: install.installationId },
-          "Failed to trigger catch-up for installation",
+          "Failed to request catch-up sync for installation",
         );
       }
     }
