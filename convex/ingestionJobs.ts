@@ -331,6 +331,50 @@ export const getById = internalQuery({
 });
 
 /**
+ * Get active job for an installation (internal use)
+ *
+ * Returns the first job that is pending, running, or blocked for this installation.
+ * Used by SyncService to enforce one-job-per-installation invariant.
+ */
+export const getActiveForInstallation = internalQuery({
+  args: { installationId: v.number() },
+  handler: async (ctx, args) => {
+    // Check for running jobs first (most common active state)
+    const runningJob = await ctx.db
+      .query("ingestionJobs")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "running"))
+      .first();
+
+    if (runningJob) return runningJob;
+
+    // Check for pending jobs
+    const pendingJob = await ctx.db
+      .query("ingestionJobs")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "pending"))
+      .first();
+
+    if (pendingJob) return pendingJob;
+
+    // Check for blocked jobs (will resume soon)
+    const blockedJob = await ctx.db
+      .query("ingestionJobs")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId)
+      )
+      .filter((q) => q.eq(q.field("status"), "blocked"))
+      .first();
+
+    return blockedJob ?? null;
+  },
+});
+
+/**
  * Find blocked jobs past their blockedUntil time (safety net query)
  *
  * Returns jobs that should have resumed but are still blocked.
