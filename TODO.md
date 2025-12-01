@@ -30,15 +30,15 @@ Create or extend `convex/lib/syncService.ts` — the single entrypoint for all s
 - [x] Enforce "one active job per installation" invariant in enqueue path
 - [x] Success criteria: no caller interprets timestamps, budgets, or status — they just call `request()` and get a decision (15 tests passing)
 
-### Phase 3: Sync Worker
+### Phase 3: Sync Worker ✓
 
 Create `convex/actions/sync/processSyncJob.ts` — a single worker action for all sync execution.
 
-- [ ] Consume job with installation snapshot + repo list
-- [ ] Stream GitHub timeline events, update progress incrementally
-- [ ] Handle rate-limit: set `blockedUntil`, re-enqueue self, return
-- [ ] Finalize status on completion (`idle`) or failure (`error`)
-- [ ] Success criteria: idempotent retries safe; only one job active per installation
+- [x] Consume job with installation snapshot + repo list
+- [x] Stream GitHub timeline events, update progress incrementally
+- [x] Handle rate-limit: set `blockedUntil`, re-enqueue self, return
+- [x] Finalize status on completion (`idle`) or failure (`error`)
+- [x] Success criteria: idempotent retries safe; only one job active per installation (14 tests passing)
 
 ### Phase 4: Wire All Callers
 
