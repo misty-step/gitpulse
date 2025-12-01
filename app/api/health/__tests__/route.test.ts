@@ -52,9 +52,9 @@ describe("/api/health", () => {
   });
 
   it("returns 200 in deep mode when Convex is healthy", async () => {
+    // Convex /version endpoint returns a plain string, not JSON
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: "ok" }),
     });
 
     const response = await GET(makeRequest("/api/health?deep=1"));
@@ -111,32 +111,18 @@ describe("/api/health", () => {
     expect(data.timestamp).toBeGreaterThan(0);
   });
 
-  it("returns 503 when Convex reports degraded status", async () => {
+  // Note: Convex /version endpoint returns 200 or error, no "degraded" status
+  // The degraded status only occurs when CONVEX_URL is missing (tested separately)
+
+  it("calls Convex version endpoint with correct URL in deep mode", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: "degraded" }),
-    });
-
-    const response = await GET(makeRequest("/api/health?deep=1"));
-    const data = await response.json();
-
-    expect(response.status).toBe(503);
-    expect(data.convex).toBe("degraded");
-    expect(data.status).toBe("error");
-    expect(data.error).toContain("Convex health check failed");
-    expect(data.timestamp).toBeGreaterThan(0);
-  });
-
-  it("calls Convex health endpoint with correct URL in deep mode", async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ status: "ok" }),
     });
 
     await GET(makeRequest("/api/health?deep=1"));
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "https://test.convex.cloud/health",
+      "https://test.convex.cloud/version",
       expect.objectContaining({
         method: "GET",
       }),
@@ -148,13 +134,12 @@ describe("/api/health", () => {
 
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: "ok" }),
     });
 
     await GET(makeRequest("/api/health?deep=1"));
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "https://test.convex.cloud/health",
+      "https://test.convex.cloud/version",
       expect.anything(),
     );
   });
@@ -162,7 +147,6 @@ describe("/api/health", () => {
   it("includes no-cache headers in responses", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: "ok" }),
     });
 
     const response = await GET(makeRequest("/api/health?deep=1"));
@@ -189,7 +173,6 @@ describe("/api/health", () => {
   it("returns deep HEAD mirroring GET success", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: "ok" }),
     });
 
     const response = await HEAD(

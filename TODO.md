@@ -108,8 +108,8 @@ Consolidated metrics and logging.
 
 Housekeeping items to address when convenient.
 
-- [ ] **Service worker build**: Investigate `_async_to_generator is not defined` in `sw.js` (Workbox/bundling config issue)
-- [ ] **Health endpoint**: Fix `/api/health?deep=1` returning 503 in dev, or adjust dashboard interpretation for local environments
+- [x] **Service worker build**: ~~Investigate `_async_to_generator is not defined` in `sw.js`~~ — No service worker/Workbox in project; stale task removed
+- [x] **Health endpoint**: Fixed — Convex cloud uses `/version` endpoint (not `/health`); updated `checkConvexHealth()` accordingly
 
 ---
 
