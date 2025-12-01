@@ -51,6 +51,7 @@ const DEFAULT_BLOCKED_DELAY_MS = 5 * 60 * 1000;
 interface JobResult {
   status: "completed" | "blocked" | "failed";
   eventsIngested: number;
+  durationMs?: number;
   blockedUntil?: number;
   error?: string;
 }
@@ -77,6 +78,7 @@ export const processSyncJob = internalAction({
   },
   handler: async (ctx, args): Promise<JobResult> => {
     const { jobId } = args;
+    const startTime = Date.now();
 
     // 1. Load job state
     const job = await ctx.runQuery(internal.ingestionJobs.getById, { jobId });
@@ -150,12 +152,14 @@ export const processSyncJob = internalAction({
         }
 
         // All repos done — finalize
+        const durationMs = Date.now() - startTime;
         await finalizeSuccess(ctx, job.installationId, result.eventsIngested);
         emitMetric("sync.job.completed", {
           jobId,
           eventsIngested: result.eventsIngested,
+          durationMs,
         });
-        return result;
+        return { ...result, durationMs };
       }
 
       return result;
