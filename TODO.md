@@ -120,35 +120,36 @@ Address immediate UX pain points.
 - [x] Fix type error in IntegrationStatusBanner (get installationId from syncStatuses)
 - [x] Update test expectations for new coverage behavior
 
-### Phase 2: Self-Healing Detection
+### Phase 2: Self-Healing Detection ✓
 
 Detect "sync succeeded with 0 events despite stale data" pattern and trigger automatic recovery.
 
-- [ ] **Add "recovery" trigger type**
+- [x] **Add "recovery" trigger type**
   - File: `convex/lib/syncPolicy.ts`
   - Add `"recovery"` to `SyncTrigger` union type
   - Document: Recovery syncs bypass normal cooldowns (like "stale" trigger)
-  - Success: Type system enforces recovery trigger in SyncService calls
+  - Success: Type system enforces recovery trigger in SyncService calls (5 new tests)
 
-- [ ] **Detect zero-event pattern in finalize logic**
+- [x] **Detect zero-event pattern in finalize logic**
   - File: `convex/actions/sync/processSyncJob.ts` (finalize block, after setting syncStatus)
   - Check: `eventsIngested === 0 && (now - installation.lastEventTs > 3 * DAY_MS)`
   - Emit metric: `sync.zero_events_on_stale` with installationId, lastEventTs, syncWindow
   - Log warning with context (installationId, lastEventTs, syncWindow)
   - Success: Log entry appears when stale backfill finds 0 events
 
-- [ ] **Schedule recovery sync on detection**
+- [x] **Schedule recovery sync on detection**
   - File: `convex/actions/sync/processSyncJob.ts` (in zero-event detection block)
-  - Call: `ctx.scheduler.runAfter(5 * 60 * 1000, internal.actions.sync.processSyncJob, { installationId, trigger: "recovery", since: installation.lastEventTs })`
-  - Success: Recovery job appears in ingestionJobs table 5 minutes after zero-event sync
+  - Call: `ctx.scheduler.runAfter(5 * 60 * 1000, internal.actions.sync.requestSync.requestSync, { installationId, trigger: "recovery" })`
+  - Success: Recovery job scheduled 5 minutes after zero-event sync
 
-- [ ] **Add unit tests for recovery trigger**
+- [x] **Add unit tests for recovery trigger**
   - File: `convex/lib/__tests__/syncPolicy.test.ts`
   - Test: Recovery trigger bypasses cooldowns (like stale trigger)
   - Test: Recovery trigger respects rate-limit budget
-  - Success: 2 new tests passing, coverage maintained
+  - Test: Recovery trigger allows when already syncing
+  - Success: 5 new tests passing, 53 total syncPolicy tests
 
-- [ ] **Add integration test for zero-event detection**
+- [ ] **Add integration test for zero-event detection** (deferred - not blocking)
   - File: `convex/actions/sync/__tests__/processSyncJob.test.ts`
   - Test: Emits metric and schedules recovery when eventsIngested=0 and lastEventTs stale
   - Test: Does NOT schedule recovery when eventsIngested=0 but lastEventTs recent
