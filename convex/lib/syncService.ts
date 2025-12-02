@@ -237,6 +237,7 @@ async function startSync(
       status: "pending",
       progress: 0,
       reposRemaining: repositories.slice(1),
+      trigger,
     });
 
     // Schedule the worker to process the job

@@ -330,6 +330,17 @@ export default defineSchema({
     cursor: v.optional(v.string()), // pagination cursor (page token)
     reposRemaining: v.optional(v.array(v.string())), // queued repos still to sync
 
+    // Trigger metadata for recovery detection
+    trigger: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("webhook"),
+        v.literal("maintenance"),
+        v.literal("recovery")
+      )
+    ),
+
     // Job status
     status: v.string(), // "pending", "running", "completed", "failed"
     progress: v.optional(v.number()), // Percentage (0-100)

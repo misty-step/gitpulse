@@ -156,6 +156,15 @@ export const create = internalMutation({
     reposRemaining: v.optional(v.array(v.string())),
     rateLimitRemaining: v.optional(v.number()),
     rateLimitReset: v.optional(v.number()),
+    trigger: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("webhook"),
+        v.literal("maintenance"),
+        v.literal("recovery")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const jobId = await ctx.db.insert("ingestionJobs", {

@@ -29,6 +29,7 @@ import { persistCanonicalEvent } from "../../lib/canonicalFactService";
 import { getRepository, RateLimitError } from "../../lib/github";
 import { emitMetric } from "../../lib/metrics";
 import { logger } from "../../lib/logger.js";
+import type { SyncTrigger } from "../../lib/syncPolicy";
 
 // Forward declaration for self-scheduling
 // We use makeFunctionReference to avoid circular import issues
@@ -153,7 +154,7 @@ export const processSyncJob = internalAction({
 
         // All repos done — finalize
         const durationMs = Date.now() - startTime;
-        await finalizeSuccess(ctx, job.installationId, result.eventsIngested);
+        await finalizeSuccess(ctx, job.installationId, result.eventsIngested, installation, job.trigger);
         emitMetric("sync.job.completed", {
           jobId,
           eventsIngested: result.eventsIngested,
@@ -380,13 +381,25 @@ async function failJob(
   return { status: "failed", eventsIngested: 0, error: errorMessage };
 }
 
+/** Stale threshold: 3 days in milliseconds */
+const STALE_DETECTION_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Recovery sync delay: 5 minutes */
+const RECOVERY_SYNC_DELAY_MS = 5 * 60 * 1000;
+
 /**
  * Finalize successful sync by updating installation status.
+ * 
+ * Also detects "zero events on stale" pattern: if sync completed with 0 events
+ * but the installation's data is stale (>3 days old), this may indicate a
+ * webhook failure. In that case, we emit a metric and schedule a recovery sync.
  */
 async function finalizeSuccess(
   ctx: ActionCtx,
   installationId: number,
-  eventsIngested: number
+  eventsIngested: number,
+  installation: Doc<"installations">,
+  jobTrigger?: SyncTrigger
 ): Promise<void> {
   await ctx.runMutation(internal.installations.updateSyncStatus, {
     installationId,
@@ -395,13 +408,63 @@ async function finalizeSuccess(
   });
 
   // Also update lastSyncedAt via the existing mutation
+  const now = Date.now();
   await ctx.runMutation(internal.installations.updateSyncState, {
     installationId,
-    lastSyncedAt: Date.now(),
+    lastSyncedAt: now,
   });
 
   logger.info(
     { installationId, eventsIngested },
     "Sync completed successfully"
   );
+
+  // Zero-event detection: check for stale data pattern
+  if (eventsIngested === 0 && installation.clerkUserId) {
+    // Query for the user's latest event timestamp
+    const lastEventTs = await ctx.runQuery(
+      internal.events.getLatestEventTsForUser,
+      { clerkUserId: installation.clerkUserId }
+    );
+
+    const isStale = !lastEventTs || (now - lastEventTs > STALE_DETECTION_THRESHOLD_MS);
+
+    if (isStale) {
+      // Emit metric for observability
+      emitMetric("sync.zero_events_on_stale", {
+        installationId,
+        lastEventTs,
+        syncWindow: { now },
+        trigger: jobTrigger,
+      });
+
+      logger.warn(
+        {
+          installationId,
+          lastEventTs: lastEventTs ? new Date(lastEventTs).toISOString() : null,
+          daysSinceLastEvent: lastEventTs
+            ? Math.floor((now - lastEventTs) / (24 * 60 * 60 * 1000))
+            : null,
+        },
+        "Backfill completed with 0 events despite stale data - possible webhook failure"
+      );
+
+      // Schedule recovery sync (unless this was already a recovery attempt)
+      if (jobTrigger !== "recovery") {
+        await ctx.scheduler.runAfter(
+          RECOVERY_SYNC_DELAY_MS,
+          internal.actions.sync.requestSync.requestSync,
+          {
+            installationId,
+            trigger: "recovery",
+          }
+        );
+
+        logger.info(
+          { installationId, recoveryInMs: RECOVERY_SYNC_DELAY_MS },
+          "Scheduled recovery sync due to zero-event stale pattern"
+        );
+      }
+    }
+  }
 }

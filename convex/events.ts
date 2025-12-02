@@ -336,6 +336,35 @@ export const upsertCanonical = internalMutation({
 });
 
 /**
+ * Internal: Get the latest event timestamp for a user (by Clerk user ID)
+ *
+ * Used by sync recovery logic to detect stale data patterns.
+ */
+export const getLatestEventTsForUser = internalQuery({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    // First, look up the user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    // Then get the latest event for this user
+    const latestEvent = await ctx.db
+      .query("events")
+      .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id))
+      .order("desc")
+      .first();
+
+    return latestEvent?.ts ?? null;
+  },
+});
+
+/**
  * Internal: List events without embeddings
  */
 export const listWithoutEmbeddings = internalQuery({

@@ -23,7 +23,8 @@ export const requestSync = internalAction({
       v.literal("manual"),
       v.literal("cron"),
       v.literal("webhook"),
-      v.literal("maintenance")
+      v.literal("maintenance"),
+      v.literal("recovery")
     ),
     since: v.optional(v.number()),
     until: v.optional(v.number()),
