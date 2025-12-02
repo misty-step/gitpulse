@@ -51,26 +51,21 @@ export function IntegrationStatusBanner() {
 }
 
 function ActiveSyncCard({ statuses }: { statuses: UserSyncStatus[] }) {
+  // Hooks must be called unconditionally, before any early returns
+  const [elapsedText, setElapsedText] = useState("0s");
+  const [countdownText, setCountdownText] = useState("");
+
   // Show the first active sync (running/blocked takes precedence)
   const activeStatus =
     statuses.find((s) => s.state === "blocked") ??
     statuses.find((s) => s.state === "syncing") ??
     statuses[0];
 
-  if (!activeStatus) return null;
-
-  const isBlocked = activeStatus.state === "blocked";
-  const progress = activeStatus.activeJobProgress?.total ?? 0;
-  const displayName =
-    activeStatus.activeJobProgress?.currentRepo ??
-    activeStatus.accountLogin ??
-    `Installation ${activeStatus.installationId}`;
-
-  // Tickers
-  const [elapsedText, setElapsedText] = useState("0s");
-  const [countdownText, setCountdownText] = useState("");
+  const isBlocked = activeStatus?.state === "blocked";
 
   useEffect(() => {
+    if (!activeStatus) return; // Guard inside effect
+
     const updateTime = () => {
       const now = Date.now();
 
@@ -96,11 +91,15 @@ function ActiveSyncCard({ statuses }: { statuses: UserSyncStatus[] }) {
     updateTime();
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
-  }, [
-    activeStatus.activeJobProgress?.startedAt,
-    activeStatus.blockedUntil,
-    isBlocked,
-  ]);
+  }, [activeStatus, isBlocked]);
+
+  if (!activeStatus) return null;
+
+  const progress = activeStatus.activeJobProgress?.total ?? 0;
+  const displayName =
+    activeStatus.activeJobProgress?.currentRepo ??
+    activeStatus.accountLogin ??
+    `Installation ${activeStatus.installationId}`;
 
   // Count total pending across all installations
   const totalPending = statuses.reduce(
