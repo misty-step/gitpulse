@@ -104,6 +104,136 @@ Consolidated metrics and logging.
 
 ---
 
+## Self-Healing UX
+
+Users see "No events since X" banners but lack clear recovery paths. The system should auto-heal when data goes stale, show progress transparently, and provide manual fallback when automation fails.
+
+**Goal**: Zero user intervention required for transient sync failures; clear "Sync Now" action when auto-recovery exhausted.
+
+### Phase 1: Quick Wins ✓
+
+Address immediate UX pain points.
+
+- [x] Add dark mode classes to amber alert banners (IntegrationStatusBanner, IntegrationHealthCard)
+- [x] Block empty report generation (pre-check event count in `generateScheduledReport.ts`)
+- [x] Fix coverage contradiction (return 0% when events.length === 0, not 100%)
+- [x] Fix type error in IntegrationStatusBanner (get installationId from syncStatuses)
+- [x] Update test expectations for new coverage behavior
+
+### Phase 2: Self-Healing Detection
+
+Detect "sync succeeded with 0 events despite stale data" pattern and trigger automatic recovery.
+
+- [ ] **Add "recovery" trigger type**
+  - File: `convex/lib/syncPolicy.ts`
+  - Add `"recovery"` to `SyncTrigger` union type
+  - Document: Recovery syncs bypass normal cooldowns (like "stale" trigger)
+  - Success: Type system enforces recovery trigger in SyncService calls
+
+- [ ] **Detect zero-event pattern in finalize logic**
+  - File: `convex/actions/sync/processSyncJob.ts` (finalize block, after setting syncStatus)
+  - Check: `eventsIngested === 0 && (now - installation.lastEventTs > 3 * DAY_MS)`
+  - Emit metric: `sync.zero_events_on_stale` with installationId, lastEventTs, syncWindow
+  - Log warning with context (installationId, lastEventTs, syncWindow)
+  - Success: Log entry appears when stale backfill finds 0 events
+
+- [ ] **Schedule recovery sync on detection**
+  - File: `convex/actions/sync/processSyncJob.ts` (in zero-event detection block)
+  - Call: `ctx.scheduler.runAfter(5 * 60 * 1000, internal.actions.sync.processSyncJob, { installationId, trigger: "recovery", since: installation.lastEventTs })`
+  - Success: Recovery job appears in ingestionJobs table 5 minutes after zero-event sync
+
+- [ ] **Add unit tests for recovery trigger**
+  - File: `convex/lib/__tests__/syncPolicy.test.ts`
+  - Test: Recovery trigger bypasses cooldowns (like stale trigger)
+  - Test: Recovery trigger respects rate-limit budget
+  - Success: 2 new tests passing, coverage maintained
+
+- [ ] **Add integration test for zero-event detection**
+  - File: `convex/actions/sync/__tests__/processSyncJob.test.ts`
+  - Test: Emits metric and schedules recovery when eventsIngested=0 and lastEventTs stale
+  - Test: Does NOT schedule recovery when eventsIngested=0 but lastEventTs recent
+  - Success: 2 new tests passing
+
+### Phase 3: UI Recovery Indicators
+
+Surface recovery state in UI with progress indicators and manual fallback.
+
+- [ ] **Add "recovering" state to UserSyncStatus type**
+  - File: `convex/sync/getStatus.ts`
+  - Add `"recovering"` to state union: `'idle' | 'syncing' | 'blocked' | 'error' | 'recovering'`
+  - Add optional fields: `recoveryAttempts?: number`, `nextRecoveryAt?: number`
+  - Success: Type system enforces new state value
+
+- [ ] **Add recovery tracking to installations schema**
+  - File: `convex/schema.ts` (installations table)
+  - Add fields: `recoveryAttempts: v.optional(v.number())`, `lastRecoveryAt: v.optional(v.number())`
+  - These fields track retry count and timestamp for escalation logic
+  - Success: Schema validation passes, fields queryable
+
+- [ ] **Derive "recovering" state in getStatus logic**
+  - File: `convex/sync/getStatus.ts` (status derivation logic)
+  - Check: `installation.syncStatus === 'syncing' && lastJob?.metadata?.trigger === 'recovery'`
+  - Return: `{ state: 'recovering', message: 'Automatically recovering stale data...', recoveryAttempts: installation.recoveryAttempts ?? 0 }`
+  - Success: getStatusForUser returns "recovering" when recovery job active
+
+- [ ] **Show recovery progress in IntegrationStatusBanner**
+  - File: `components/IntegrationStatusBanner.tsx` (IntegrationWarningCard component)
+  - When: `status.kind === 'stale_events' && syncState === 'recovering'`
+  - Show: Spinner + "Recovering data..." message (no buttons)
+  - Success: Banner shows progress indicator during recovery, not "Sync Now" button
+
+- [ ] **Show "Sync Now" button when not recovering**
+  - File: `components/IntegrationStatusBanner.tsx` (IntegrationWarningCard component)
+  - When: `status.kind === 'stale_events' && syncState !== 'recovering'`
+  - Show: "Sync Now" button (already implemented in handleSyncClick)
+  - Success: Button visible when stale but not recovering
+
+- [ ] **Add tests for recovery UI states**
+  - File: `components/__tests__/IntegrationStatusBanner.test.tsx` (create if missing)
+  - Test: Shows spinner + "Recovering..." when state=recovering
+  - Test: Shows "Sync Now" button when state=idle and status=stale_events
+  - Test: Hides both when state=syncing (normal sync)
+  - Success: 3 new tests passing
+
+### Phase 4: Observability & Escalation
+
+Track recovery attempts and escalate repeated failures.
+
+- [ ] **Add recovery metrics**
+  - File: `convex/actions/sync/processSyncJob.ts` (finalize logic)
+  - Emit on zero-event detection: `sync.zero_events_detected`
+  - Emit on recovery start: `sync.recovery_triggered`
+  - Emit on recovery success (eventsIngested > 0): `sync.recovery_succeeded`
+  - Emit on recovery failure (eventsIngested = 0): `sync.recovery_failed`
+  - Success: Metrics visible in Convex logs after recovery cycle
+
+- [ ] **Increment recoveryAttempts on failure**
+  - File: `convex/actions/sync/processSyncJob.ts` (recovery finalize logic)
+  - When: Recovery sync also finds 0 events
+  - Update: `installation.recoveryAttempts = (installation.recoveryAttempts ?? 0) + 1`
+  - Success: recoveryAttempts increments after each failed recovery
+
+- [ ] **Escalate after 3 failed attempts**
+  - File: `convex/sync/getStatus.ts` (status derivation)
+  - When: `installation.recoveryAttempts >= 3`
+  - Return: `{ kind: 'webhook_failure', message: 'GitHub webhooks may have stopped. Check App installation.', actionUrl: githubInstallationSettingsUrl }`
+  - Success: Banner changes to "Check App installation" after 3 failures
+
+- [ ] **Reset recoveryAttempts on success**
+  - File: `convex/actions/sync/processSyncJob.ts` (finalize logic)
+  - When: Recovery sync ingests events (eventsIngested > 0)
+  - Update: `installation.recoveryAttempts = 0`
+  - Success: Counter resets after successful recovery
+
+- [ ] **Add tests for escalation logic**
+  - File: `convex/sync/__tests__/getStatus.test.ts`
+  - Test: Returns "webhook_failure" status when recoveryAttempts >= 3
+  - Test: Counter increments on each failed recovery
+  - Test: Counter resets to 0 on successful recovery
+  - Success: 3 new tests passing
+
+---
+
 ## Cleanup (Non-Blocking)
 
 Housekeeping items to address when convenient.
