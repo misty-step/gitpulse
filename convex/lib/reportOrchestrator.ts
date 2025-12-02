@@ -113,6 +113,14 @@ export async function generateReportForUser(
     );
   }
 
+  if (events.length === 0) {
+    logger.info(
+      { userId: params.userId, kind, startDate: windowStart, endDate: windowEnd },
+      "No events found in window, skipping report generation",
+    );
+    return null;
+  }
+
   const cacheKey = buildCacheKey(
     kind,
     params.userId,

@@ -81,8 +81,14 @@ export function validateCoverage(
   report: CoverageReportPayload,
   threshold = 0.95,
 ): CoverageValidationResult {
+  // No events = no data to validate against
+  // Return 0% coverage (consistent with computeCoverageSummary)
   if (events.length === 0) {
-    return { pass: true, coverageScore: 1, breakdown: [] };
+    return {
+      pass: true, // Don't fail validation when no data exists
+      coverageScore: 0, // Honest: 0 events = 0% coverage
+      breakdown: [],
+    };
   }
 
   const citations = collectCitations(report);

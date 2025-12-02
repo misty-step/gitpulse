@@ -9,7 +9,7 @@
 
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { generateReportForUser } from "../lib/reportOrchestrator";
 import { logger } from "../lib/logger.js";
 
@@ -43,6 +43,21 @@ export const generateDailyReport = internalAction({
     const endDate = Date.now();
     const startDate = endDate - DAY_MS;
 
+    // Check if there are any events in the window before generating report
+    const eventCount = await ctx.runQuery(internal.events.countByActorInternal, {
+      actorId: user._id,
+      startDate,
+      endDate,
+    });
+
+    if (eventCount === 0) {
+      logger.info(
+        { githubUsername: user.githubUsername, window: { startDate, endDate } },
+        "No events in window, skipping daily report generation",
+      );
+      return;
+    }
+
     await generateReportForUser(ctx, {
       userId: args.userId,
       user,
@@ -52,7 +67,7 @@ export const generateDailyReport = internalAction({
     });
 
     logger.info(
-      { githubUsername: user.githubUsername },
+      { githubUsername: user.githubUsername, eventCount },
       "Generated daily report",
     );
   },
@@ -83,6 +98,21 @@ export const generateWeeklyReport = internalAction({
     const endDate = Date.now();
     const startDate = endDate - WEEK_MS;
 
+    // Check if there are any events in the window before generating report
+    const eventCount = await ctx.runQuery(internal.events.countByActorInternal, {
+      actorId: user._id,
+      startDate,
+      endDate,
+    });
+
+    if (eventCount === 0) {
+      logger.info(
+        { githubUsername: user.githubUsername, window: { startDate, endDate } },
+        "No events in window, skipping weekly report generation",
+      );
+      return;
+    }
+
     await generateReportForUser(ctx, {
       userId: args.userId,
       user,
@@ -92,7 +122,7 @@ export const generateWeeklyReport = internalAction({
     });
 
     logger.info(
-      { githubUsername: user.githubUsername },
+      { githubUsername: user.githubUsername, eventCount },
       "Generated weekly report",
     );
   },

@@ -95,8 +95,8 @@ describe("validateCoverage", () => {
 
   it("passes automatically when there are no events", () => {
     const result = validateCoverage([], { markdown: "", citations: [] });
-    expect(result.pass).toBe(true);
-    expect(result.coverageScore).toBe(1);
+    expect(result.pass).toBe(true); // Still passes validation (no data to validate)
+    expect(result.coverageScore).toBe(0); // Honest: 0 events = 0% coverage
   });
 
   it("passes when coverage meets a 95% threshold (e.g., 24/25 cited)", () => {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import type { UserSyncStatus } from "@/convex/sync/getStatus";
+import { toast } from "sonner";
 
 /**
  * IntegrationStatusBanner - centralizes integration health + sync progress.
@@ -23,6 +24,8 @@ export function IntegrationStatusBanner() {
   const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
   const { status: integrationStatus, isLoading: isIntegrationLoading } =
     useIntegrationStatus();
+  const requestSync = useAction(api.actions.sync.requestSync.requestManualSync);
+  const [isSyncRequesting, setIsSyncRequesting] = useState(false);
 
   if (syncStatuses === undefined || isIntegrationLoading) {
     return null;
@@ -36,6 +39,35 @@ export function IntegrationStatusBanner() {
   const hasActiveSyncs = activeStatuses.length > 0;
   const showWarning = needsIntegrationAttention(integrationStatus);
 
+  const handleSyncClick = async () => {
+    // Get the first installation ID from sync statuses
+    // (typically users have one installation, but array supports multiple)
+    const firstInstallation = syncStatuses?.[0];
+    if (!firstInstallation) {
+      toast.error("No installation found");
+      return;
+    }
+    
+    try {
+      setIsSyncRequesting(true);
+      const result = await requestSync({ 
+        installationId: firstInstallation.installationId 
+      });
+      
+      if (result.started) {
+        toast.success("Sync started");
+      } else {
+        toast.info(result.message);
+      }
+    } catch (error) {
+      toast.error("Failed to start sync");
+      console.error(error);
+    } finally {
+      setIsSyncRequesting(false);
+    }
+  };
+
+  // Don't render anything if everything is healthy and quiet
   if (!showWarning && !hasActiveSyncs) {
     return null;
   }
@@ -43,7 +75,11 @@ export function IntegrationStatusBanner() {
   return (
     <div className="space-y-4 mb-8">
       {showWarning && integrationStatus ? (
-        <IntegrationWarningCard status={integrationStatus} />
+        <IntegrationWarningCard 
+          status={integrationStatus} 
+          onSyncClick={handleSyncClick}
+          isSyncing={isSyncRequesting || hasActiveSyncs}
+        />
       ) : null}
       {hasActiveSyncs ? <ActiveSyncCard statuses={activeStatuses} /> : null}
     </div>
@@ -169,7 +205,15 @@ function ActiveSyncCard({ statuses }: { statuses: UserSyncStatus[] }) {
   );
 }
 
-function IntegrationWarningCard({ status }: { status: IntegrationStatus }) {
+function IntegrationWarningCard({ 
+  status, 
+  onSyncClick,
+  isSyncing 
+}: { 
+  status: IntegrationStatus;
+  onSyncClick: () => void;
+  isSyncing: boolean;
+}) {
   const installUrl = getGithubInstallUrl();
   const isInstallMissing = status.kind === "missing_installation";
   const actionHref = isInstallMissing
@@ -177,25 +221,58 @@ function IntegrationWarningCard({ status }: { status: IntegrationStatus }) {
     : "/dashboard/settings/repositories";
   const actionLabel = isInstallMissing ? "Connect GitHub" : "Settings";
 
-  const description =
-    status.kind === "stale_events"
-      ? `No events since ${formatTimestamp(status.lastEventTs)}.`
-      : status.kind === "missing_installation"
-        ? "Install the GitHub App to enable ingestion."
-        : "No activity ingested yet.";
+  const isSyncFresh = status.lastSyncedAt && (Date.now() - status.lastSyncedAt < 24 * 60 * 60 * 1000);
+
+  let description = "";
+  if (status.kind === "stale_events") {
+    description = isSyncFresh 
+      ? `Last activity: ${formatTimestamp(status.lastEventTs)}`
+      : `No events since ${formatTimestamp(status.lastEventTs)}.`;
+  } else if (status.kind === "missing_installation") {
+    description = "Install the GitHub App to enable ingestion.";
+  } else if (status.kind === "no_events") {
+    description = isSyncFresh 
+      ? "Sync active. No events found yet." 
+      : "No activity ingested yet.";
+  } else {
+    description = "Integration attention needed.";
+  }
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-900 flex items-center justify-between">
+    <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/30 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200 flex items-center justify-between">
       <div className="flex gap-3 items-center">
         <span className="text-amber-500 text-lg">⚠</span>
         <span>{description}</span>
       </div>
-      <Link
-        href={actionHref}
-        className="whitespace-nowrap text-xs font-medium border border-amber-300 bg-white px-3 py-1.5 rounded hover:bg-amber-50 transition-colors"
-      >
-        {actionLabel}
-      </Link>
+      
+      <div className="flex items-center gap-3">
+        {/* Primary Action (Fix or Settings) */}
+        {isInstallMissing ? (
+          <Link
+            href={installUrl}
+            className="whitespace-nowrap text-xs font-medium border border-amber-300 bg-white dark:bg-amber-900/50 dark:border-amber-700 px-3 py-1.5 rounded hover:bg-amber-50 dark:hover:bg-amber-900 transition-colors"
+          >
+            Connect GitHub
+          </Link>
+        ) : (
+          <>
+             <button
+              onClick={onSyncClick}
+              disabled={isSyncing}
+              className="whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 disabled:opacity-50 transition-colors"
+            >
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </button>
+            <div className="h-4 w-px bg-amber-300 dark:bg-amber-700" />
+            <Link
+              href="/dashboard/settings/repositories"
+              className="whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+            >
+              Settings
+            </Link>
+          </>
+        )}
+      </div>
     </div>
   );
 }

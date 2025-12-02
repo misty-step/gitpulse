@@ -232,18 +232,13 @@ describe("generateReportForUser", () => {
     );
   });
 
-  it("returns cached report when cache key hits", async () => {
+  it("returns null when there are no events (skips cache check)", async () => {
     const events: Array<Doc<"events">> = [];
-    const cachedId = "cached-report" as Id<"reports">;
-    const cachedDoc = {
-      _id: cachedId,
-    } as Doc<"reports">;
-
+    
     const runQuery = createAsyncMock<unknown>();
     runQuery
-      .mockResolvedValueOnce(events)
-      .mockResolvedValueOnce(events.length)
-      .mockResolvedValueOnce(cachedDoc);
+      .mockResolvedValueOnce(events) // listByActor returns []
+      .mockResolvedValueOnce(events.length); // count returns 0
 
     const runMutation = createAsyncMock<Id<"reports">>();
     const ctx = createMockActionCtx({ runQuery, runMutation });
@@ -261,14 +256,10 @@ describe("generateReportForUser", () => {
       endDate: 100,
     });
 
-    expect(result).toBe(cachedId);
+    // Should return null when no events exist (don't waste LLM calls)
+    expect(result).toBe(null);
     expect(runMutation).not.toHaveBeenCalled();
     expect(generateDailyReportFromContext).not.toHaveBeenCalled();
-    expect(buildReportContext).not.toHaveBeenCalled();
-    expect(metricsModule.emitMetric).toHaveBeenCalledWith(
-      "report.cache_hit",
-      expect.objectContaining({ cacheKey: expect.any(String) }),
-    );
   });
 
   it("bypasses cache when forceRegenerate is true", async () => {

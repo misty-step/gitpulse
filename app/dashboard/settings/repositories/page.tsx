@@ -568,7 +568,7 @@ function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
     <div
       className={`border p-5 ${
         needsAttention
-          ? "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
           : "border-border bg-surface text-foreground"
       }`}
     >
