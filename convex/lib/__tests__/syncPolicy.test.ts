@@ -55,6 +55,12 @@ describe("syncPolicy.evaluate", () => {
       expect(decision.action).toBe("start");
       expect(decision.reason).toBe("ready");
     });
+
+    it("returns start for recovery trigger", () => {
+      const decision = evaluate(baseState, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
+    });
   });
 
   describe("no_clerk_user check", () => {
@@ -204,6 +210,18 @@ describe("syncPolicy.evaluate", () => {
       const decision = evaluate(state, "maintenance", NOW);
       expect(decision.action).toBe("start");
     });
+
+    it("does not apply cooldown for recovery trigger (auto-healing bypass)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        lastManualSyncAt: NOW - 30 * 60 * 1000, // In cooldown
+        lastSyncedAt: NOW - 30 * 60 * 1000, // Not stale
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
+    });
   });
 
   describe("rate_limited check", () => {
@@ -262,6 +280,28 @@ describe("syncPolicy.evaluate", () => {
 
       const decision = evaluate(state, "webhook", NOW);
       expect(decision.action).toBe("start");
+    });
+
+    it("blocks recovery trigger when budget is below minimum", () => {
+      const state: InstallationState = {
+        ...baseState,
+        rateLimitRemaining: MIN_SYNC_BUDGET - 1,
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("block");
+      expect(decision.reason).toBe("rate_limited");
+    });
+
+    it("allows recovery trigger when budget meets minimum (no webhook reserve)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        rateLimitRemaining: MIN_SYNC_BUDGET,
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
     });
 
     it("includes blockedUntil from rateLimitReset", () => {
@@ -361,6 +401,18 @@ describe("syncPolicy.evaluate", () => {
 
       const decision = evaluate(state, "manual", NOW);
       expect(decision.action).toBe("start");
+    });
+
+    it("allows recovery sync when already syncing (will be re-queued)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        syncStatus: "syncing",
+      };
+
+      // Recovery doesn't have "already syncing" guard - it's re-queued for later
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
     });
   });
 
