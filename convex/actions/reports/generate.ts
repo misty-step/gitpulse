@@ -1,15 +1,25 @@
 "use node";
 
 /**
- * Simple Report Generation Action
+ * Report Generation Actions - Deep Module Design
  *
- * This replaces the complex orchestration pipeline with a single action.
- * Called directly by sync completion or scheduled jobs.
+ * Simple interface: generateWeekly({ userId }) → report
+ * Hides: timezone calculation, user lookup, window computation
+ *
+ * These convenience wrappers handle user-local time windows automatically.
+ * The caller doesn't need to understand timezones - they just pass a userId.
  */
 
 import { v } from "convex/values";
 import { action, internalAction } from "../../_generated/server";
+import { api } from "../../_generated/api";
 import { generateReport } from "../../lib/generateReport";
+import {
+  getTodayWindow,
+  getYesterdayWindow,
+  getLastWeekWindow,
+  getTimezoneOrDefault,
+} from "../../lib/timeWindows";
 
 /**
  * Generate a report for a user and time window.
@@ -34,22 +44,22 @@ export const generate = internalAction({
 /**
  * Generate today's daily report for a user.
  *
- * Convenience wrapper that calculates the window automatically.
- * Covers from midnight UTC today to now.
+ * Deep module: caller passes userId, we handle timezone internally.
+ * Covers from user's local midnight to now.
  */
 export const generateTodayDaily = internalAction({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const todayMidnight = Math.floor(now / DAY_MS) * DAY_MS;
+    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: args.userId });
+    const timezone = getTimezoneOrDefault(user?.timezone);
+    const window = getTodayWindow(timezone);
 
     return await generateReport(ctx, {
       userId: args.userId,
-      startDate: todayMidnight,
-      endDate: now,
+      startDate: window.start,
+      endDate: window.end,
       kind: "daily",
     });
   },
@@ -58,22 +68,22 @@ export const generateTodayDaily = internalAction({
 /**
  * Generate yesterday's daily report for a user.
  *
- * For scheduled midnight jobs - covers previous complete day.
+ * Deep module: handles timezone internally.
+ * For scheduled midnight jobs - covers previous complete day in user's timezone.
  */
 export const generateYesterdayDaily = internalAction({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const todayMidnight = Math.floor(now / DAY_MS) * DAY_MS;
-    const yesterdayMidnight = todayMidnight - DAY_MS;
+    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: args.userId });
+    const timezone = getTimezoneOrDefault(user?.timezone);
+    const window = getYesterdayWindow(timezone);
 
     return await generateReport(ctx, {
       userId: args.userId,
-      startDate: yesterdayMidnight,
-      endDate: todayMidnight,
+      startDate: window.start,
+      endDate: window.end,
       kind: "daily",
     });
   },
@@ -82,22 +92,22 @@ export const generateYesterdayDaily = internalAction({
 /**
  * Generate this week's report for a user.
  *
- * Covers last 7 days ending at midnight today.
+ * Deep module: handles timezone internally.
+ * Covers last 7 days (Sunday to Sunday) in user's timezone.
  */
 export const generateWeekly = internalAction({
   args: {
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const todayMidnight = Math.floor(now / DAY_MS) * DAY_MS;
-    const weekAgo = todayMidnight - 7 * DAY_MS;
+    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: args.userId });
+    const timezone = getTimezoneOrDefault(user?.timezone);
+    const window = getLastWeekWindow(timezone);
 
     return await generateReport(ctx, {
       userId: args.userId,
-      startDate: weekAgo,
-      endDate: todayMidnight,
+      startDate: window.start,
+      endDate: window.end,
       kind: "weekly",
     });
   },
@@ -108,6 +118,7 @@ export const generateWeekly = internalAction({
  *
  * Callable from the frontend "Generate Report" button.
  * Uses authenticated user's identity from Clerk JWT.
+ * Calculates timezone-aware windows when dates not provided.
  */
 export const generateManual = action({
   args: {
@@ -121,20 +132,27 @@ export const generateManual = action({
       return { success: false, error: "Authentication required" };
     }
 
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const todayMidnight = Math.floor(now / DAY_MS) * DAY_MS;
+    // If dates provided, use them directly
+    if (args.startDate !== undefined && args.endDate !== undefined) {
+      return await generateReport(ctx, {
+        userId: identity.subject,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        kind: args.kind,
+      });
+    }
 
-    // Default windows: daily = today, weekly = last 7 days
-    const startDate =
-      args.startDate ??
-      (args.kind === "daily" ? todayMidnight : todayMidnight - 7 * DAY_MS);
-    const endDate = args.endDate ?? now;
+    // Otherwise calculate timezone-aware defaults
+    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: identity.subject });
+    const timezone = getTimezoneOrDefault(user?.timezone);
+    const window = args.kind === "daily"
+      ? getTodayWindow(timezone)
+      : getLastWeekWindow(timezone);
 
     return await generateReport(ctx, {
       userId: identity.subject,
-      startDate,
-      endDate,
+      startDate: args.startDate ?? window.start,
+      endDate: args.endDate ?? window.end,
       kind: args.kind,
     });
   },
