@@ -293,7 +293,6 @@ async function runBackfillInternal(
 
     await ctx.runMutation(internal.ingestionJobs.resume, {
       jobId,
-      reposRemaining: remainingRepos,
     });
   } else {
     jobId = await ctx.runMutation(internal.ingestionJobs.create, {

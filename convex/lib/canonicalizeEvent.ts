@@ -1,4 +1,13 @@
-import type { RepoTimelineNode } from "./githubTypes";
+import type {
+  RepoTimelineNode,
+  GitHubEvent,
+  PushEventPayload,
+  PullRequestEventPayload,
+  PullRequestReviewEventPayload,
+  IssueCommentEventPayload,
+  IssuesEventPayload,
+  ReleaseEventPayload,
+} from "./githubTypes";
 
 export type EventType =
   | "pr_opened"
@@ -55,7 +64,8 @@ export type CanonicalizeInput =
   | { kind: "issues"; payload: IssuesWebhookEvent }
   | { kind: "issue_comment"; payload: IssueCommentWebhookEvent }
   | { kind: "commit"; payload: CommitLike; repository: GitHubRepository }
-  | { kind: "timeline"; item: RepoTimelineNode; repoFullName: string };
+  | { kind: "timeline"; item: RepoTimelineNode; repoFullName: string }
+  | { kind: "repo_event"; event: GitHubEvent };
 
 export function canonicalizeEvent(
   input: CanonicalizeInput,
@@ -73,6 +83,8 @@ export function canonicalizeEvent(
       return canonicalizeCommit(input.payload, input.repository);
     case "timeline":
       return canonicalizeTimelineItem(input.item, input.repoFullName);
+    case "repo_event":
+      return canonicalizeRepoEvent(input.event);
     default:
       return null;
   }
@@ -425,6 +437,408 @@ function canonicalizeTimelineItem(
   };
 }
 
+// ============================================================================
+// GitHub Events API Canonicalization
+// ============================================================================
+
+/**
+ * Canonicalize a GitHub Events API event.
+ *
+ * Deep Module Design:
+ * - Simple interface: one GitHubEvent in, one CanonicalEvent out (or null)
+ * - Hides: Event type dispatch, payload extraction, URL construction
+ * - Returns: Uniform canonical event for all event types
+ *
+ * Note: PushEvent yields multiple CanonicalEvents (one per commit).
+ * This function returns only the first commit; use canonicalizeRepoEventAll()
+ * if you need all commits from a push.
+ */
+function canonicalizeRepoEvent(event: GitHubEvent): CanonicalEvent | null {
+  const repo: CanonicalRepo = {
+    ghId: event.repo.id,
+    fullName: event.repo.name,
+  };
+
+  const actor: CanonicalActor = {
+    ghId: event.actor.id,
+    ghLogin: event.actor.login,
+    avatarUrl: event.actor.avatar_url,
+  };
+
+  const ts = resolveTimestamp(event.created_at);
+  if (ts === null) {
+    return null;
+  }
+
+  switch (event.type) {
+    case "PushEvent":
+      return canonicalizePushEvent(event, repo, actor, ts);
+    case "PullRequestEvent":
+      return canonicalizePREvent(event, repo, actor, ts);
+    case "PullRequestReviewEvent":
+      return canonicalizePRReviewEvent(event, repo, actor, ts);
+    case "IssueCommentEvent":
+      return canonicalizeIssueCommentEvent(event, repo, actor, ts);
+    case "IssuesEvent":
+      return canonicalizeIssuesEvent(event, repo, actor, ts);
+    case "ReleaseEvent":
+      return canonicalizeReleaseEvent(event, repo, actor, ts);
+    default:
+      // Skip unhandled event types (WatchEvent, ForkEvent, CreateEvent, etc.)
+      return null;
+  }
+}
+
+/**
+ * Canonicalize ALL events from a GitHub Events API event.
+ *
+ * Unlike canonicalizeRepoEvent which returns a single event,
+ * this returns an array to handle PushEvent's multiple commits.
+ */
+export function canonicalizeRepoEventAll(event: GitHubEvent): CanonicalEvent[] {
+  const repo: CanonicalRepo = {
+    ghId: event.repo.id,
+    fullName: event.repo.name,
+  };
+
+  const actor: CanonicalActor = {
+    ghId: event.actor.id,
+    ghLogin: event.actor.login,
+    avatarUrl: event.actor.avatar_url,
+  };
+
+  const ts = resolveTimestamp(event.created_at);
+  if (ts === null) {
+    return [];
+  }
+
+  if (event.type === "PushEvent") {
+    return canonicalizePushEventAll(event, repo, actor, ts);
+  }
+
+  const single = canonicalizeRepoEvent(event);
+  return single ? [single] : [];
+}
+
+function canonicalizePushEvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as PushEventPayload;
+  if (!payload.commits || payload.commits.length === 0) {
+    return null;
+  }
+
+  // Return the first commit (most recent in the push)
+  const commit = payload.commits[0];
+  const shortSha = commit.sha.slice(0, 7);
+  const branch = payload.ref.replace("refs/heads/", "");
+
+  return {
+    type: "commit",
+    repo,
+    actor,
+    ts,
+    canonicalText: truncateText(
+      joinParts([
+        `Commit ${shortSha}`,
+        `by ${actor.ghLogin}`,
+        `on ${branch}`,
+        commit.message ? `– ${collapseWhitespace(commit.message).slice(0, 200)}` : undefined,
+      ])
+    ),
+    sourceUrl: commit.url.replace("api.github.com/repos", "github.com").replace("/commits/", "/commit/"),
+    metadata: compact({
+      sha: commit.sha,
+      message: commit.message,
+      branch,
+      pushSize: payload.size,
+      distinctSize: payload.distinct_size,
+    }),
+    ghId: commit.sha,
+    contentScope: "event",
+  };
+}
+
+function canonicalizePushEventAll(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent[] {
+  const payload = event.payload as PushEventPayload;
+  if (!payload.commits || payload.commits.length === 0) {
+    return [];
+  }
+
+  const branch = payload.ref.replace("refs/heads/", "");
+
+  return payload.commits.map((commit, index) => {
+    const shortSha = commit.sha.slice(0, 7);
+    // Offset timestamp slightly for each commit to preserve ordering
+    const commitTs = ts - (payload.commits.length - 1 - index) * 1000;
+
+    return {
+      type: "commit" as EventType,
+      repo,
+      actor: {
+        ...actor,
+        // Override with commit author if available
+        ghLogin: commit.author?.name || actor.ghLogin,
+      },
+      ts: commitTs,
+      canonicalText: truncateText(
+        joinParts([
+          `Commit ${shortSha}`,
+          `by ${commit.author?.name || actor.ghLogin}`,
+          `on ${branch}`,
+          commit.message ? `– ${collapseWhitespace(commit.message).slice(0, 200)}` : undefined,
+        ])
+      ),
+      sourceUrl: commit.url.replace("api.github.com/repos", "github.com").replace("/commits/", "/commit/"),
+      metadata: compact({
+        sha: commit.sha,
+        message: commit.message,
+        branch,
+        authorEmail: commit.author?.email,
+        distinct: commit.distinct,
+      }),
+      ghId: commit.sha,
+      contentScope: "event" as const,
+    };
+  });
+}
+
+function canonicalizePREvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as PullRequestEventPayload;
+  const { action, pull_request: pr } = payload;
+
+  // Only track meaningful PR actions
+  const eventType = resolvePullRequestEventType(action, pr.merged ?? false);
+  if (!eventType) {
+    return null;
+  }
+
+  const metrics = extractMetrics(pr.additions, pr.deletions, pr.changed_files);
+  const verb =
+    eventType === "pr_opened" ? "opened" :
+    eventType === "pr_merged" ? "merged" : "closed";
+
+  // Guard against null/undefined html_url (GitHub Events API sometimes returns null)
+  const sourceUrl = pr.html_url ?? `https://github.com/${repo.fullName}/pull/${pr.number}`;
+
+  return {
+    type: eventType,
+    repo,
+    actor,
+    ts,
+    canonicalText: truncateText(
+      joinParts([
+        `PR #${pr.number}`,
+        pr.title ? `– ${collapseWhitespace(pr.title)}` : undefined,
+        `${verb} by ${actor.ghLogin}`,
+        formatMetrics(metrics),
+      ])
+    ),
+    sourceUrl,
+    metrics,
+    metadata: compact({
+      number: pr.number,
+      title: pr.title,
+      merged: pr.merged,
+      state: pr.state,
+      baseBranch: pr.base?.ref,
+      headBranch: pr.head?.ref,
+    }),
+    ghId: String(pr.id),
+    ghNodeId: pr.node_id,
+    contentScope: "event",
+  };
+}
+
+function canonicalizePRReviewEvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as PullRequestReviewEventPayload;
+
+  // Only track submitted reviews
+  if (payload.action !== "submitted") {
+    return null;
+  }
+
+  const { review, pull_request: pr } = payload;
+  const bodySnippet = review.body
+    ? `– ${collapseWhitespace(review.body).slice(0, 160)}`
+    : undefined;
+
+  return {
+    type: "review_submitted",
+    repo,
+    actor,
+    ts,
+    canonicalText: truncateText(
+      joinParts([
+        `Review on PR #${pr.number}`,
+        `by ${actor.ghLogin}`,
+        review.state ? `[${review.state}]` : undefined,
+        bodySnippet,
+      ])
+    ),
+    sourceUrl: review.html_url,
+    metadata: compact({
+      prNumber: pr.number,
+      prTitle: pr.title,
+      reviewId: review.id,
+      state: review.state,
+    }),
+    ghId: String(review.id),
+    ghNodeId: review.node_id,
+    contentScope: "event",
+  };
+}
+
+function canonicalizeIssueCommentEvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as IssueCommentEventPayload;
+
+  // Only track created comments
+  if (payload.action !== "created") {
+    return null;
+  }
+
+  const { comment, issue } = payload;
+  const target = issue.pull_request ? "pull request" : "issue";
+
+  return {
+    type: "issue_comment",
+    repo,
+    actor,
+    ts,
+    canonicalText: truncateText(
+      joinParts([
+        `Comment on ${target} #${issue.number}`,
+        `by ${actor.ghLogin}`,
+        comment.body
+          ? `– ${collapseWhitespace(comment.body).slice(0, 200)}`
+          : undefined,
+      ])
+    ),
+    sourceUrl: comment.html_url,
+    metadata: compact({
+      issueNumber: issue.number,
+      issueTitle: issue.title,
+      isPullRequest: Boolean(issue.pull_request),
+      commentId: comment.id,
+    }),
+    ghId: String(comment.id),
+    ghNodeId: comment.node_id,
+    contentScope: "event",
+  };
+}
+
+function canonicalizeIssuesEvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as IssuesEventPayload;
+  const { action, issue } = payload;
+
+  const eventType =
+    action === "closed" ? "issue_closed" :
+    action === "opened" || action === "reopened" ? "issue_opened" : null;
+
+  if (!eventType) {
+    return null;
+  }
+
+  const verb = eventType === "issue_opened" ? "opened" : "closed";
+
+  return {
+    type: eventType,
+    repo,
+    actor,
+    ts,
+    canonicalText: truncateText(
+      joinParts([
+        `Issue #${issue.number}`,
+        issue.title ? `– ${collapseWhitespace(issue.title)}` : undefined,
+        `${verb} by ${actor.ghLogin}`,
+      ])
+    ),
+    sourceUrl: issue.html_url,
+    metadata: compact({
+      issueNumber: issue.number,
+      title: issue.title,
+      state: issue.state,
+    }),
+    ghId: String(issue.id),
+    ghNodeId: issue.node_id,
+    contentScope: "event",
+  };
+}
+
+function canonicalizeReleaseEvent(
+  event: GitHubEvent,
+  repo: CanonicalRepo,
+  actor: CanonicalActor,
+  ts: number
+): CanonicalEvent | null {
+  const payload = event.payload as ReleaseEventPayload;
+
+  // Only track published releases
+  if (payload.action !== "published") {
+    return null;
+  }
+
+  const { release } = payload;
+
+  // Map release to pr_opened type (or we could add a "release" type if needed)
+  // For now, we skip releases since they're less common in daily standups
+  // but the infrastructure is here if we want to add a "release" EventType
+  return null;
+
+  // Uncomment if we want to track releases:
+  // return {
+  //   type: "release", // Would need to add to EventType
+  //   repo,
+  //   actor,
+  //   ts,
+  //   canonicalText: truncateText(
+  //     joinParts([
+  //       `Release ${release.tag_name}`,
+  //       release.name ? `– ${collapseWhitespace(release.name)}` : undefined,
+  //       `published by ${actor.ghLogin}`,
+  //     ])
+  //   ),
+  //   sourceUrl: release.html_url,
+  //   metadata: compact({
+  //     tagName: release.tag_name,
+  //     name: release.name,
+  //     prerelease: release.prerelease,
+  //     draft: release.draft,
+  //   }),
+  //   ghId: String(release.id),
+  //   ghNodeId: release.node_id,
+  //   contentScope: "event",
+  // };
+}
+
 function normalizeRepo(repo?: GitHubRepository | null): CanonicalRepo | null {
   if (!repo) {
     return null;
@@ -696,6 +1110,50 @@ interface CommitLike {
   author?: CommitAuthor | null;
   committer?: CommitAuthor | null;
   stats?: CommitStats;
+}
+
+/**
+ * Convert GitHubCommit (Commits API format) to CommitLike (for canonicalization).
+ *
+ * The Commits API returns a different structure than webhooks/events API.
+ * This adapter normalizes it for use with canonicalizeEvent({ kind: "commit", ... }).
+ */
+export function convertGitHubCommitToCommitLike(
+  commit: {
+    sha: string;
+    node_id: string;
+    commit: {
+      message: string;
+      author: { name: string; email: string; date: string };
+    };
+    author: { id: number; login: string; node_id: string } | null;
+    html_url: string;
+    stats?: { additions: number; deletions: number; total: number };
+  }
+): CommitLike {
+  return {
+    sha: commit.sha,
+    node_id: commit.node_id,
+    message: commit.commit.message,
+    timestamp: commit.commit.author.date,
+    html_url: commit.html_url,
+    author: commit.author
+      ? {
+          id: commit.author.id,
+          login: commit.author.login,
+          node_id: commit.author.node_id,
+          name: commit.commit.author.name,
+          email: commit.commit.author.email,
+        }
+      : null,
+    stats: commit.stats
+      ? {
+          additions: commit.stats.additions,
+          deletions: commit.stats.deletions,
+          total: commit.stats.total,
+        }
+      : undefined,
+  };
 }
 
 export type { GitHubRepository, CommitLike };

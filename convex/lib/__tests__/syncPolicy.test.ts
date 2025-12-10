@@ -116,8 +116,8 @@ describe("syncPolicy.evaluate", () => {
     it("skips when manual cooldown is active", () => {
       const state: InstallationState = {
         ...baseState,
-        lastManualSyncAt: NOW - 30 * 60 * 1000, // 30 minutes ago
-        lastSyncedAt: NOW - 30 * 60 * 1000, // Recent enough to not be stale
+        lastManualSyncAt: NOW - 2 * 60 * 1000, // 2 minutes ago (within 5-min cooldown)
+        lastSyncedAt: NOW - 2 * 60 * 1000, // Recent enough to not be stale
       };
 
       const decision = evaluate(state, "manual", NOW);
@@ -132,14 +132,14 @@ describe("syncPolicy.evaluate", () => {
     it("returns remaining cooldown time in metadata", () => {
       const state: InstallationState = {
         ...baseState,
-        lastManualSyncAt: NOW - 45 * 60 * 1000, // 45 minutes ago
-        lastSyncedAt: NOW - 45 * 60 * 1000,
+        lastManualSyncAt: NOW - 2 * 60 * 1000, // 2 minutes ago
+        lastSyncedAt: NOW - 2 * 60 * 1000,
       };
 
       const decision = evaluate(state, "manual", NOW);
       expect(decision.action).toBe("skip");
-      // Should have 15 minutes remaining
-      expect(decision.metadata?.cooldownMs).toBe(15 * 60 * 1000);
+      // Should have ~3 minutes remaining (5 min cooldown - 2 min elapsed)
+      expect(decision.metadata?.cooldownMs).toBe(3 * 60 * 1000);
     });
 
     it("allows sync when cooldown has expired", () => {
@@ -432,8 +432,8 @@ describe("syncPolicy.evaluate", () => {
       const state: InstallationState = {
         ...baseState,
         repositories: [],
-        lastManualSyncAt: NOW - 30 * 60 * 1000,
-        lastSyncedAt: NOW - 30 * 60 * 1000,
+        lastManualSyncAt: NOW - 2 * 60 * 1000, // within 5-min cooldown
+        lastSyncedAt: NOW - 2 * 60 * 1000,
       };
 
       const decision = evaluate(state, "manual", NOW);
@@ -443,8 +443,8 @@ describe("syncPolicy.evaluate", () => {
     it("returns cooldown before rate_limited", () => {
       const state: InstallationState = {
         ...baseState,
-        lastManualSyncAt: NOW - 30 * 60 * 1000,
-        lastSyncedAt: NOW - 30 * 60 * 1000,
+        lastManualSyncAt: NOW - 2 * 60 * 1000, // within 5-min cooldown
+        lastSyncedAt: NOW - 2 * 60 * 1000,
         rateLimitRemaining: 0,
       };
 

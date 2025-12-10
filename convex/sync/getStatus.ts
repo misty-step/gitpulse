@@ -26,8 +26,8 @@ import { evaluate, type InstallationState } from "../lib/syncPolicy";
  * It normalizes all internal state into a simple, consistent structure.
  */
 export interface SyncStatus {
-  /** Current sync state */
-  state: "idle" | "syncing" | "blocked" | "error";
+  /** Current sync state. "finishing" = all jobs done, awaiting lazy finalization */
+  state: "idle" | "syncing" | "blocked" | "error" | "recovering" | "finishing";
 
   /** Whether a manual sync can be started right now */
   canSyncNow: boolean;
@@ -38,18 +38,20 @@ export interface SyncStatus {
   /** If state is 'blocked', when the sync will resume (epoch ms) */
   blockedUntil?: number;
 
-  /** Progress of the active job, if any */
-  activeJobProgress?: {
-    /** Events ingested so far */
-    current: number;
-    /** Progress percentage (0-100) */
-    total: number;
-    /** When the current sync started (epoch ms) */
-    startedAt?: number;
-    /** Current repo being synced */
+  /** Batch progress (job-per-repo architecture) */
+  batchProgress?: {
+    /** Total repositories in this sync */
+    totalRepos: number;
+    /** Repositories completed so far */
+    completedRepos: number;
+    /** Repositories that failed */
+    failedRepos: number;
+    /** Total events ingested across all repos */
+    eventsIngested: number;
+    /** Current repo being synced (if any running job) */
     currentRepo?: string;
-    /** Number of pending jobs for this installation */
-    pendingCount?: number;
+    /** When the batch started (epoch ms) */
+    startedAt?: number;
   };
 
   /** Timestamp of last successful sync (epoch ms) */
@@ -57,6 +59,26 @@ export interface SyncStatus {
 
   /** Last error message, normalized for user display */
   lastSyncError?: string;
+
+  /** Number of automated recovery attempts for this installation */
+  recoveryAttempts?: number;
+
+  /** When the next recovery attempt is scheduled (epoch ms) */
+  nextRecoveryAt?: number;
+
+  /** Escalation guidance when automated recovery has failed */
+  escalation?: {
+    kind: "webhook_failure";
+    message: string;
+    actionUrl: string;
+  };
+
+  /** Recent sync completion summary (shown briefly for UX feedback) */
+  lastCompletedSync?: {
+    completedAt: number;
+    totalRepos: number;
+    eventsIngested: number;
+  };
 }
 
 // ============================================================================
@@ -142,34 +164,43 @@ export const getStatus = query({
       return null;
     }
 
-    // 4. Check for active job
-    const activeJob = await ctx.db
-      .query("ingestionJobs")
-      .withIndex("by_installationId", (q) =>
-        q.eq("installationId", installationId)
-      )
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "running"),
-          q.eq(q.field("status"), "pending"),
-          q.eq(q.field("status"), "blocked")
-        )
+    // 4. Check for active batch (job-per-repo architecture)
+    const activeBatch = await ctx.db
+      .query("syncBatches")
+      .withIndex("by_installationId_and_status", (q) =>
+        q.eq("installationId", installationId).eq("status", "running")
       )
       .first();
 
+    // Get current running job (for currentRepo display)
+    const runningJob = activeBatch
+      ? await ctx.db
+          .query("ingestionJobs")
+          .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+          .filter((q) => q.eq(q.field("status"), "running"))
+          .first()
+      : null;
+
     // 5. Determine current state
     let state: SyncStatus["state"] = "idle";
+    const isRecovering = activeBatch?.trigger === "recovery";
+    let blockedJob = null;
 
-    if (activeJob) {
-      if (activeJob.status === "blocked") {
-        state = "blocked";
-      } else {
-        state = "syncing";
-      }
+    if (isRecovering) {
+      state = "recovering";
+    } else if (activeBatch) {
+      // Check if any job in the batch is blocked
+      blockedJob = await ctx.db
+        .query("ingestionJobs")
+        .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+        .filter((q) => q.eq(q.field("status"), "blocked"))
+        .first();
+      
+      state = blockedJob ? "blocked" : "syncing";
     } else if (installation.syncStatus === "error") {
       state = "error";
     } else if (installation.syncStatus === "syncing") {
-      // syncStatus says syncing but no active job - likely stale state
+      // syncStatus says syncing but no active batch - likely stale state
       state = "idle";
     }
 
@@ -194,36 +225,64 @@ export const getStatus = query({
         ? decision.metadata?.cooldownMs
         : undefined;
 
-    // 7. Build progress info
-    let activeJobProgress: SyncStatus["activeJobProgress"];
-    if (activeJob) {
-      // Count pending jobs for this installation
-      const pendingJobs = await ctx.db
+    // 7. Build progress info by computing live state from jobs
+    // (We no longer rely on batch document counters since jobs don't call back)
+    let batchProgress: SyncStatus["batchProgress"];
+    if (activeBatch) {
+      // Aggregate job statuses directly for accurate live progress
+      const jobs = await ctx.db
         .query("ingestionJobs")
-        .withIndex("by_installationId", (q) =>
-          q.eq("installationId", installationId)
-        )
-        .filter((q) => q.eq(q.field("status"), "pending"))
+        .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
         .collect();
 
-      activeJobProgress = {
-        current: activeJob.eventsIngested ?? 0,
-        total: activeJob.progress ?? 0,
-        startedAt: activeJob.startedAt ?? activeJob.createdAt,
-        currentRepo: activeJob.repoFullName,
-        pendingCount: pendingJobs.length,
+      let completedRepos = 0;
+      let failedRepos = 0;
+      let eventsIngested = 0;
+
+      for (const job of jobs) {
+        if (job.status === "completed") {
+          completedRepos++;
+          eventsIngested += job.eventsIngested ?? 0;
+        } else if (job.status === "failed") {
+          failedRepos++;
+        }
+      }
+
+      batchProgress = {
+        totalRepos: activeBatch.totalRepos,
+        completedRepos,
+        failedRepos,
+        eventsIngested,
+        currentRepo: runningJob?.repoFullName,
+        startedAt: activeBatch.createdAt,
       };
     }
 
     // 8. Build response
+    const escalation =
+      (installation.recoveryAttempts ?? 0) >= 3
+        ? {
+            kind: "webhook_failure" as const,
+            message:
+              "GitHub webhooks may have stopped. Check App installation.",
+            actionUrl: `https://github.com/settings/installations/${installation.installationId}`,
+          }
+        : undefined;
+
     return {
       state,
       canSyncNow,
       cooldownMs,
-      blockedUntil: activeJob?.blockedUntil ?? undefined,
-      activeJobProgress,
+      blockedUntil: blockedJob?.blockedUntil ?? undefined,
+      batchProgress,
       lastSyncedAt: installation.lastSyncedAt ?? undefined,
       lastSyncError: normalizeErrorMessage(installation.lastSyncError),
+      recoveryAttempts: installation.recoveryAttempts ?? undefined,
+      nextRecoveryAt:
+        state === "recovering"
+          ? blockedJob?.blockedUntil ?? installation.lastRecoveryAt ?? undefined
+          : undefined,
+      escalation,
     };
   },
 });
@@ -261,35 +320,57 @@ export const getStatusForUser = query({
     const results: UserSyncStatus[] = [];
 
     for (const installation of installations) {
-      // Check for active job (running or blocked - not pending for primary display)
-      const activeJob = await ctx.db
-        .query("ingestionJobs")
-        .withIndex("by_installationId", (q) =>
-          q.eq("installationId", installation.installationId)
-        )
-        .filter((q) =>
-          q.or(
-            q.eq(q.field("status"), "running"),
-            q.eq(q.field("status"), "blocked")
-          )
+      // Check for active batch
+      const activeBatch = await ctx.db
+        .query("syncBatches")
+        .withIndex("by_installationId_and_status", (q) =>
+          q
+            .eq("installationId", installation.installationId)
+            .eq("status", "running")
         )
         .first();
 
-      // Count pending jobs
-      const pendingJobs = await ctx.db
-        .query("ingestionJobs")
-        .withIndex("by_installationId", (q) =>
-          q.eq("installationId", installation.installationId)
-        )
-        .filter((q) => q.eq(q.field("status"), "pending"))
-        .collect();
+      // Get running job for currentRepo
+      const runningJob = activeBatch
+        ? await ctx.db
+            .query("ingestionJobs")
+            .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+            .filter((q) => q.eq(q.field("status"), "running"))
+            .first()
+        : null;
 
-      // Determine state
+      // Check for blocked job
+      let blockedJob = null;
+      if (activeBatch) {
+        blockedJob = await ctx.db
+          .query("ingestionJobs")
+          .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+          .filter((q) => q.eq(q.field("status"), "blocked"))
+          .first();
+      }
+
+      // Determine state (with "finishing" for all-jobs-done but not-yet-finalized)
       let state: SyncStatus["state"] = "idle";
-      if (activeJob) {
-        state = activeJob.status === "blocked" ? "blocked" : "syncing";
-      } else if (pendingJobs.length > 0) {
-        state = "syncing"; // Pending jobs mean sync is in progress
+      const isRecovering = activeBatch?.trigger === "recovery";
+
+      if (isRecovering) {
+        state = "recovering";
+      } else if (activeBatch) {
+        if (blockedJob) {
+          state = "blocked";
+        } else {
+          // Check if all jobs are done (completing + failed >= total)
+          const jobs = await ctx.db
+            .query("ingestionJobs")
+            .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+            .collect();
+
+          const completed = jobs.filter((j) => j.status === "completed").length;
+          const failed = jobs.filter((j) => j.status === "failed").length;
+          const allDone = completed + failed >= activeBatch.totalRepos;
+
+          state = allDone ? "finishing" : "syncing";
+        }
       } else if (installation.syncStatus === "error") {
         state = "error";
       }
@@ -309,17 +390,58 @@ export const getStatusForUser = query({
       const now = Date.now();
       const decision = evaluate(installationState, "manual", now);
 
-      // Build progress
-      let activeJobProgress: SyncStatus["activeJobProgress"];
-      if (activeJob || pendingJobs.length > 0) {
-        const job = activeJob ?? pendingJobs[0];
-        activeJobProgress = {
-          current: job?.eventsIngested ?? 0,
-          total: job?.progress ?? 0,
-          startedAt: job?.startedAt ?? job?.createdAt,
-          currentRepo: job?.repoFullName,
-          pendingCount: pendingJobs.length,
+      // Build progress from jobs (computed live, not stale batch counters)
+      let batchProgress: SyncStatus["batchProgress"];
+      if (activeBatch) {
+        const jobs = await ctx.db
+          .query("ingestionJobs")
+          .withIndex("by_batchId", (q) => q.eq("batchId", activeBatch._id))
+          .collect();
+
+        let completedRepos = 0;
+        let failedRepos = 0;
+        let eventsIngested = 0;
+
+        for (const job of jobs) {
+          if (job.status === "completed") {
+            completedRepos++;
+            eventsIngested += job.eventsIngested ?? 0;
+          } else if (job.status === "failed") {
+            failedRepos++;
+          }
+        }
+
+        batchProgress = {
+          totalRepos: activeBatch.totalRepos,
+          completedRepos,
+          failedRepos,
+          eventsIngested,
+          currentRepo: runningJob?.repoFullName,
+          startedAt: activeBatch.createdAt,
         };
+      }
+
+      // Query recently completed batch for UI feedback (30 second window)
+      let lastCompletedSync: SyncStatus["lastCompletedSync"];
+      if (state === "idle") {
+        const recentBatch = await ctx.db
+          .query("syncBatches")
+          .withIndex("by_installationId_and_status", (q) =>
+            q
+              .eq("installationId", installation.installationId)
+              .eq("status", "completed")
+          )
+          .order("desc")
+          .first();
+
+        const now = Date.now();
+        if (recentBatch?.completedAt && now - recentBatch.completedAt < 30000) {
+          lastCompletedSync = {
+            completedAt: recentBatch.completedAt,
+            totalRepos: recentBatch.totalRepos,
+            eventsIngested: recentBatch.eventsIngested ?? 0,
+          };
+        }
       }
 
       results.push({
@@ -331,10 +453,25 @@ export const getStatusForUser = query({
           decision.reason === "cooldown_active"
             ? decision.metadata?.cooldownMs
             : undefined,
-        blockedUntil: activeJob?.blockedUntil ?? undefined,
-        activeJobProgress,
+        blockedUntil: blockedJob?.blockedUntil ?? undefined,
+        batchProgress,
         lastSyncedAt: installation.lastSyncedAt ?? undefined,
         lastSyncError: normalizeErrorMessage(installation.lastSyncError),
+        recoveryAttempts: installation.recoveryAttempts ?? undefined,
+        nextRecoveryAt:
+          state === "recovering"
+            ? blockedJob?.blockedUntil ?? installation.lastRecoveryAt ?? undefined
+            : undefined,
+        escalation:
+          (installation.recoveryAttempts ?? 0) >= 3
+            ? {
+                kind: "webhook_failure",
+                message:
+                  "GitHub webhooks may have stopped. Check App installation.",
+                actionUrl: `https://github.com/settings/installations/${installation.installationId}`,
+              }
+            : undefined,
+        lastCompletedSync,
       });
     }
 

@@ -162,6 +162,8 @@ export const updateSyncStatus = internalMutation({
     nextSyncAt: v.optional(v.number()),
     lastSyncError: v.optional(v.string()),
     lastSyncDuration: v.optional(v.number()),
+    recoveryAttempts: v.optional(v.number()),
+    lastRecoveryAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const installation = await ctx.db
@@ -185,6 +187,40 @@ export const updateSyncStatus = internalMutation({
     }
 
     await ctx.db.patch(installation._id, update);
+  },
+});
+
+/**
+ * Reset sync state to allow a fresh full sync.
+ *
+ * Clears lastSyncedAt and lastManualSyncAt so the next sync will
+ * calculate a 30-day window instead of the narrow lastSyncedAt - 1hr window.
+ *
+ * Use case: When syncs have been completing but ingesting no events due to
+ * the narrow time window bug, resetting state allows a fresh backfill.
+ */
+export const resetSyncState = internalMutation({
+  args: { installationId: v.number() },
+  handler: async (ctx, { installationId }) => {
+    const installation = await ctx.db
+      .query("installations")
+      .withIndex("by_installationId", (q) => q.eq("installationId", installationId))
+      .first();
+
+    if (!installation) {
+      return { success: false, error: "Installation not found" };
+    }
+
+    await ctx.db.patch(installation._id, {
+      lastSyncedAt: undefined,
+      lastManualSyncAt: undefined,
+      lastCursor: undefined,
+      syncStatus: "idle",
+      lastSyncError: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
   },
 });
 

@@ -13,6 +13,12 @@ import { api, internal } from "../_generated/api";
 import { Doc, Id } from "../_generated/dataModel";
 import { embedText, embedBatch } from "../lib/embeddings";
 import { computeContentHash } from "../lib/contentHash";
+import {
+  getLangfuse,
+  isLangfuseConfigured,
+  flushLangfuse,
+  calculateCost,
+} from "../lib/langfuse.js";
 
 /**
  * Convert event to searchable text representation
@@ -102,63 +108,131 @@ export const generateBatch = action({
     eventIds: v.array(v.id("events")),
   },
   handler: async (ctx, args): Promise<Id<"embeddings">[]> => {
-    // Rate limit: max 100 events per batch
-    if (args.eventIds.length > 100) {
-      throw new Error(
-        `Batch too large: ${args.eventIds.length} events (max 100)`,
+    const startTime = Date.now();
+
+    // Create trace for batch embedding
+    const trace = isLangfuseConfigured()
+      ? getLangfuse().trace({
+          name: "embedding-batch",
+          input: { batchSize: args.eventIds.length },
+          tags: ["gitpulse", "embeddings"],
+        })
+      : null;
+
+    try {
+      // Rate limit: max 100 events per batch
+      if (args.eventIds.length > 100) {
+        throw new Error(
+          `Batch too large: ${args.eventIds.length} events (max 100)`,
+        );
+      }
+
+      // Fetch all events
+      const events: (Doc<"events"> | null)[] = await Promise.all(
+        args.eventIds.map((id: Id<"events">) =>
+          ctx.runQuery(internal.events.getById, { id }),
+        ),
       );
+
+      // Filter out missing events
+      const validEvents: Doc<"events">[] = events.filter(
+        (e): e is Doc<"events"> => e !== null,
+      );
+      if (validEvents.length === 0) {
+        throw new Error("No valid events found");
+      }
+
+      // Get API keys
+      const voyageApiKey = process.env.VOYAGE_API_KEY;
+      const openaiApiKey = process.env.OPENAI_API_KEY;
+
+      if (!voyageApiKey && !openaiApiKey) {
+        throw new Error("No embedding API keys configured");
+      }
+
+      // Convert events to text
+      const texts = validEvents.map(eventToText);
+
+      // Create span for embedding API call
+      const embeddingSpan = trace?.span({
+        name: "embedding-api-call",
+        input: { textCount: texts.length },
+      });
+
+      const embeddingStartTime = Date.now();
+
+      // Generate embeddings in batch
+      const results = await embedBatch(texts, voyageApiKey, openaiApiKey);
+
+      const embeddingLatencyMs = Date.now() - embeddingStartTime;
+
+      // Track embedding generation
+      const provider = results[0]?.provider ?? "unknown";
+      const model = results[0]?.model ?? "unknown";
+      const dimensions = results[0]?.dimensions ?? 0;
+
+      // Estimate tokens (~4 chars per token)
+      const totalChars = texts.reduce((sum, t) => sum + t.length, 0);
+      const estimatedTokens = Math.ceil(totalChars / 4);
+      const costUsd = calculateCost(model, estimatedTokens, 0);
+
+      embeddingSpan?.end({
+        output: { embeddingsGenerated: results.length },
+        metadata: {
+          provider,
+          model,
+          dimensions,
+          latencyMs: embeddingLatencyMs,
+          estimatedTokens,
+          costUsd,
+        },
+      });
+
+      // Store embeddings in parallel
+      const embeddingIds: Id<"embeddings">[] = await Promise.all(
+        validEvents.map((event: Doc<"events">, i: number) =>
+          ctx.runMutation(internal.embeddings.create, {
+            scope: "event",
+            refId: event._id,
+            vector: results[i].vector,
+            provider: results[i].provider,
+            model: results[i].model,
+            dimensions: results[i].dimensions,
+            metadata: {
+              type: event.type,
+              ts: event.ts,
+              actorId: event.actorId,
+              repoId: event.repoId,
+            },
+          }),
+        ),
+      );
+
+      const totalLatencyMs = Date.now() - startTime;
+
+      trace?.update({
+        output: { embeddingsCreated: embeddingIds.length },
+        metadata: {
+          success: true,
+          provider,
+          model,
+          dimensions,
+          latencyMs: totalLatencyMs,
+          costUsd,
+        },
+      });
+      await flushLangfuse();
+
+      return embeddingIds;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      trace?.update({
+        output: { error: errorMessage },
+        metadata: { success: false, errorType: error instanceof Error ? error.name : "Unknown" },
+      });
+      await flushLangfuse();
+      throw error;
     }
-
-    // Fetch all events
-    const events: (Doc<"events"> | null)[] = await Promise.all(
-      args.eventIds.map((id: Id<"events">) =>
-        ctx.runQuery(internal.events.getById, { id }),
-      ),
-    );
-
-    // Filter out missing events
-    const validEvents: Doc<"events">[] = events.filter(
-      (e): e is Doc<"events"> => e !== null,
-    );
-    if (validEvents.length === 0) {
-      throw new Error("No valid events found");
-    }
-
-    // Get API keys
-    const voyageApiKey = process.env.VOYAGE_API_KEY;
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-
-    if (!voyageApiKey && !openaiApiKey) {
-      throw new Error("No embedding API keys configured");
-    }
-
-    // Convert events to text
-    const texts = validEvents.map(eventToText);
-
-    // Generate embeddings in batch
-    const results = await embedBatch(texts, voyageApiKey, openaiApiKey);
-
-    // Store embeddings in parallel
-    const embeddingIds: Id<"embeddings">[] = await Promise.all(
-      validEvents.map((event: Doc<"events">, i: number) =>
-        ctx.runMutation(internal.embeddings.create, {
-          scope: "event",
-          refId: event._id,
-          vector: results[i].vector,
-          provider: results[i].provider,
-          model: results[i].model,
-          dimensions: results[i].dimensions,
-          metadata: {
-            type: event.type,
-            ts: event.ts,
-            actorId: event.actorId,
-            repoId: event.repoId,
-          },
-        }),
-      ),
-    );
-
-    return embeddingIds;
   },
 });
 

@@ -73,8 +73,8 @@ export const MIN_SYNC_BUDGET = 100;
 /** Extra budget reserved for webhooks during cron syncs */
 export const WEBHOOK_BUDGET_RESERVE = 500;
 
-/** Minimum time between manual syncs (1 hour) */
-export const MANUAL_SYNC_COOLDOWN_MS = 60 * 60 * 1000;
+/** Minimum time between manual syncs (5 minutes for testing, was 1 hour) */
+export const MANUAL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
 /** If installation hasn't synced in this long, bypass cooldown (48 hours) */
 export const STALE_BYPASS_THRESHOLD_MS = 48 * 60 * 60 * 1000;

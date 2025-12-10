@@ -4,13 +4,14 @@
  * Daily Reports Cron Runner
  *
  * Called by Convex cron jobs every hour (24 jobs total).
- * Each job passes its UTC hour, queries users with matching reportHourUTC,
+ * Each job passes its UTC hour, queries users whose local midnight maps to that hour,
  * and generates daily standup reports for all of them.
  *
- * Design per ultrathink:
- * - No iteration through all users - indexed query for efficiency
- * - No runtime timezone math - hours pre-calculated at settings save
+ * Design:
+ * - Reports generate at user's local midnight (day is "frozen")
+ * - No iteration through all users - indexed query by midnightUtcHour
  * - Separate cron jobs (not one job checking all hours)
+ * - Uses timeWindows module for all date calculations
  */
 
 import { v } from "convex/values";
@@ -24,14 +25,17 @@ export const run = internalAction({
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
-    logger.info({ hourUTC: args.hourUTC }, "Starting daily reports");
+    logger.info({ hourUTC: args.hourUTC }, "Starting daily reports (midnight cron)");
 
-    // Query users who want daily reports at this UTC hour
-    const users: Array<{ clerkId?: string; githubUsername?: string }> =
-      await ctx.runQuery(internal.users.getUsersByReportHour, {
-        reportHourUTC: args.hourUTC,
-        dailyEnabled: true,
-      });
+    // Query users whose local midnight maps to this UTC hour
+    const users: Array<{
+      clerkId?: string;
+      githubUsername?: string;
+      timezone?: string;
+    }> = await ctx.runQuery(internal.users.getUsersByMidnightHour, {
+      midnightUtcHour: args.hourUTC,
+      dailyEnabled: true,
+    });
 
     if (users.length === 0) {
       logger.info(
@@ -69,7 +73,11 @@ export const run = internalAction({
     for (const user of users) {
       try {
         logger.info(
-          { userId: user.clerkId, githubUsername: user.githubUsername },
+          {
+            userId: user.clerkId,
+            githubUsername: user.githubUsername,
+            timezone: user.timezone,
+          },
           "Generating daily report for user",
         );
 
@@ -77,6 +85,7 @@ export const run = internalAction({
           internal.actions.generateScheduledReport.generateDailyReport,
           {
             userId: user.clerkId!,
+            timezone: user.timezone, // Pass timezone to avoid redundant lookup
           },
         );
 

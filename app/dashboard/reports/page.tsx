@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
@@ -8,11 +8,11 @@ import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
-import { CoverageMeter } from "@/components/CoverageMeter";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { track } from "@vercel/analytics";
+import { toast } from "sonner";
 
 export default function ReportsPage() {
   const {
@@ -23,6 +23,13 @@ export default function ReportsPage() {
   const [loadMoreCount, setLoadMoreCount] = useState(1);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const { status: integrationStatus } = useIntegrationStatus();
+
+  // Sync state
+  const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
+  const requestSync = useAction(api.actions.sync.requestSync.requestManualSync);
+  const backfillReports = useAction(api.actions.reports.backfill.backfillLastWeek);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isBackfilling, setIsBackfilling] = useState(false);
 
   const userId = clerkUser?.id;
   const githubUsername = convexUser?.githubUsername;
@@ -118,20 +125,113 @@ export default function ReportsPage() {
     }
   };
 
+  const handleSyncClick = async () => {
+    if (!syncStatuses?.length) {
+      toast.error("No installations found");
+      return;
+    }
+    try {
+      setIsSyncing(true);
+      // Sync ALL installations, not just the first one
+      let startedCount = 0;
+      for (const installation of syncStatuses) {
+        const result = await requestSync({
+          installationId: installation.installationId,
+        });
+        if (result.started) {
+          startedCount++;
+        }
+      }
+      if (startedCount > 0) {
+        toast.success(`Sync started for ${startedCount} installation${startedCount > 1 ? "s" : ""}`);
+      } else {
+        toast.info("All installations are up to date");
+      }
+    } catch (error) {
+      toast.error("Failed to start sync");
+      console.error(error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleBackfillClick = async () => {
+    try {
+      setIsBackfilling(true);
+      toast.info("Starting backfill...");
+      const result = await backfillReports({});
+      if (result.success) {
+        const { reportsGenerated, daysSkipped, daysWithoutEvents } = result;
+        if (reportsGenerated > 0) {
+          toast.success(`Generated ${reportsGenerated} report${reportsGenerated > 1 ? "s" : ""}`);
+        } else if (daysSkipped === 7) {
+          toast.info("All days already have reports");
+        } else if (daysWithoutEvents === 7 - daysSkipped) {
+          toast.info("No activity found in the past 7 days");
+        } else {
+          toast.info("Backfill complete - no new reports generated");
+        }
+      } else {
+        toast.error(result.error || "Backfill failed");
+      }
+    } catch (error) {
+      toast.error("Failed to backfill reports");
+      console.error(error);
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
   // Show loading state while auth or reports are loading
-  // Note: The SkeletonTable component below will handle the reports loading state
-  // This early return is for cases where we're completely unauthenticated
   if (!userId) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-muted">Loading...</p>
       </div>
     );
   }
 
+  // Compute sync state for button
+  const hasInstallation = syncStatuses && syncStatuses.length > 0;
+  const isActivelySyncing = syncStatuses?.some(
+    (s) => s.state === "syncing" || s.state === "blocked" || s.state === "recovering"
+  );
+  const lastSyncedAt = syncStatuses?.[0]?.lastSyncedAt;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <IntegrationStatusBanner />
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+        <div className="flex items-center gap-4">
+          {lastSyncedAt && (
+            <span className="text-xs text-muted">
+              Last sync: {formatTimestamp(lastSyncedAt)}
+            </span>
+          )}
+          {hasInstallation && (
+            <button
+              onClick={handleSyncClick}
+              disabled={isSyncing || isActivelySyncing}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSyncing || isActivelySyncing ? "Syncing..." : "Sync Now"}
+            </button>
+          )}
+          {hasInstallation && (
+            <button
+              onClick={handleBackfillClick}
+              disabled={isBackfilling || isSyncing || isActivelySyncing}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isBackfilling ? "Backfilling..." : "Backfill 7 Days"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Loading State */}
       {reports === undefined ? (
         <div className="space-y-4">
@@ -149,70 +249,83 @@ export default function ReportsPage() {
       ) : reports.length === 0 ? (
         <ReportsEmptyState status={integrationStatus} />
       ) : (
-        // Reports Feed
+        // Report Cards
         <>
-          <div className="flex flex-col border-t border-border">
+          <div className="space-y-4">
             {reports.map((report) => {
-              // Clean Editorial Badges
-              const isDaily = report.scheduleType === "daily";
               const isWeekly = report.scheduleType === "weekly";
+              const citationCount = report.citations?.length ?? 0;
+              const diagnostic = getReportDiagnostic(report);
 
               return (
-                <Link
+                <div
                   key={report._id}
-                  href={`/dashboard/reports/${report._id}`}
-                  prefetch={true}
-                  className="group flex flex-col gap-4 border-b border-border py-6 transition-colors hover:bg-surface-muted/30 sm:flex-row sm:items-start sm:justify-between"
+                  className="group rounded-xl border border-border bg-surface p-6 hover:bg-surface-muted/30 transition-colors"
                 >
-                  <div className="flex-1 space-y-3">
-                    {/* Metadata Line */}
-                    <div className="flex items-center gap-3 text-[11px] font-mono text-muted uppercase tracking-wider">
+                  <Link
+                    href={`/dashboard/reports/${report._id}`}
+                    prefetch={true}
+                    className="block"
+                  >
+                    {/* Badge + Date */}
+                    <div className="flex items-center gap-3 mb-3">
                       <span
-                        className={`h-1.5 w-1.5 rounded-full ${isDaily ? "bg-foreground" : "bg-muted"}`}
-                      />
-                      <span>{report.scheduleType}</span>
-                      <span>•</span>
-                      <span>
-                        {new Date(report.generatedAt).toLocaleDateString()}
+                        className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ${
+                          isWeekly
+                            ? "bg-foreground/10 text-foreground"
+                            : "bg-surface-muted text-muted"
+                        }`}
+                      >
+                        {isWeekly ? "Weekly" : "Daily"}
+                      </span>
+                      <span className="text-xs text-muted">
+                        {formatReportDate(report.startDate, report.endDate)}
                       </span>
                     </div>
 
                     {/* Title */}
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground group-hover:text-black dark:group-hover:text-white transition-colors">
+                    <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">
                       {report.title}
                     </h2>
 
                     {/* Description */}
                     {report.description && (
-                      <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed max-w-2xl">
+                      <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed mb-4">
                         {report.description}
                       </p>
                     )}
-                  </div>
 
-                  {/* Metrics / Actions */}
-                  <div className="flex items-center gap-6 sm:flex-col sm:items-end sm:gap-2">
-                    <div className="text-right">
-                      <div className="text-2xl font-semibold tracking-tight">
-                        {report.coverageScore ?? 0}%
+                    {/* Footer: Citations + Diagnostic */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl font-semibold tracking-tight">
+                          {citationCount}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted uppercase tracking-widest">
+                          Citations
+                        </span>
                       </div>
-                      <div className="text-[10px] font-mono text-muted uppercase tracking-widest">
-                        Coverage
-                      </div>
+
+                      {diagnostic && (
+                        <span className={`text-xs font-medium ${diagnostic.className}`}>
+                          {diagnostic.label}
+                        </span>
+                      )}
                     </div>
+                  </Link>
 
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleDelete(report._id);
-                      }}
-                      disabled={deletingId === report._id}
-                      className="mt-2 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
-                    >
-                      {deletingId === report._id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </Link>
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDelete(report._id);
+                    }}
+                    disabled={deletingId === report._id}
+                    className="mt-4 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
+                  >
+                    {deletingId === report._id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -229,6 +342,65 @@ export default function ReportsPage() {
   );
 }
 
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatReportDate(startDate: number, endDate: number): string {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const sameDay = start.toDateString() === end.toDateString();
+
+  if (sameDay) {
+    return end.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+type ReportDiagnostic = {
+  label: string;
+  className: string;
+};
+
+function getReportDiagnostic(report: {
+  eventCount?: number;
+  citationCount?: number;
+  expectedCitations?: number;
+  citations?: string[] | null;
+  [key: string]: unknown;
+}): ReportDiagnostic | null {
+  const eventCount = report.eventCount ?? 0;
+  const citationCount = report.citationCount ?? report.citations?.length ?? 0;
+  const expectedCitations = report.expectedCitations ?? 0;
+
+  // No events = legitimate quiet period
+  if (eventCount === 0) {
+    return { label: "No activity", className: "text-muted/70" };
+  }
+
+  // Events exist but no citations extracted
+  if (eventCount > 0 && citationCount === 0 && expectedCitations > 0) {
+    return { label: "Review needed", className: "text-amber-600 dark:text-amber-400" };
+  }
+
+  // Events exist but none have URLs
+  if (eventCount > 0 && expectedCitations === 0) {
+    return { label: "Data issue", className: "text-rose-600 dark:text-rose-400" };
+  }
+
+  return null;
+}
+
+// ============================================================================
+// Empty State
+// ============================================================================
+
 function ReportsEmptyState({
   status,
 }: {
@@ -243,7 +415,7 @@ function ReportsEmptyState({
 
   let guidance: ReactNode = (
     <p className="text-foreground-muted">
-      Reports are generated automatically at 9am your local time.
+      Reports are generated automatically at midnight your local time.
     </p>
   );
 
@@ -264,7 +436,7 @@ function ReportsEmptyState({
     } else if (status.kind === "no_events") {
       guidance = (
         <p className="text-amber-700 dark:text-amber-200">
-          We haven’t ingested any GitHub activity yet. Add repositories in{" "}
+          We haven&apos;t ingested any GitHub activity yet. Add repositories in{" "}
           <Link
             href="/dashboard/settings/repositories"
             className="font-medium underline hover:text-amber-900"

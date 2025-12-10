@@ -27,6 +27,10 @@ jest.mock("../../_generated/api", () => ({
       getActiveForInstallation: "internal.ingestionJobs.getActiveForInstallation",
       create: "internal.ingestionJobs.create",
     },
+    syncBatches: {
+      getActiveForInstallation: "internal.syncBatches.getActiveForInstallation",
+      create: "internal.syncBatches.create",
+    },
     actions: {
       sync: {
         processSyncJob: {
@@ -176,8 +180,8 @@ describe("syncService.request", () => {
 
     it("handles cooldown_active with remaining time", async () => {
       const installation = buildInstallation({
-        lastSyncedAt: NOW - 30 * 60 * 1000, // 30 min ago (not stale)
-        lastManualSyncAt: NOW - 30 * 60 * 1000, // 30 min ago (in cooldown)
+        lastSyncedAt: NOW - 2 * 60 * 1000, // 2 min ago (not stale)
+        lastManualSyncAt: NOW - 2 * 60 * 1000, // 2 min ago (within 5-min cooldown)
       });
 
       const runQuery = createAsyncMock();
@@ -240,10 +244,17 @@ describe("syncService.request", () => {
         syncStatus: "syncing",
       });
 
+      // Mock an ACTUAL active batch to trigger "already syncing"
+      const activeBatch = {
+        _id: "batch_existing" as any,
+        installationId: 12345,
+        status: "pending",
+      };
+
       const runQuery = createAsyncMock();
       runQuery
         .mockResolvedValueOnce(installation)
-        .mockResolvedValueOnce(null); // no active job in DB
+        .mockResolvedValueOnce(activeBatch); // Return active batch
       const runMutation = createAsyncMock();
       const runAction = createAsyncMock();
 
@@ -255,7 +266,7 @@ describe("syncService.request", () => {
       });
 
       expect(result.started).toBe(false);
-      expect(result.message).toBe("Sync already in progress");
+      expect(result.message).toBe("A sync is already in progress");
     });
   });
 
@@ -268,7 +279,7 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
@@ -290,21 +301,20 @@ describe("syncService.request", () => {
         })
       );
 
-      // Should create ingestion job
+      // Should create sync batch
       expect(runMutation).toHaveBeenCalledWith(
-        "internal.ingestionJobs.create",
+        "internal.syncBatches.create",
         expect.objectContaining({
           installationId: 12345,
           userId: "user_123",
-          repoFullName: "owner/repo1",
         })
       );
 
-      // Should schedule processSyncJob
+      // Should schedule processSyncJob for each job
       expect(scheduler.runAfter).toHaveBeenCalledWith(
         0,
         "internal.actions.sync.processSyncJob.processSyncJob",
-        expect.objectContaining({ jobId: "job_123" })
+        expect.objectContaining({ jobId: "job_1" })
       );
     });
 
@@ -316,7 +326,7 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123");
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
@@ -343,7 +353,7 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123");
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
@@ -370,7 +380,7 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123");
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
@@ -382,9 +392,9 @@ describe("syncService.request", () => {
         until: customUntil,
       });
 
-      // Should pass custom timestamps to job creation
+      // Should pass custom timestamps to batch creation
       expect(runMutation).toHaveBeenCalledWith(
-        "internal.ingestionJobs.create",
+        "internal.syncBatches.create",
         expect.objectContaining({
           since: customSince,
           until: customUntil,
@@ -440,9 +450,9 @@ describe("syncService.request", () => {
       const runQuery = createAsyncMock();
       runQuery
         .mockResolvedValueOnce(installation)
-        .mockResolvedValueOnce(null); // No actual active job in DB
+        .mockResolvedValueOnce(null); // No actual active batch in DB
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });
@@ -452,7 +462,7 @@ describe("syncService.request", () => {
         trigger: "cron",
       });
 
-      // Should start because policy allows cron and no active job
+      // Should start because policy allows cron and no active batch
       expect(result.started).toBe(true);
     });
 
@@ -489,7 +499,7 @@ describe("syncService.request", () => {
         .mockResolvedValueOnce(installation)
         .mockResolvedValueOnce(null);
       const runMutation = createAsyncMock();
-      runMutation.mockResolvedValue("job_123"); // Mock job creation
+      runMutation.mockResolvedValue({ batchId: "batch_123", jobIds: ["job_1", "job_2"] });
       const scheduler = { runAfter: createAsyncMock() };
 
       const ctx = createMockActionCtx({ runQuery, runMutation, scheduler });

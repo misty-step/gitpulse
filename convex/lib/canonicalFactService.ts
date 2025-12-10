@@ -195,8 +195,11 @@ async function enqueueEmbedding(
     contentHash,
   });
 
+  // 5-second delay prevents thundering herd when many events are ingested simultaneously.
+  // Each event independently schedules ensureBatch, but the delay naturally batches them.
+  // With 150 events over ~40s, this creates ~30 spaced calls instead of 150 concurrent.
   await ctx.scheduler.runAfter(
-    0,
+    5000,
     internal.actions.embeddings.ensureBatch.ensureBatch,
     {},
   );

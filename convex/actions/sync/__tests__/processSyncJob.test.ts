@@ -34,13 +34,16 @@ jest.mock("../../../_generated/api", () => ({
       updateSyncStatus: "internal.installations.updateSyncStatus",
       updateSyncState: "internal.installations.updateSyncState",
     },
+    events: {
+      getLatestEventTsForUser: "internal.events.getLatestEventTsForUser",
+    },
   },
 }));
 
 // Mock githubApp module
 jest.mock("../../../lib/githubApp", () => ({
   mintInstallationToken: jest.fn(),
-  fetchRepoTimeline: jest.fn(),
+  fetchRepoEvents: jest.fn(),
   shouldPause: jest.fn(),
 }));
 
@@ -59,7 +62,7 @@ jest.mock("../../../lib/github", () => ({
 
 // Mock canonicalizeEvent
 jest.mock("../../../lib/canonicalizeEvent", () => ({
-  canonicalizeEvent: jest.fn(),
+  canonicalizeRepoEventAll: jest.fn(),
 }));
 
 // Mock canonicalFactService
@@ -88,11 +91,11 @@ const asMock = <T extends AnyFunction>(fn: T) => fn as jest.MockedFunction<T>;
 // Import after mocks
 import {
   mintInstallationToken,
-  fetchRepoTimeline,
+  fetchRepoEvents,
   shouldPause,
 } from "../../../lib/githubApp";
 import { getRepository, RateLimitError } from "../../../lib/github";
-import { canonicalizeEvent } from "../../../lib/canonicalizeEvent";
+import { canonicalizeRepoEventAll } from "../../../lib/canonicalizeEvent";
 import { persistCanonicalEvent } from "../../../lib/canonicalFactService";
 
 describe("processSyncJob", () => {
@@ -232,7 +235,7 @@ describe("processSyncJob", () => {
   });
 
   describe("event processing", () => {
-    it("canonicalizes and persists timeline events", async () => {
+    it("canonicalizes and persists repo events", async () => {
       // Setup mocks
       asMock(mintInstallationToken).mockResolvedValue({ token: "test-token", expiresAt: NOW + 3600000 });
       asMock(getRepository).mockResolvedValue({
@@ -241,23 +244,30 @@ describe("processSyncJob", () => {
         name: "repo1",
         full_name: "owner/repo1",
         owner: { login: "owner" },
-         
       } as any);
-      asMock(fetchRepoTimeline).mockResolvedValue({
-        nodes: [{ __typename: "PullRequest", number: 1, id: "PR_1" }],
+
+      // Mock fetchRepoEvents with a PullRequestEvent
+      const mockEvent = {
+        id: "123",
+        type: "PullRequestEvent",
+        actor: { id: 1, login: "testuser", avatar_url: "https://...", url: "https://..." },
+        repo: { id: 456, name: "owner/repo1", url: "https://..." },
+        payload: { action: "opened", number: 1, pull_request: { id: 1, number: 1, title: "Test PR" } },
+        public: true,
+        created_at: new Date(NOW).toISOString(),
+      };
+
+      asMock(fetchRepoEvents).mockResolvedValue({
+        events: [mockEvent],
         hasNextPage: false,
-        endCursor: null,
-        totalCount: 1,
         rateLimit: { remaining: 4900, reset: NOW + 3600000 },
-        notModified: false,
-         
       } as any);
-      asMock(canonicalizeEvent).mockReturnValue({
+
+      asMock(canonicalizeRepoEventAll).mockReturnValue([{
         type: "pr_opened",
         canonicalText: "Opened PR #1",
         sourceUrl: "https://github.com/owner/repo1/pull/1",
-         
-      } as any);
+      }] as any);
       asMock(persistCanonicalEvent).mockResolvedValue({ status: "inserted" });
       asMock(shouldPause).mockReturnValue(false);
 
@@ -265,31 +275,29 @@ describe("processSyncJob", () => {
       const token = await asMock(mintInstallationToken)(12345);
       expect(token).toEqual({ token: "test-token", expiresAt: NOW + 3600000 });
 
-      const timeline = await asMock(fetchRepoTimeline)({
+      const eventsResult = await asMock(fetchRepoEvents)({
         token: "test",
-        repoFullName: "test",
-        sinceISO: "test",
+        repoFullName: "owner/repo1",
+        page: 1,
       });
-      expect(timeline.nodes).toHaveLength(1);
-      expect(timeline.hasNextPage).toBe(false);
+      expect(eventsResult.events).toHaveLength(1);
+      expect(eventsResult.hasNextPage).toBe(false);
 
-       
-      const canonical = asMock(canonicalizeEvent)({ kind: "timeline", item: {} as any, repoFullName: "test" });
-      expect(canonical?.type).toBe("pr_opened");
+      const canonicalEvents = asMock(canonicalizeRepoEventAll)(mockEvent);
+      expect(canonicalEvents).toHaveLength(1);
+      expect(canonicalEvents[0]?.type).toBe("pr_opened");
 
       const result = await asMock(persistCanonicalEvent)(
-         
         {} as any, {} as any, {} as any
       );
       expect(result.status).toBe("inserted");
     });
 
-    it("skips null canonicalized events", () => {
-      asMock(canonicalizeEvent).mockReturnValue(null);
+    it("returns empty array for unhandled event types", () => {
+      asMock(canonicalizeRepoEventAll).mockReturnValue([]);
 
-       
-      const result = asMock(canonicalizeEvent)({ kind: "timeline", item: {} as any, repoFullName: "test" });
-      expect(result).toBeNull();
+      const result = asMock(canonicalizeRepoEventAll)({ type: "WatchEvent" } as any);
+      expect(result).toEqual([]);
     });
   });
 

@@ -60,22 +60,30 @@ export const markProcessing = internalMutation({
   args: { id: v.id("embeddingQueue") },
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.id);
-    if (!job) {
-      return;
+    // Idempotent: skip if job doesn't exist or isn't pending
+    // This prevents OCC conflicts when multiple workers race to claim the same job
+    if (!job || job.status !== "pending") {
+      return { marked: false };
     }
 
     await ctx.db.patch(args.id, {
       status: "processing",
-      attempts: job.attempts + 1,
+      attempts: (job.attempts ?? 0) + 1,
       lastAttemptAt: Date.now(),
     });
+    return { marked: true };
   },
 });
 
 export const complete = internalMutation({
   args: { id: v.id("embeddingQueue") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.id);
+    // Guard delete: only delete if job exists
+    // Prevents "Delete on nonexistent document" errors from concurrent completions
+    const job = await ctx.db.get(args.id);
+    if (job) {
+      await ctx.db.delete(args.id);
+    }
   },
 });
 

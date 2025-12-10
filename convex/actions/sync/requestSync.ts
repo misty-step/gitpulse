@@ -28,6 +28,7 @@ export const requestSync = internalAction({
     ),
     since: v.optional(v.number()),
     until: v.optional(v.number()),
+    forceFullSync: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<SyncResult> => {
     return request(ctx, {
@@ -35,6 +36,7 @@ export const requestSync = internalAction({
       trigger: args.trigger,
       since: args.since,
       until: args.until,
+      forceFullSync: args.forceFullSync,
     });
   },
 });
@@ -43,10 +45,14 @@ export const requestSync = internalAction({
  * Public action for manual sync requests (used by UI)
  *
  * Requires authentication and validates that the user owns the installation.
+ *
+ * Always performs a full 30-day sync (forceFullSync: true) to ensure
+ * all historical events are captured regardless of lastSyncedAt state.
  */
 export const requestManualSync = action({
   args: {
     installationId: v.number(),
+    forceFullSync: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<SyncResult> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -58,9 +64,11 @@ export const requestManualSync = action({
     }
 
     // The syncService will verify the user owns this installation
+    // Default to full sync for manual requests to ensure complete data
     return request(ctx, {
       installationId: args.installationId,
       trigger: "manual",
+      forceFullSync: args.forceFullSync ?? true,
     });
   },
 });

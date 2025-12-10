@@ -22,7 +22,7 @@ describe("SyncStatus type", () => {
     expect(status.canSyncNow).toBe(true);
     expect(status.cooldownMs).toBeUndefined();
     expect(status.blockedUntil).toBeUndefined();
-    expect(status.activeJobProgress).toBeUndefined();
+    expect(status.batchProgress).toBeUndefined();
     expect(status.lastSyncedAt).toBeUndefined();
     expect(status.lastSyncError).toBeUndefined();
   });
@@ -31,23 +31,24 @@ describe("SyncStatus type", () => {
     const status: SyncStatus = {
       state: "syncing",
       canSyncNow: false,
-      activeJobProgress: {
-        current: 150,
-        total: 50,
-        startedAt: Date.now() - 30000,
+      batchProgress: {
+        totalRepos: 5,
+        completedRepos: 2,
+        failedRepos: 0,
+        eventsIngested: 150,
         currentRepo: "owner/repo",
-        pendingCount: 2,
+        startedAt: Date.now() - 30000,
       },
       lastSyncedAt: Date.now() - 60000,
     };
 
     expect(status.state).toBe("syncing");
     expect(status.canSyncNow).toBe(false);
-    expect(status.activeJobProgress?.current).toBe(150);
-    expect(status.activeJobProgress?.total).toBe(50);
-    expect(status.activeJobProgress?.startedAt).toBeDefined();
-    expect(status.activeJobProgress?.currentRepo).toBe("owner/repo");
-    expect(status.activeJobProgress?.pendingCount).toBe(2);
+    expect(status.batchProgress?.totalRepos).toBe(5);
+    expect(status.batchProgress?.completedRepos).toBe(2);
+    expect(status.batchProgress?.eventsIngested).toBe(150);
+    expect(status.batchProgress?.startedAt).toBeDefined();
+    expect(status.batchProgress?.currentRepo).toBe("owner/repo");
   });
 
   it("has correct shape for blocked state", () => {
@@ -56,14 +57,78 @@ describe("SyncStatus type", () => {
       state: "blocked",
       canSyncNow: false,
       blockedUntil,
-      activeJobProgress: {
-        current: 300,
-        total: 500,
+      batchProgress: {
+        totalRepos: 3,
+        completedRepos: 1,
+        failedRepos: 0,
+        eventsIngested: 300,
       },
     };
 
     expect(status.state).toBe("blocked");
     expect(status.blockedUntil).toBe(blockedUntil);
+  });
+
+  it("has correct shape for recovering state", () => {
+    const nextRecoveryAt = Date.now() + 300000;
+    const status: SyncStatus = {
+      state: "recovering",
+      canSyncNow: false,
+      recoveryAttempts: 2,
+      nextRecoveryAt,
+    };
+
+    expect(status.state).toBe("recovering");
+    expect(status.recoveryAttempts).toBe(2);
+    expect(status.nextRecoveryAt).toBe(nextRecoveryAt);
+  });
+
+  it("has correct shape for finishing state", () => {
+    const status: SyncStatus = {
+      state: "finishing",
+      canSyncNow: false,
+      batchProgress: {
+        totalRepos: 5,
+        completedRepos: 5,
+        failedRepos: 0,
+        eventsIngested: 0,
+      },
+    };
+
+    expect(status.state).toBe("finishing");
+    expect(status.batchProgress?.completedRepos).toBe(5);
+    expect(status.batchProgress?.totalRepos).toBe(5);
+  });
+
+  it("has correct shape with lastCompletedSync", () => {
+    const status: SyncStatus = {
+      state: "idle",
+      canSyncNow: true,
+      lastCompletedSync: {
+        completedAt: Date.now(),
+        totalRepos: 142,
+        eventsIngested: 0,
+      },
+    };
+
+    expect(status.lastCompletedSync?.totalRepos).toBe(142);
+    expect(status.lastCompletedSync?.eventsIngested).toBe(0);
+  });
+
+  it("includes escalation when recovery attempts exceed threshold", () => {
+    const status: SyncStatus = {
+      state: "idle",
+      canSyncNow: true,
+      recoveryAttempts: 3,
+      escalation: {
+        kind: "webhook_failure",
+        message: "GitHub webhooks may have stopped. Check App installation.",
+        actionUrl: "https://github.com/settings/installations/12345",
+      },
+    };
+
+    expect(status.escalation?.kind).toBe("webhook_failure");
+    expect(status.escalation?.actionUrl).toContain("installations");
   });
 
   it("has correct shape for error state", () => {
@@ -228,35 +293,34 @@ describe("cooldownMs derivation", () => {
   });
 });
 
-describe("activeJobProgress derivation", () => {
-  it("builds progress from job state", () => {
-    const job = {
+describe("batchProgress derivation", () => {
+  it("builds progress from batch state", () => {
+    const batch = {
+      totalRepos: 5,
+      completedRepos: 2,
+      failedRepos: 0,
       eventsIngested: 150,
-      progress: 30,
-      reposRemaining: ["repo2", "repo3"],
     };
 
-    const activeJobProgress = {
-      current: job.eventsIngested ?? 0,
-      total: job.progress ?? 0,
+    const batchProgress = {
+      totalRepos: batch.totalRepos,
+      completedRepos: batch.completedRepos,
+      failedRepos: batch.failedRepos,
+      eventsIngested: batch.eventsIngested,
     };
 
-    expect(activeJobProgress.current).toBe(150);
-    expect(activeJobProgress.total).toBe(30);
+    expect(batchProgress.totalRepos).toBe(5);
+    expect(batchProgress.completedRepos).toBe(2);
+    expect(batchProgress.eventsIngested).toBe(150);
   });
 
-  it("handles missing eventsIngested", () => {
-    const job = {
-      eventsIngested: undefined,
-      progress: 50,
+  it("calculates progress percentage correctly", () => {
+    const batch = {
+      totalRepos: 5,
+      completedRepos: 2,
     };
 
-    const activeJobProgress = {
-      current: job.eventsIngested ?? 0,
-      total: job.progress ?? 0,
-    };
-
-    expect(activeJobProgress.current).toBe(0);
-    expect(activeJobProgress.total).toBe(50);
+    const progressPercent = Math.round((batch.completedRepos / batch.totalRepos) * 100);
+    expect(progressPercent).toBe(40);
   });
 });

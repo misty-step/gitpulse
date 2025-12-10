@@ -14,6 +14,12 @@ import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { markdownToHtml } from "./markdown";
 import { logger } from "./logger.js";
+import {
+  getLangfuse,
+  isLangfuseConfigured,
+  flushLangfuse,
+  calculateCost,
+} from "./langfuse.js";
 
 // ============================================================================
 // Types
@@ -52,6 +58,18 @@ export async function generateReport(
   params: GenerateReportParams
 ): Promise<GenerateReportResult> {
   const { userId, startDate, endDate, kind } = params;
+  const startTime = Date.now();
+
+  // Create Langfuse trace for observability
+  const trace = isLangfuseConfigured()
+    ? getLangfuse().trace({
+        name: "report-generation",
+        userId,
+        input: { kind, startDate, endDate },
+        tags: ["gitpulse", kind],
+        metadata: { window: `${startDate}-${endDate}` },
+      })
+    : null;
 
   try {
     // 1. Get user
@@ -126,10 +144,34 @@ export async function generateReport(
       "Generating report"
     );
 
-    // 6. Build prompts and call LLM
+    // 6. Build prompts and call LLM with tracing
     const systemPrompt = buildSystemPrompt(kind);
     const userPrompt = buildUserPrompt(user.githubUsername, events, kind, startDate, endDate);
+
+    // Create span for LLM call
+    const llmSpan = trace?.span({ name: "llm-call", input: { eventCount: events.length } });
+    const llmGeneration = llmSpan?.generation({
+      name: `generate-${kind}-report`,
+      model: "gemini-2.5-flash",
+      input: { system: systemPrompt.slice(0, 500), user: userPrompt.slice(0, 1000) },
+      metadata: { eventCount: events.length, username: user.githubUsername },
+    });
+
+    const llmStartTime = Date.now();
     const llmResult = await callGemini(systemPrompt, userPrompt);
+    const llmLatencyMs = Date.now() - llmStartTime;
+
+    // End LLM generation with results
+    const promptTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    const completionTokens = Math.ceil(llmResult.markdown.length / 4);
+    const costUsd = calculateCost(llmResult.model, promptTokens, completionTokens);
+
+    llmGeneration?.end({
+      output: llmResult.markdown.slice(0, 2000),
+      usage: { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens },
+      metadata: { latencyMs: llmLatencyMs, costUsd, success: true },
+    });
+    llmSpan?.end();
 
     // 7. Extract citations and compute diagnostics
     const citations = extractCitations(llmResult.markdown);
@@ -164,6 +206,8 @@ export async function generateReport(
       expectedCitations: eventsWithUrls.length,
     });
 
+    const totalLatencyMs = Date.now() - startTime;
+
     logger.info(
       {
         userId,
@@ -173,14 +217,31 @@ export async function generateReport(
         eventsWithUrls: eventsWithUrls.length,
         citationsExtracted: citations.length,
         citationRate,
+        latencyMs: totalLatencyMs,
+        costUsd,
       },
       "Report generated with diagnostics"
     );
+
+    // Update trace with success
+    trace?.update({
+      output: { reportId, citationCount: citations.length, eventCount: events.length },
+      metadata: { success: true, latencyMs: totalLatencyMs, costUsd },
+    });
+    await flushLangfuse();
 
     return { success: true, reportId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ userId, kind, error: errorMessage }, "Report generation failed");
+
+    // Update trace with error
+    trace?.update({
+      output: { error: errorMessage },
+      metadata: { success: false, errorType: error instanceof Error ? error.name : "Unknown" },
+    });
+    await flushLangfuse();
+
     return { success: false, error: errorMessage };
   }
 }
@@ -195,7 +256,7 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<LLM
     throw new Error("GOOGLE_API_KEY not configured");
   }
 
-  const model = "gemini-2.5-flash-preview-05-20";
+  const model = "gemini-2.5-flash";
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,

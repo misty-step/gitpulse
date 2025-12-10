@@ -62,7 +62,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-pulse: var(--pulse);
-  
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -169,4 +169,11 @@ h1, h2, h3, h4, h5, h6 {
   to {
     background-position: 12px 12px;
   }
+}
+
+@keyframes dash {
+  0% { stroke-dashoffset: 200; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
 }

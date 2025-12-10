@@ -1,7 +1,8 @@
 # BACKLOG
 
-Last groomed: 2025-11-29
+Last groomed: 2025-12-09
 Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus direct analysis + Gemini competitive intelligence
+**Architectural Audit**: 2025-12-09 — Council score 7.6/10, verdict: KEEP
 
 **Strategic Context**: GitPulse occupies a unique "High-Trust Niche" - combining the *automation* of standup assistants (Spinach/Standuply) with the *rigor* of enterprise platforms (LinearB/Waydev). Citation-backed reporting directly addresses the #1 user complaint: **distrust of AI-generated content**.
 
@@ -111,6 +112,39 @@ pre-commit:
 
 ---
 
+### [Architecture P0] Split canonicalizeEvent.ts — 1,159 lines
+**File**: `convex/lib/canonicalizeEvent.ts`
+**Perspectives**: ousterhout (8/10), grug (7/10), fowler (7/10)
+**Impact**: Giant switch dispatcher with 7 branches × 100+ lines inline. Largest file in codebase, complexity debt accumulating.
+**Fix**: Extract to separate files:
+```
+convex/lib/canonicalizeEvent/
+├── index.ts          # Router only (50 lines)
+├── pullRequest.ts    # Pure normalizer
+├── issue.ts
+├── commit.ts
+├── review.ts
+└── timeline.ts
+```
+**Effort**: 4h | **Risk**: LOW | **Benefit**: Each file <200 lines; changes isolated; easier to test
+**Acceptance**: Each normalizer file <200 LOC, main router <100 LOC, all tests pass
+
+---
+
+### [Architecture P0] Fix LLMClient Abstraction Violation
+**File**: `convex/lib/generateReport.ts:192-228`
+**Perspectives**: ousterhout (8/10), metz (7/10)
+**Impact**: Implements own `callGemini()` instead of using `LLMClient.ts`. Two places to update if Gemini API changes. LLMClient's fallback logic and provider abstraction are unused.
+**Fix**: Replace direct Gemini call with LLMClient:
+```typescript
+const client = new LLMClient({ provider: "google", model: "gemini-2.5-flash" });
+const result = await client.generate({ systemPrompt, userPrompt });
+```
+**Effort**: 1h | **Risk**: LOW | **Benefit**: Single source of truth for LLM logic; easier to add fallback providers
+**Acceptance**: generateReport.ts uses LLMClient, no direct fetch to Gemini API
+
+---
+
 ## Next (This Quarter, <3 months)
 
 ### [Product] Interactive Citation Drawer (Competitive Moat)
@@ -214,6 +248,56 @@ pre-commit:
 
 ---
 
+### [Architecture P1] Consolidate Cron Jobs — 192 → Fan-Out
+**File**: `convex/crons.ts`
+**Perspectives**: grug (7/10), carmack (8/10)
+**Impact**: 24 daily + 168 weekly cron jobs (one per UTC hour/day). Convex soft limit ~500 concurrent; at 50% utilization.
+**Fix**: Single daily cron that queries users by `midnightUtcHour` and fans out
+**Effort**: 3h | **Risk**: MEDIUM | **Benefit**: Simpler cron management, room to grow
+**Acceptance**: Single daily cron, single weekly cron, fan-out queries
+
+---
+
+### [Architecture P1] Extract BackfillContext Object
+**File**: `convex/actions/github/startBackfill.ts:27-37`
+**Perspectives**: fowler (7/10), ousterhout (8/10)
+**Impact**: `BackfillInternalArgs` has 9 parameters (3 required, 6 optional). Hard to extend, callers must understand state machine.
+**Fix**: Wrap in `BackfillContext { installation, repos, window, state }` object
+**Effort**: 2h | **Risk**: LOW | **Benefit**: Cleaner interface, easier to extend
+**Acceptance**: Parameters grouped into context object, callers simplified
+
+---
+
+### [Architecture P2] Event-Driven Embedding Trigger
+**File**: `convex/crons.ts` (embedding queue polling)
+**Perspectives**: carmack (8/10), performance-pathfinder
+**Impact**: 5-minute cron interval for embedding processing. 1000 pending events × 5min wait = backlog spike.
+**Fix**: Trigger embedding batch when sync completes (event-driven)
+**Effort**: 4h | **Risk**: MEDIUM | **Benefit**: Near-instant embedding after sync
+**Acceptance**: Embeddings generated within 30s of sync completion
+
+---
+
+### [Architecture P2] Extract Actor/Repo Normalization
+**File**: `convex/lib/canonicalizeEvent.ts` (5 instances)
+**Perspectives**: metz (7/10), fowler (7/10)
+**Impact**: Actor/repo normalization repeated 5x with slightly different field fallback chains. Inconsistent, hard to maintain.
+**Fix**: Extract `selectActor(candidates)` and `normalizeRepo(payload)` pure functions
+**Effort**: 2h | **Risk**: LOW | **Benefit**: Single source of truth for normalization
+**Acceptance**: Single normalizeActor(), single normalizeRepo() used everywhere
+
+---
+
+### [Architecture P2] Remove Deprecated Schema Fields
+**File**: `convex/schema.ts:57-77`
+**Perspectives**: maintainability-maven, ousterhout (8/10)
+**Impact**: `reportHourUTC`, `weeklyDayUTC`, `weeklySchedule` index marked DEPRECATED but still in schema.
+**Fix**: Backfill migration to remove fields and indexes
+**Effort**: 2h | **Risk**: LOW | **Benefit**: Cleaner schema, less confusion
+**Acceptance**: Deprecated fields removed, indexes dropped, migration verified
+
+---
+
 ## Soon (Exploring, 3-6 months)
 
 - **[Product] Personal-Only Insights Dashboard** - Private productivity patterns for ICs (anti-surveillance positioning per Gemini)
@@ -259,7 +343,16 @@ pre-commit:
 
 ## Learnings
 
-**From this grooming session (2025-11-29):**
+**From architectural audit (2025-12-09):**
+
+- **Council verdict: KEEP** — 7.6/10 average score from 7 master perspectives
+- **Deep modules working** — syncPolicy.ts, syncService.ts, canonicalFactService.ts, githubApp.ts exemplify Ousterhout's principles
+- **canonicalizeEvent.ts complexity debt** — 1,159 lines, largest file in codebase, needs extraction into router + normalizers
+- **LLMClient abstraction violation** — generateReport.ts bypasses existing abstraction, duplicates Gemini call logic
+- **Cron job explosion** — 192 jobs approaching 50% of Convex soft limit, needs fan-out consolidation
+- **Scaling path clear** — production-ready for 0-100k events, add vector DB at 500k, consider Postgres+Bull at 1M
+
+**From grooming session (2025-11-29):**
 
 - **Event type mismatch** - `"review"` vs `"review_submitted"` causes silent data gaps in KPIs. Quick fix, high impact.
 - **KPI query O(n)** - Convex indexes support range filtering but code fetches full table. 10-100x speedup available.

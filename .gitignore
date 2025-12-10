@@ -76,6 +76,9 @@ thinktank_*/
 # TypeScript build info
 tsconfig.*.tsbuildinfo
 
+# Promptfoo eval output
+evals/.promptfoo/
+
 /docs/leyline
 
 # clerk configuration (can include secrets)

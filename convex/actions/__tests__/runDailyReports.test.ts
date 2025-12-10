@@ -10,7 +10,7 @@ import { createAsyncMock } from "../../../tests/utils/jestMocks";
 jest.mock("../../_generated/api", () => ({
   internal: {
     users: {
-      getUsersByReportHour: "internal.users.getUsersByReportHour",
+      getUsersByMidnightHour: "internal.users.getUsersByMidnightHour",
     },
     reportJobHistory: {
       logRun: "internal.reportJobHistory.logRun",
@@ -45,6 +45,7 @@ describe("runDailyReports", () => {
   const mockUser = {
     clerkId: "clerk_123",
     githubUsername: "octocat",
+    timezone: "America/Chicago",
   };
 
   describe("successful execution", () => {
@@ -69,9 +70,9 @@ describe("runDailyReports", () => {
       await run.handler(ctx, { hourUTC: 14 });
 
       expect(runQuery).toHaveBeenCalledWith(
-        "internal.users.getUsersByReportHour",
+        "internal.users.getUsersByMidnightHour",
         {
-          reportHourUTC: 14,
+          midnightUtcHour: 14,
           dailyEnabled: true,
         },
       );
@@ -101,7 +102,7 @@ describe("runDailyReports", () => {
 
       expect(runAction).toHaveBeenCalledWith(
         "internal.actions.generateScheduledReport.generateDailyReport",
-        { userId: "clerk_123" },
+        { userId: "clerk_123", timezone: "America/Chicago" },
       );
     });
   });
@@ -247,7 +248,7 @@ describe("runDailyReports", () => {
 
       expect(logger.info).toHaveBeenCalledWith(
         { hourUTC: 12 },
-        "Starting daily reports",
+        "Starting daily reports (midnight cron)",
       );
     });
 
@@ -306,7 +307,7 @@ describe("runDailyReports", () => {
       await run.handler(ctx, { hourUTC: 9 });
 
       expect(logger.info).toHaveBeenCalledWith(
-        { userId: "clerk_123", githubUsername: "octocat" },
+        { userId: "clerk_123", githubUsername: "octocat", timezone: "America/Chicago" },
         "Generating daily report for user",
       );
     });

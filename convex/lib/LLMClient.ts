@@ -2,6 +2,12 @@ import { ZodError } from "zod";
 import type { ZodTypeAny, infer as ZodInfer } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { logger } from "./logger.js";
+import {
+  getLangfuse,
+  isLangfuseConfigured,
+  calculateCost,
+} from "./langfuse.js";
+import type { LangfuseTraceClient, LangfuseSpanClient } from "langfuse";
 
 /**
  * LLM Provider Abstraction - Deep Module (October 2025)
@@ -50,6 +56,18 @@ export interface LLMRequestPayload {
 }
 
 /**
+ * Tracing context passed to LLM operations.
+ * Enables correlation of LLM calls with parent traces.
+ */
+export interface TracingContext {
+  trace?: LangfuseTraceClient;
+  span?: LangfuseSpanClient;
+  userId?: string;
+  sessionId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * LLM Client - Unified interface for multiple providers
  *
  * Encapsulates:
@@ -88,28 +106,61 @@ export class LLMClient {
   }
 
   /**
-   * Generate text from prompt
+   * Generate text from prompt with optional Langfuse tracing.
    *
-   * @param prompt - Input prompt text
+   * @param payload - Input prompts
    * @param options - Override config options
+   * @param tracing - Optional tracing context for observability
    * @returns Generated markdown text
    */
   async generate(
     payload: LLMRequestPayload,
     options?: GenerateOptions,
+    tracing?: TracingContext,
   ): Promise<string> {
     const temperature = options?.temperature ?? this.config.temperature;
     const maxTokens = options?.maxTokens ?? this.config.maxTokens;
     const retries = options?.retries ?? 3;
+    const startTime = Date.now();
+
+    // Create Langfuse generation if tracing is enabled
+    const generation = tracing?.span && isLangfuseConfigured()
+      ? tracing.span.generation({
+          name: "llm-generate",
+          model: this.config.model,
+          modelParameters: { temperature, maxTokens },
+          input: { system: payload.systemPrompt, user: payload.userPrompt },
+          metadata: {
+            provider: this.config.provider,
+            ...tracing.metadata,
+          },
+        })
+      : null;
 
     let lastError: Error | undefined;
+    let result: string | undefined;
+    let usage: { promptTokens: number; completionTokens: number } | undefined;
 
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         if (this.config.provider === "google") {
-          return await this.generateGoogle(payload, temperature, maxTokens);
+          const response = await this.generateGoogleWithUsage(
+            payload,
+            temperature,
+            maxTokens,
+          );
+          result = response.text;
+          usage = response.usage;
+          break;
         } else if (this.config.provider === "openai") {
-          return await this.generateOpenAI(payload, temperature, maxTokens);
+          const response = await this.generateOpenAIWithUsage(
+            payload,
+            temperature,
+            maxTokens,
+          );
+          result = response.text;
+          usage = response.usage;
+          break;
         } else {
           throw new Error(`Unsupported provider: ${this.config.provider}`);
         }
@@ -127,9 +178,49 @@ export class LLMClient {
       }
     }
 
-    throw new Error(
-      `LLM generation failed after ${retries} attempts: ${lastError?.message}`,
-    );
+    const latencyMs = Date.now() - startTime;
+
+    // End Langfuse generation with results
+    if (generation) {
+      if (result && usage) {
+        const cost = calculateCost(
+          this.config.model,
+          usage.promptTokens,
+          usage.completionTokens,
+        );
+        generation.end({
+          output: result,
+          usage: {
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            totalTokens: usage.promptTokens + usage.completionTokens,
+          },
+          metadata: {
+            latencyMs,
+            costUsd: cost,
+            success: true,
+          },
+        });
+      } else {
+        generation.end({
+          statusMessage: lastError?.message ?? "Unknown error",
+          level: "ERROR",
+          metadata: {
+            latencyMs,
+            success: false,
+            errorType: lastError?.name,
+          },
+        });
+      }
+    }
+
+    if (!result) {
+      throw new Error(
+        `LLM generation failed after ${retries} attempts: ${lastError?.message}`,
+      );
+    }
+
+    return result;
   }
 
   async generateStructured<T extends ZodTypeAny>(
@@ -176,6 +267,93 @@ export class LLMClient {
       }
       throw error;
     }
+  }
+
+  /**
+   * Generate using Google Gemini API with usage tracking.
+   */
+  private async generateGoogleWithUsage(
+    payload: LLMRequestPayload,
+    temperature: number,
+    maxTokens: number,
+  ): Promise<{ text: string; usage: { promptTokens: number; completionTokens: number } }> {
+    const text = await this.generateGoogleContent(payload, temperature, maxTokens);
+    // Gemini API doesn't always return token counts in the response
+    // Estimate based on character count (~4 chars per token)
+    const promptTokens = Math.ceil(
+      (payload.systemPrompt.length + payload.userPrompt.length) / 4,
+    );
+    const completionTokens = Math.ceil(text.length / 4);
+    return { text, usage: { promptTokens, completionTokens } };
+  }
+
+  /**
+   * Generate using OpenAI API with usage tracking.
+   */
+  private async generateOpenAIWithUsage(
+    payload: LLMRequestPayload,
+    temperature: number,
+    maxTokens: number,
+  ): Promise<{ text: string; usage: { promptTokens: number; completionTokens: number } }> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY not configured");
+    }
+
+    const modelMap: Record<string, string> = {
+      "gpt-5": "gpt-5",
+      "gpt-4.1": "gpt-4.1",
+    };
+
+    const modelId = modelMap[this.config.model] || "gpt-5";
+
+    const body: Record<string, unknown> = {
+      model: modelId,
+      messages: [
+        { role: "system", content: payload.systemPrompt },
+        { role: "user", content: payload.userPrompt },
+      ],
+      max_completion_tokens: maxTokens,
+    };
+
+    if (temperature !== 1) {
+      body.temperature = temperature;
+    }
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+      );
+    }
+
+    const data = await response.json();
+
+    if (!data.choices || data.choices.length === 0) {
+      throw new Error("No response from OpenAI");
+    }
+
+    const content = data.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("Empty response from OpenAI");
+    }
+
+    // OpenAI returns usage in the response
+    const usage = {
+      promptTokens: data.usage?.prompt_tokens ?? 0,
+      completionTokens: data.usage?.completion_tokens ?? 0,
+    };
+
+    return { text: content, usage };
   }
 
   /**

@@ -13,6 +13,7 @@ module.exports = {
     "^@/(.*)$": "<rootDir>/$1",
     "^.+/_generated/server$": "<rootDir>/tests/mocks/convexServer.ts",
     "^(.*)\\.js$": "$1", // Map .js imports to .ts files (ESM compatibility)
+    "^langfuse$": "<rootDir>/tests/__mocks__/langfuse.ts",
   },
   setupFilesAfterEnv: ["<rootDir>/tests/jest.setup.ts"],
   transform: {

@@ -83,6 +83,15 @@ crons.interval(
   {},
 );
 
+// Finalize complete sync batches
+// Jobs no longer call back to batch - lazy finalization via cron
+crons.interval(
+  "finalize-complete-batches",
+  { minutes: 1 },
+  internal.syncBatches.finalizeCompleteBatches,
+  {},
+);
+
 crons.daily(
   "installation-reconcile",
   { hourUTC: 2, minuteUTC: 15 },
