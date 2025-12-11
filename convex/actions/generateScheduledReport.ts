@@ -60,6 +60,7 @@ export const generateDailyReport = internalAction({
       startDate: window.start,
       endDate: window.end,
       kind: "daily",
+      timezone,
     });
 
     if (result.success) {
@@ -117,6 +118,7 @@ export const generateWeeklyReport = internalAction({
       startDate: window.start,
       endDate: window.end,
       kind: "weekly",
+      timezone,
     });
 
     if (result.success) {

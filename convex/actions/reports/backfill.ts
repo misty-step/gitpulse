@@ -162,6 +162,7 @@ export const backfillLastWeek = action({
           startDate: window.start,
           endDate: window.end,
           kind: "daily",
+          timezone,
         });
 
         if (result.success) {

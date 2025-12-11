@@ -35,6 +35,7 @@ export const generate = internalAction({
     startDate: v.number(),
     endDate: v.number(),
     kind: v.union(v.literal("daily"), v.literal("weekly")),
+    timezone: v.string(),
   },
   handler: async (ctx, args) => {
     return await generateReport(ctx, args);
@@ -61,6 +62,7 @@ export const generateTodayDaily = internalAction({
       startDate: window.start,
       endDate: window.end,
       kind: "daily",
+      timezone,
     });
   },
 });
@@ -85,6 +87,7 @@ export const generateYesterdayDaily = internalAction({
       startDate: window.start,
       endDate: window.end,
       kind: "daily",
+      timezone,
     });
   },
 });
@@ -109,6 +112,7 @@ export const generateWeekly = internalAction({
       startDate: window.start,
       endDate: window.end,
       kind: "weekly",
+      timezone,
     });
   },
 });
@@ -132,6 +136,10 @@ export const generateManual = action({
       return { success: false, error: "Authentication required" };
     }
 
+    // Get user's timezone for formatting
+    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: identity.subject });
+    const timezone = getTimezoneOrDefault(user?.timezone);
+
     // If dates provided, use them directly
     if (args.startDate !== undefined && args.endDate !== undefined) {
       return await generateReport(ctx, {
@@ -139,12 +147,11 @@ export const generateManual = action({
         startDate: args.startDate,
         endDate: args.endDate,
         kind: args.kind,
+        timezone,
       });
     }
 
     // Otherwise calculate timezone-aware defaults
-    const user = await ctx.runQuery(api.users.getByClerkId, { clerkId: identity.subject });
-    const timezone = getTimezoneOrDefault(user?.timezone);
     const window = args.kind === "daily"
       ? getTodayWindow(timezone)
       : getLastWeekWindow(timezone);
@@ -154,6 +161,7 @@ export const generateManual = action({
       startDate: args.startDate ?? window.start,
       endDate: args.endDate ?? window.end,
       kind: args.kind,
+      timezone,
     });
   },
 });

@@ -20,6 +20,7 @@ import {
   flushLangfuse,
   calculateCost,
 } from "./langfuse.js";
+import { formatReportDate, formatDateRange } from "./timeWindows.js";
 
 // ============================================================================
 // Types
@@ -30,6 +31,7 @@ export interface GenerateReportParams {
   startDate: number;
   endDate: number;
   kind: "daily" | "weekly";
+  timezone: string; // IANA timezone (e.g., "America/Los_Angeles")
 }
 
 export interface GenerateReportResult {
@@ -57,7 +59,7 @@ export async function generateReport(
   ctx: ActionCtx,
   params: GenerateReportParams
 ): Promise<GenerateReportResult> {
-  const { userId, startDate, endDate, kind } = params;
+  const { userId, startDate, endDate, kind, timezone } = params;
   const startTime = Date.now();
 
   // Create Langfuse trace for observability
@@ -118,12 +120,16 @@ export async function generateReport(
       limit: 2000,
     });
 
-    if (events.length === 0) {
+    // Filter to commits only - other event types (PRs, comments) are noise
+    // that inflate prompt size and cause truncation. User-requested change.
+    const commitEvents = events.filter(e => e.type === "commit");
+
+    if (commitEvents.length === 0) {
       logger.info(
-        { userId, kind, startDate, endDate },
-        "No events found, skipping report generation"
+        { userId, kind, startDate, endDate, totalEvents: events.length },
+        "No commit events found, skipping report generation"
       );
-      return { success: false, error: "No events in window" };
+      return { success: false, error: "No commits in window" };
     }
 
     // 5. Check for existing report (upsert behavior - replace old with new)
@@ -140,25 +146,25 @@ export async function generateReport(
     }
 
     logger.info(
-      { userId, kind, eventCount: events.length },
-      "Generating report"
+      { userId, kind, totalEvents: events.length, commitEvents: commitEvents.length },
+      "Generating report (commits only)"
     );
 
     // 6. Build prompts and call LLM with tracing
     const systemPrompt = buildSystemPrompt(kind);
-    const userPrompt = buildUserPrompt(user.githubUsername, events, kind, startDate, endDate);
+    const userPrompt = buildUserPrompt(user.githubUsername, commitEvents, kind, startDate, endDate, timezone);
 
     // Create span for LLM call
-    const llmSpan = trace?.span({ name: "llm-call", input: { eventCount: events.length } });
+    const llmSpan = trace?.span({ name: "llm-call", input: { eventCount: commitEvents.length } });
     const llmGeneration = llmSpan?.generation({
       name: `generate-${kind}-report`,
-      model: "gemini-2.5-flash",
+      model: "google/gemini-3-pro-preview",
       input: { system: systemPrompt.slice(0, 500), user: userPrompt.slice(0, 1000) },
-      metadata: { eventCount: events.length, username: user.githubUsername },
+      metadata: { commitCount: commitEvents.length, username: user.githubUsername },
     });
 
     const llmStartTime = Date.now();
-    const llmResult = await callGemini(systemPrompt, userPrompt);
+    const llmResult = await callOpenRouter(systemPrompt, userPrompt);
     const llmLatencyMs = Date.now() - llmStartTime;
 
     // End LLM generation with results
@@ -175,17 +181,17 @@ export async function generateReport(
 
     // 7. Extract citations and compute diagnostics
     const citations = extractCitations(llmResult.markdown);
-    const eventsWithUrls = events.filter(e => e.sourceUrl);
-    const citationRate = eventsWithUrls.length > 0
-      ? (citations.length / eventsWithUrls.length * 100).toFixed(1) + "%"
+    const commitsWithUrls = commitEvents.filter(e => e.sourceUrl);
+    const citationRate = commitsWithUrls.length > 0
+      ? (citations.length / commitsWithUrls.length * 100).toFixed(1) + "%"
       : "N/A";
 
     // 8. Save report with diagnostics
     const reportId = await ctx.runMutation(internal.reports.create, {
       userId,
       title: kind === "daily"
-        ? `Daily Standup - ${formatDate(endDate)}`
-        : `Weekly Retro - Week of ${formatDate(startDate)}`,
+        ? `Daily Standup - ${formatReportDate(endDate, timezone)}`
+        : `Weekly Retro - Week of ${formatReportDate(startDate, timezone)}`,
       description: `Auto-generated ${kind} report for ${user.githubUsername}`,
       startDate,
       endDate,
@@ -193,7 +199,7 @@ export async function generateReport(
       markdown: llmResult.markdown,
       html: markdownToHtml(llmResult.markdown),
       citations,
-      promptVersion: "v3-rich-metadata",
+      promptVersion: "v4-commits-only",
       provider: "google",
       model: llmResult.model,
       generatedAt: Date.now(),
@@ -201,9 +207,9 @@ export async function generateReport(
       scheduleType: kind,
       coverageScore: citations.length > 0 ? 1.0 : 0,
       // Diagnostic fields for observability
-      eventCount: events.length,
+      eventCount: commitEvents.length, // Commit count passed to LLM
       citationCount: citations.length,
-      expectedCitations: eventsWithUrls.length,
+      expectedCitations: commitsWithUrls.length,
     });
 
     const totalLatencyMs = Date.now() - startTime;
@@ -213,8 +219,8 @@ export async function generateReport(
         userId,
         kind,
         reportId,
-        eventCount: events.length,
-        eventsWithUrls: eventsWithUrls.length,
+        commitCount: commitEvents.length,
+        commitsWithUrls: commitsWithUrls.length,
         citationsExtracted: citations.length,
         citationRate,
         latencyMs: totalLatencyMs,
@@ -225,7 +231,7 @@ export async function generateReport(
 
     // Update trace with success
     trace?.update({
-      output: { reportId, citationCount: citations.length, eventCount: events.length },
+      output: { reportId, citationCount: citations.length, commitCount: commitEvents.length },
       metadata: { success: true, latencyMs: totalLatencyMs, costUsd },
     });
     await flushLangfuse();
@@ -247,43 +253,59 @@ export async function generateReport(
 }
 
 // ============================================================================
-// LLM Calling
+// LLM Calling - OpenRouter for unified multi-model access
 // ============================================================================
 
-async function callGemini(systemPrompt: string, userPrompt: string): Promise<LLMResult> {
-  const apiKey = process.env.GOOGLE_API_KEY;
+async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<LLMResult> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    throw new Error("GOOGLE_API_KEY not configured");
+    throw new Error("OPENROUTER_API_KEY not configured");
   }
 
-  const model = "gemini-2.5-flash";
+  const model = "google/gemini-3-pro-preview";
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0.1, // Slight variety while maintaining factuality
-          maxOutputTokens: 2500,
-        },
-      }),
-    }
-  );
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://gitpulse.app",
+      "X-Title": "GitPulse Reports",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 1.0, // Gemini 3 recommended default
+      max_tokens: 4000,
+    }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+    throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content;
+  const finishReason = choice?.finish_reason as string | undefined;
 
   if (!text) {
-    throw new Error("Gemini returned empty content");
+    throw new Error("OpenRouter returned empty content");
+  }
+
+  // Detect truncation (OpenRouter uses lowercase "stop" / "length")
+  if (finishReason && finishReason !== "stop") {
+    logger.warn(
+      { finishReason, textLength: text.length },
+      "Output may be incomplete"
+    );
+    if (finishReason === "length") {
+      throw new Error(`Output truncated (${text.length} chars) - reduce input size`);
+    }
   }
 
   return { markdown: text.trim(), model };
@@ -319,11 +341,12 @@ function buildUserPrompt(
   events: Doc<"events">[],
   kind: "daily" | "weekly",
   startDate: number,
-  endDate: number
+  endDate: number,
+  timezone: string
 ): string {
   const dateRange = kind === "daily"
-    ? formatDate(endDate)
-    : `${formatDate(startDate)} — ${formatDate(endDate)}`;
+    ? formatReportDate(endDate, timezone)
+    : formatDateRange(startDate, endDate, timezone);
 
   const sections = kind === "daily"
     ? "## Work Completed\n## Key Decisions & Context\n## Momentum & Next Steps"
@@ -409,14 +432,6 @@ function formatEvent(event: Doc<"events">): string {
 // ============================================================================
 // Helpers
 // ============================================================================
-
-function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 function extractCitations(markdown: string): string[] {
   const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
