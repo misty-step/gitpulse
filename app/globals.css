@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;0,7..72,700;1,7..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
 
@@ -5,51 +6,58 @@
   color-scheme: light;
   
   /* 
-    "Luminous Precision" (Hara/Rams)
-    Pure white paper, absolute black ink, minimal grays.
-    The accent is "Signal Blue" or "Seal Red" - high contrast.
+    "Luminous Precision" (Hara/Rams) - Enhanced with Refined Luxury
+    Pure white paper with imperceptible warmth, absolute black ink, minimal grays.
+    Brand-tinted neutrals create sophisticated cohesion.
   */
   
-  /* Base - Pure White */
-  --background: #ffffff;
-  --surface: #ffffff;
-  --surface-muted: #f4f4f5; /* Zinc-100 */
+  /* Base - Warm-tinted White (OKLCH) */
+  --background: oklch(1 0.005 90); /* Slight warm tint vs pure white */
+  --surface: oklch(1 0.005 90);
+  --surface-muted: oklch(0.97 0.005 90); /* Warm gray */
   
-  /* Borders - Extremely subtle */
-  --border: #e4e4e7; /* Zinc-200 */
+  /* Borders - Subtle warmth */
+  --border: oklch(0.92 0.005 90);
   
-  /* Typography - High Contrast */
-  --foreground: #09090b; /* Zinc-950 (Soft Black) */
-  --foreground-muted: #52525b; /* Zinc-600 */
-  --muted: #a1a1aa; /* Zinc-400 */
+  /* Typography - High Contrast with warm tint */
+  --foreground: oklch(0.15 0.01 90); /* Warm black vs pure #09090b */
+  --foreground-muted: oklch(0.45 0.01 90); /* Warm gray */
+  --muted: oklch(0.6 0.005 90);
   
   /* Accent - "International Orange" / "Pulse Red" */
   --accent: #000000; /* Primary Action is Black (Architecture) */
   --accent-foreground: #ffffff;
   --pulse: #ef4444; /* The literal "Pulse" indicator */
   
-  --code-surface: #f4f4f5;
+  /* Indigo accent for visual rhythm */
+  --indigo: oklch(0.5 0.15 260);
+  --indigo-foreground: oklch(0.98 0.01 260);
+  
+  --code-surface: oklch(0.96 0.005 90);
 }
 
 .dark {
   color-scheme: dark;
   
-  /* Base - Deep Void */
-  --background: #09090b; /* Zinc-950 */
-  --surface: #09090b;
-  --surface-muted: #18181b; /* Zinc-900 */
+  /* Base - Cool-tinted Deep Void */
+  --background: oklch(0.15 0.01 250); /* Cool-tinted dark */
+  --surface: oklch(0.15 0.01 250);
+  --surface-muted: oklch(0.18 0.01 250);
   
-  --border: #27272a; /* Zinc-800 */
+  --border: oklch(0.25 0.01 250);
   
-  --foreground: #fafafa; /* Zinc-50 */
-  --foreground-muted: #a1a1aa; /* Zinc-400 */
-  --muted: #52525b; /* Zinc-600 */
+  --foreground: oklch(0.95 0.005 90); /* Warm white */
+  --foreground-muted: oklch(0.65 0.005 90);
+  --muted: oklch(0.5 0.005 90);
   
   --accent: #ffffff;
   --accent-foreground: #000000;
   --pulse: #f87171;
   
-  --code-surface: #18181b;
+  --indigo: oklch(0.6 0.15 260);
+  --indigo-foreground: oklch(0.15 0.01 250);
+  
+  --code-surface: oklch(0.18 0.01 250);
 }
 
 @theme inline {
@@ -65,6 +73,8 @@
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: 'Literata', Georgia, serif;
+  --font-mono-alt: 'JetBrains Mono', 'Geist Mono', monospace;
 }
 
 body {
@@ -176,4 +186,152 @@ h1, h2, h3, h4, h5, h6 {
   20% { opacity: 1; }
   80% { opacity: 1; }
   100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* ============================================================================
+   Prose Luxury - Refined reading experience for reports
+   ============================================================================ */
+
+.prose-luxury {
+  font-family: var(--font-serif);
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.8;
+  color: var(--foreground);
+  max-width: 42rem; /* 672px - optimal reading width */
+}
+
+.prose-luxury h2 {
+  font-family: var(--font-serif);
+  font-size: 1.75rem; /* 28px */
+  font-weight: 600;
+  margin-top: 3.5rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.prose-luxury h3 {
+  font-family: var(--font-serif);
+  font-size: 1.375rem; /* 22px */
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+
+.prose-luxury p {
+  margin-bottom: 1.5rem;
+  color: var(--foreground-muted);
+}
+
+.prose-luxury strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.prose-luxury a {
+  color: var(--indigo);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color 0.2s ease, text-decoration-thickness 0.2s ease;
+}
+
+.prose-luxury a:hover {
+  color: var(--indigo);
+  text-decoration-thickness: 2px;
+  filter: brightness(0.85);
+}
+
+.prose-luxury code {
+  font-family: var(--font-mono-alt);
+  font-size: 0.9em;
+  padding: 2px 6px;
+  background: var(--code-surface);
+  border-radius: 4px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.prose-luxury pre {
+  background-color: var(--code-surface);
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  margin: 2rem 0;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+.prose-luxury pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.prose-luxury ul,
+.prose-luxury ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--foreground-muted);
+}
+
+.prose-luxury li {
+  margin-bottom: 0.75rem;
+  line-height: 1.8;
+}
+
+.prose-luxury blockquote {
+  border-left: 2px solid var(--muted);
+  padding-left: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  color: var(--foreground-muted);
+}
+
+/* Section markers for visual rhythm */
+.section-marker {
+  position: absolute;
+  left: -2rem;
+  width: 2px;
+  height: 48px;
+  background: var(--indigo);
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.section-container {
+  position: relative;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.section-container.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section-container:hover .section-marker {
+  opacity: 0.6;
+}
+
+/* Report container with subtle background treatments */
+.report-container {
+  background: 
+    radial-gradient(circle at 50% 0%, var(--surface) 0%, var(--background) 100%);
+  position: relative;
+}
+
+.report-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+  opacity: 0.5;
+  pointer-events: none;
+  mix-blend-mode: overlay;
 }

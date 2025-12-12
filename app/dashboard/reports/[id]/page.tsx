@@ -9,6 +9,9 @@ import Link from "next/link";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
+import { MetadataPanel } from "@/components/MetadataPanel";
+import { CitationCard } from "@/components/CitationCard";
+import { AnimatedSection } from "@/components/AnimatedSection";
 import {
   needsIntegrationAttention,
   formatTimestamp,
@@ -91,7 +94,7 @@ export default function ReportViewerPage() {
   const diagnostic = getDiagnosticStatus(report);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-8 py-8">
       <IntegrationStatusBanner />
 
       {/* Navigation */}
@@ -127,10 +130,10 @@ export default function ReportViewerPage() {
       </nav>
 
       {/* Report Card */}
-      <div className="rounded-xl border border-border bg-surface overflow-hidden">
+      <div className="report-container rounded-xl border border-border bg-surface overflow-hidden">
         {/* Header */}
-        <div className="border-b border-border p-6 bg-surface-muted/30">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="border-b border-border px-8 py-10 bg-surface-muted/30">
+          <div className="flex items-center gap-3 mb-4">
             <span
               className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ${
                 report.scheduleType === "weekly"
@@ -140,28 +143,39 @@ export default function ReportViewerPage() {
             >
               {report.scheduleType === "weekly" ? "Weekly" : "Daily"}
             </span>
-            <span className="text-xs text-muted">
+            <span className="text-xs text-muted font-mono">
               {formatDateRange(report.startDate, report.endDate)}
             </span>
           </div>
 
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-[2.5rem] font-bold tracking-tight text-foreground leading-tight" style={{ fontFamily: 'var(--font-serif)' }}>
             {report.title}
           </h1>
 
           {report.description && (
-            <p className="mt-2 text-foreground-muted">
+            <p className="mt-3 text-lg text-foreground-muted" style={{ fontFamily: 'var(--font-serif)' }}>
               {report.description}
             </p>
           )}
-
-          {/* Metadata */}
-          <div className="mt-4 flex items-center gap-4 text-xs text-muted">
-            <span>Provider: {report.provider}</span>
-            <span>·</span>
-            <span>Model: {report.model}</span>
-          </div>
         </div>
+
+        {/* Metadata Panel */}
+        <AnimatedSection>
+          <div className="px-8 py-8 bg-surface-muted/10">
+            <MetadataPanel
+              dateRange={formatDateRange(report.startDate, report.endDate)}
+              repos={[]} // TODO: Extract from report data
+              commitCount={report.eventCount || 0}
+              provider={report.provider}
+              model={report.model}
+              coverage={report.citationCount && report.expectedCitations
+                ? report.citationCount / report.expectedCitations
+                : undefined}
+              citationCount={report.citationCount}
+              eventCount={report.eventCount}
+            />
+          </div>
+        </AnimatedSection>
 
         {/* Diagnostic Alert */}
         {diagnostic && (
@@ -173,47 +187,29 @@ export default function ReportViewerPage() {
         ) : null}
 
         {/* Content */}
-        <div className="p-6">
-          <div
-            className="prose prose-zinc dark:prose-invert max-w-none
-              prose-headings:font-semibold prose-headings:tracking-tight
-              prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4
-              prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-3
-              prose-p:text-foreground-muted prose-p:leading-relaxed
-              prose-a:text-foreground prose-a:underline prose-a:decoration-muted/50
-              prose-a:underline-offset-4 hover:prose-a:decoration-foreground
-              prose-strong:font-semibold prose-strong:text-foreground
-              prose-code:text-sm prose-code:font-mono prose-code:bg-surface-muted
-              prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-              prose-ul:my-4 prose-li:my-1
-              prose-blockquote:border-l-2 prose-blockquote:border-muted prose-blockquote:pl-4
-              prose-blockquote:italic prose-blockquote:text-foreground-muted"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.html) }}
-          />
-        </div>
+        <AnimatedSection>
+          <div className="px-8 py-12">
+            <div
+              className="prose-luxury"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(report.html) }}
+            />
+          </div>
+        </AnimatedSection>
 
         {/* Citations */}
         {report.citations && report.citations.length > 0 && (
-          <div className="border-t border-border p-6 bg-surface-muted/30">
-            <h2 className="text-sm font-semibold tracking-tight mb-4">
-              Sources ({report.citations.length})
-            </h2>
-            <ol className="space-y-2">
-              {report.citations.map((url, i) => (
-                <li key={i} className="text-sm">
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-foreground-muted hover:text-foreground transition-colors break-all"
-                  >
-                    <span className="text-muted font-mono">[{i + 1}]</span>{" "}
-                    {formatCitationUrl(url)}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
+          <AnimatedSection>
+            <div className="border-t border-border px-8 py-8 bg-surface-muted/30">
+              <h2 className="text-sm font-semibold tracking-tight mb-6 uppercase font-mono">
+                Sources ({report.citations.length})
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {report.citations.map((url, i) => (
+                  <CitationCard key={i} number={i + 1} url={url} />
+                ))}
+              </div>
+            </div>
+          </AnimatedSection>
         )}
       </div>
 

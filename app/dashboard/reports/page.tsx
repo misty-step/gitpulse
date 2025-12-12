@@ -28,8 +28,10 @@ export default function ReportsPage() {
   const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
   const requestSync = useAction(api.actions.sync.requestSync.requestManualSync);
   const backfillReports = useAction(api.actions.reports.backfill.backfillLastWeek);
+  const regenerateReports = useAction(api.actions.reports.regenerateLastWeek.regenerateLastWeek);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const userId = clerkUser?.id;
   const githubUsername = convexUser?.githubUsername;
@@ -182,6 +184,29 @@ export default function ReportsPage() {
     }
   };
 
+  const handleRegenerateClick = async () => {
+    try {
+      setIsRegenerating(true);
+      toast.info("Deleting and regenerating reports...");
+
+      const result = await regenerateReports({});
+
+      if (result.success) {
+        const { reportsGenerated, reportsDeleted } = result;
+        toast.success(
+          `Regenerated ${reportsGenerated} report${reportsGenerated !== 1 ? "s" : ""} (deleted ${reportsDeleted})`
+        );
+      } else {
+        toast.error(result.error || "Regeneration failed");
+      }
+    } catch (error) {
+      toast.error("Failed to regenerate reports");
+      console.error(error);
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   // Show loading state while auth or reports are loading
   if (!userId) {
     return (
@@ -227,6 +252,15 @@ export default function ReportsPage() {
               className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isBackfilling ? "Backfilling..." : "Backfill 7 Days"}
+            </button>
+          )}
+          {hasInstallation && process.env.NODE_ENV !== "production" && (
+            <button
+              onClick={handleRegenerateClick}
+              disabled={isRegenerating || isSyncing || isActivelySyncing || isBackfilling}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isRegenerating ? "Regenerating..." : "Regenerate 7 Days"}
             </button>
           )}
         </div>

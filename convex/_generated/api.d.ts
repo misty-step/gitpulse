@@ -21,6 +21,7 @@ import type * as actions_ingestRepo from "../actions/ingestRepo.js";
 import type * as actions_listRepos from "../actions/listRepos.js";
 import type * as actions_reports_backfill from "../actions/reports/backfill.js";
 import type * as actions_reports_generate from "../actions/reports/generate.js";
+import type * as actions_reports_regenerateLastWeek from "../actions/reports/regenerateLastWeek.js";
 import type * as actions_runCleanup from "../actions/runCleanup.js";
 import type * as actions_runDailyReports from "../actions/runDailyReports.js";
 import type * as actions_runWeeklyReports from "../actions/runWeeklyReports.js";
@@ -87,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   "actions/listRepos": typeof actions_listRepos;
   "actions/reports/backfill": typeof actions_reports_backfill;
   "actions/reports/generate": typeof actions_reports_generate;
+  "actions/reports/regenerateLastWeek": typeof actions_reports_regenerateLastWeek;
   "actions/runCleanup": typeof actions_runCleanup;
   "actions/runDailyReports": typeof actions_runDailyReports;
   "actions/runWeeklyReports": typeof actions_runWeeklyReports;
