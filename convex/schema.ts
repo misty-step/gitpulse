@@ -232,6 +232,9 @@ export default defineSchema({
     // Users included in report
     ghLogins: v.array(v.string()),
 
+    // Repositories included (stored at generation time for display)
+    repos: v.optional(v.array(v.string())), // ["owner/repo", ...]
+
     // Generated content
     markdown: v.string(),
     html: v.string(),

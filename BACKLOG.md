@@ -10,6 +10,13 @@ Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus
 
 ## Now (Sprint-Ready, <2 weeks)
 
+### [PRODUCT] see reports by day, by week, *and* by repo or by org
+- sometimes i want to see my activity for the day
+- sometimes i want to see my activity for the week
+- sometimes i want to see my activity for a specific repo or set of repos across an arbitrary time period
+- sometimes i want to see my activity for a specific org across an arbitrary time period
+- we should support all of these flows
+
 ### [Performance] N+1 Query in KPI Calculations
 **File**: `convex/kpis.ts:46-52`
 **Perspectives**: performance-pathfinder, ousterhout, fowler, carmack

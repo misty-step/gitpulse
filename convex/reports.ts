@@ -257,6 +257,7 @@ export const create = internalMutation({
     startDate: v.number(),
     endDate: v.number(),
     ghLogins: v.array(v.string()),
+    repos: v.optional(v.array(v.string())), // ["owner/repo", ...] for display
     markdown: v.string(),
     html: v.string(),
     json: v.optional(v.string()),

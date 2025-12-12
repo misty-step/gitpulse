@@ -3,7 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
@@ -22,8 +22,10 @@ import DOMPurify from "isomorphic-dompurify";
 export default function ReportViewerPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const reportId = params.id as Id<"reports">;
   const { clerkUser } = useAuthenticatedConvexUser();
+  const debugMode = searchParams.get("debug") === "true";
 
   const report = useQuery(api.reports.getById, { id: reportId });
   const { status: integrationStatus } = useIntegrationStatus();
@@ -144,7 +146,7 @@ export default function ReportViewerPage() {
               {report.scheduleType === "weekly" ? "Weekly" : "Daily"}
             </span>
             <span className="text-xs text-muted font-mono">
-              {formatDateRange(report.startDate, report.endDate)}
+              {formatDateRange(report.startDate, report.endDate, report.scheduleType)}
             </span>
           </div>
 
@@ -163,8 +165,8 @@ export default function ReportViewerPage() {
         <AnimatedSection>
           <div className="px-8 py-8 bg-surface-muted/10">
             <MetadataPanel
-              dateRange={formatDateRange(report.startDate, report.endDate)}
-              repos={[]} // TODO: Extract from report data
+              dateRange={formatDateRange(report.startDate, report.endDate, report.scheduleType)}
+              repos={report.repos || []}
               commitCount={report.eventCount || 0}
               provider={report.provider}
               model={report.model}
@@ -173,6 +175,7 @@ export default function ReportViewerPage() {
                 : undefined}
               citationCount={report.citationCount}
               eventCount={report.eventCount}
+              debugMode={debugMode}
             />
           </div>
         </AnimatedSection>
@@ -232,21 +235,40 @@ export default function ReportViewerPage() {
 // Helper Functions
 // ============================================================================
 
-function formatDateRange(startDate: number, endDate: number): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const sameDay = start.toDateString() === end.toDateString();
-
-  if (sameDay) {
-    return end.toLocaleDateString("en-US", {
+/**
+ * Format date range for display, handling half-open interval semantics.
+ * endDate is exclusive (midnight of NEXT day), so we subtract 1 day for display.
+ */
+function formatDateRange(
+  startDate: number,
+  endDate: number,
+  scheduleType?: "daily" | "weekly"
+): string {
+  // For daily reports: show single date (the day the endDate represents, minus 1 day)
+  if (scheduleType === "daily") {
+    // endDate is midnight of next day, so subtract 1 day to get the actual report day
+    const reportDate = new Date(endDate - 24 * 60 * 60 * 1000);
+    return reportDate.toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
       year: "numeric",
     });
   }
 
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} — ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  // For weekly or unknown: show range with adjusted endDate
+  const start = new Date(startDate);
+  const end = new Date(endDate - 24 * 60 * 60 * 1000); // Subtract 1 day for inclusive display
+
+  // Check if it's actually the same day after adjustment
+  if (start.toDateString() === end.toDateString()) {
+    return start.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 function formatCitationUrl(url: string): string {

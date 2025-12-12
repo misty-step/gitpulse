@@ -64,6 +64,22 @@ interface MetadataPanelProps {
   coverage?: number;
   citationCount?: number;
   eventCount?: number;
+  debugMode?: boolean; // Show diagnostic metrics like coverage
+}
+
+// Human-friendly model names
+function humanizeModelName(model: string): string {
+  const names: Record<string, string> = {
+    "gemini-3-pro-preview": "Gemini 3 Pro",
+    "google/gemini-3-pro-preview": "Gemini 3 Pro",
+    "gemini-2.5-flash": "Gemini 2.5 Flash",
+    "gemini-2.5-pro": "Gemini 2.5 Pro",
+    "gpt-4o": "GPT-4o",
+    "gpt-4o-mini": "GPT-4o Mini",
+    "claude-3-5-sonnet": "Claude 3.5 Sonnet",
+    "claude-sonnet-4": "Claude Sonnet 4",
+  };
+  return names[model] || model.split("/").pop()?.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || model;
 }
 
 export function MetadataPanel({
@@ -78,6 +94,7 @@ export function MetadataPanel({
   coverage,
   citationCount,
   eventCount,
+  debugMode = false,
 }: MetadataPanelProps) {
   // Format activity detail
   const activityDetail = [
@@ -121,12 +138,12 @@ export function MetadataPanel({
         />
 
         <MetadataItem
-          label="Model"
-          value={model.split("/").pop() || model}
+          label="Analyst"
+          value={humanizeModelName(model)}
           detail={`${provider} / ${model}`}
         />
 
-        {coveragePercent !== undefined && (
+        {debugMode && coveragePercent !== undefined && (
           <MetadataItem
             label="Coverage"
             value={`${coveragePercent}%`}
