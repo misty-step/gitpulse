@@ -36,23 +36,17 @@ export async function checkConvexHealth(): Promise<ConvexStatus> {
 
   try {
     const baseUrl = convexUrl.replace(/\/$/, "");
-    const healthUrl = `${baseUrl}/health`;
+    // Convex cloud exposes /version (not /health) for availability checks
+    const versionUrl = `${baseUrl}/version`;
 
-    const response = await fetch(healthUrl, {
+    const response = await fetch(versionUrl, {
       method: "GET",
       signal: AbortSignal.timeout(HEALTH_DEEP_TIMEOUT_MS),
-      headers: {
-        "Content-Type": "application/json",
-      },
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      return data.status === "ok" ? "ok" : "degraded";
-    }
-
-    return "error";
-  } catch (error) {
+    // /version returns 200 with a version string when Convex is healthy
+    return response.ok ? "ok" : "error";
+  } catch {
     return "error";
   }
 }

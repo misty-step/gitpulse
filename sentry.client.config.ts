@@ -16,8 +16,8 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 0,
 
-  // Debug mode: enabled in development
-  debug: process.env.NODE_ENV === "development",
+  // Debug mode: disabled (too noisy in dev)
+  debug: false,
 
   // Environment tracking
   environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",

@@ -9,17 +9,13 @@ describe("ingestionJobs.resume", () => {
       blockedUntil: Date.now() + 60_000,
       startedAt: undefined,
       createdAt: 123,
-      reposRemaining: ["old/repo"],
     };
 
     const get = jest.fn().mockResolvedValue(job);
     const patch = jest.fn();
     const ctx = { db: { get, patch } } as any;
 
-    await (resume as any).handler(ctx, {
-      jobId,
-      reposRemaining: ["next/repo"],
-    });
+    await (resume as any).handler(ctx, { jobId });
 
     expect(patch).toHaveBeenCalledTimes(1);
     expect(patch).toHaveBeenCalledWith(
@@ -27,7 +23,6 @@ describe("ingestionJobs.resume", () => {
       expect.objectContaining({
         status: "running",
         blockedUntil: undefined,
-        reposRemaining: ["next/repo"],
         startedAt: job.createdAt,
       }),
     );
@@ -44,10 +39,7 @@ describe("ingestionJobs.resume", () => {
       },
     } as any;
 
-    await (resume as any).handler(ctx, {
-      jobId: "missing" as any,
-      reposRemaining: [],
-    });
+    await (resume as any).handler(ctx, { jobId: "missing" as any });
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 });

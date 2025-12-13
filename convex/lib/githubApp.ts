@@ -7,6 +7,9 @@ import type {
   RateLimitInfo,
   RepoTimelineResult,
   FetchRepoTimelineArgs,
+  GitHubEvent,
+  RepoEventsResult,
+  FetchRepoEventsArgs,
 } from "./githubTypes";
 import { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET } from "./githubTypes";
 import { logger } from "./logger.js";
@@ -18,6 +21,9 @@ export type {
   RateLimitInfo,
   RepoTimelineResult,
   FetchRepoTimelineArgs,
+  GitHubEvent,
+  RepoEventsResult,
+  FetchRepoEventsArgs,
 };
 export { TOKEN_REFRESH_BUFFER_MS, MIN_BACKFILL_BUDGET };
 
@@ -268,6 +274,116 @@ export async function fetchRepoTimeline(
     hasNextPage: !!endCursor,
     etag: responseEtag,
     totalCount: items.length, // This is just the page count, not total, but sufficient for progress logic usually
+    rateLimit,
+  };
+}
+
+const EVENTS_PER_PAGE = 100; // Max allowed by GitHub Events API
+
+/**
+ * Fetch repository events from GitHub's Events API.
+ *
+ * Deep Module Design:
+ * - Simple interface: fetchRepoEvents({ token, repoFullName, page? })
+ * - Hides: API pagination, rate-limit parsing, error normalization
+ * - Returns: Uniform event stream ready for canonicalization
+ *
+ * GitHub Events API Constraints (handled internally):
+ * - Max 300 events per repo (hard limit)
+ * - 90 days history max
+ * - No server-side date filtering (caller filters client-side)
+ * - 10 pages max (100 events/page = 1000, but API caps at 300)
+ */
+export async function fetchRepoEvents(
+  args: FetchRepoEventsArgs
+): Promise<RepoEventsResult> {
+  const { token, repoFullName, page = 1, perPage = EVENTS_PER_PAGE } = args;
+
+  if (!repoFullName.includes("/")) {
+    throw new Error(`Invalid repo format: ${repoFullName}`);
+  }
+
+  const searchParams = new URLSearchParams({
+    per_page: Math.min(perPage, EVENTS_PER_PAGE).toString(),
+    page: page.toString(),
+  });
+
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+
+  const response = await fetch(
+    `${GITHUB_API_BASE}/repos/${repoFullName}/events?${searchParams.toString()}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  const rateLimit = parseRateLimit(response.headers);
+
+  // Handle rate limit gracefully
+  if (response.status === 403 || response.status === 429) {
+    const resetTime = rateLimit.reset
+      ? new Date(rateLimit.reset).toISOString()
+      : "unknown";
+    logger.warn(
+      {
+        resetTime,
+        rateLimitRemaining: rateLimit.remaining,
+        repoFullName,
+      },
+      "Rate limit hit during repo events fetch"
+    );
+
+    return {
+      events: [],
+      hasNextPage: true, // Assume more since we failed
+      endCursor: String(page), // Retry same page
+      rateLimit: { ...rateLimit, remaining: 0 },
+    };
+  }
+
+  // Handle 422 "pagination is limited" as end of available events, not error
+  // GitHub Events API caps at ~300 events; trying to paginate beyond triggers 422
+  if (response.status === 422) {
+    const errText = await response.text();
+    if (errText.includes("pagination is limited")) {
+      logger.info(
+        { repoFullName, page },
+        "Events API pagination limit reached (expected for repos with >300 events)"
+      );
+      return {
+        events: [],
+        hasNextPage: false,
+        endCursor: undefined,
+        rateLimit,
+      };
+    }
+    // Some other 422 error - throw it
+    throw new Error(`GitHub Events API error (422): ${errText}`);
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(
+      `GitHub Events API error (${response.status}): ${errText || response.statusText}`
+    );
+  }
+
+  const events = (await response.json()) as GitHubEvent[];
+
+  // GitHub Events API returns max 300 events across all pages
+  // If we get a full page, there might be more
+  const hasNextPage = events.length === perPage && page < 10; // Max 10 pages
+  const endCursor = hasNextPage ? String(page + 1) : undefined;
+
+  return {
+    events,
+    hasNextPage,
+    endCursor,
     rateLimit,
   };
 }

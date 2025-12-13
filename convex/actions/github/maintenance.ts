@@ -1,9 +1,70 @@
 "use node";
 
-import { internalAction } from "../../_generated/server";
+import { v } from "convex/values";
+import { internalAction, action } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
-import { listAppInstallations } from "../../lib/githubApp";
+import { listAppInstallations, mintInstallationToken } from "../../lib/githubApp";
 import { logger } from "../../lib/logger.js";
+
+/**
+ * Refresh the repository list for an installation from GitHub API.
+ *
+ * The repo list can become stale when new repos are created after the
+ * GitHub App was installed. This fetches the current list from GitHub.
+ */
+export const refreshRepositories = action({
+  args: { installationId: v.number() },
+  handler: async (ctx, { installationId }) => {
+    const { token } = await mintInstallationToken(installationId);
+
+    // Fetch all accessible repos for this installation
+    const repos: string[] = [];
+    let page = 1;
+
+    while (true) {
+      const response = await fetch(
+        `https://api.github.com/installation/repositories?per_page=100&page=${page}`,
+        {
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`GitHub API error (${response.status}): ${body}`);
+      }
+
+      const data = (await response.json()) as {
+        repositories: { full_name: string }[];
+        total_count: number;
+      };
+
+      repos.push(...data.repositories.map((r) => r.full_name));
+
+      if (repos.length >= data.total_count || data.repositories.length < 100) {
+        break;
+      }
+      page++;
+    }
+
+    // Update the installation record
+    await ctx.runMutation(api.installations.upsert, {
+      installationId,
+      repositories: repos,
+    });
+
+    logger.info(
+      { installationId, repoCount: repos.length },
+      "Refreshed repository list"
+    );
+
+    return { success: true, repoCount: repos.length, repos };
+  },
+});
 
 /**
  * Reconcile installations from GitHub API with local database
@@ -150,30 +211,26 @@ export const runCatchUpSync = internalAction({
     );
 
     for (const install of staleInstallations) {
-      // Sync from last known sync time (minus 1 hour buffer) or default to 30 days if never synced
-      const buffer = 60 * 60 * 1000;
-      const since = install.lastSyncedAt
-        ? install.lastSyncedAt - buffer
-        : now - 30 * 24 * 60 * 60 * 1000;
-
       try {
-        await ctx.runAction(
-          internal.actions.github.startBackfill.adminStartBackfill,
+        const result = await ctx.runAction(
+          internal.actions.sync.requestSync.requestSync,
           {
             installationId: install.installationId,
-            clerkUserId: install.clerkUserId!,
-            repositories: install.repositories!,
-            since,
+            trigger: "maintenance" as const,
           },
         );
         logger.info(
-          { installationId: install.installationId },
-          "Triggered catch-up sync for installation",
+          {
+            installationId: install.installationId,
+            started: result.started,
+            message: result.message,
+          },
+          "Catch-up sync request completed",
         );
       } catch (error) {
         logger.error(
           { err: error, installationId: install.installationId },
-          "Failed to trigger catch-up for installation",
+          "Failed to request catch-up sync for installation",
         );
       }
     }

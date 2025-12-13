@@ -3,7 +3,15 @@
  */
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
-import { classifyError, getErrorMessage } from "../errors";
+import {
+  classifyError,
+  getErrorMessage,
+  handleConvexError,
+  showSuccess,
+  showLoading,
+  dismissLoading,
+  withErrorHandling,
+} from "../errors";
 
 // Mock the sonner toast library
 jest.mock("sonner", () => ({
@@ -148,6 +156,164 @@ describe("error utilities", () => {
     it("returns friendly message for conflict errors", () => {
       const message = getErrorMessage(new Error("Conflict"));
       expect(message).toBe("This operation conflicts with existing data");
+    });
+  });
+
+  describe("handleConvexError", () => {
+    const { toast } = require("sonner");
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("shows toast for transient errors", () => {
+      const result = handleConvexError(new Error("Network error"));
+      expect(result).toBe("transient");
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    it("shows toast for auth errors", () => {
+      const result = handleConvexError(new Error("Not authenticated"));
+      expect(result).toBe("auth");
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    it("shows toast for validation errors", () => {
+      const result = handleConvexError(new Error("Invalid input"));
+      expect(result).toBe("validation");
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    it("shows toast for permanent errors", () => {
+      const result = handleConvexError(new Error("Unknown error"));
+      expect(result).toBe("permanent");
+      expect(toast.error).toHaveBeenCalled();
+    });
+
+    it("includes retry action for transient errors with retry callback", () => {
+      const retry = jest.fn();
+      handleConvexError(new Error("Network error"), { retry });
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: expect.objectContaining({ label: "Retry" }),
+        })
+      );
+    });
+
+    it("includes operation in permanent error description", () => {
+      handleConvexError(new Error("Unknown error"), { operation: "save data" });
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          description: "Failed to save data",
+        })
+      );
+    });
+  });
+
+  describe("showSuccess", () => {
+    const { toast } = require("sonner");
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("shows success toast", () => {
+      showSuccess("Done!");
+      expect(toast.success).toHaveBeenCalledWith("Done!", { description: undefined });
+    });
+
+    it("shows success toast with description", () => {
+      showSuccess("Done!", "Operation completed");
+      expect(toast.success).toHaveBeenCalledWith("Done!", { description: "Operation completed" });
+    });
+  });
+
+  describe("showLoading", () => {
+    const { toast } = require("sonner");
+
+    it("shows loading toast and returns id", () => {
+      const id = showLoading("Loading...");
+      expect(toast.loading).toHaveBeenCalledWith("Loading...");
+      expect(id).toBe("toast-id");
+    });
+  });
+
+  describe("dismissLoading", () => {
+    const { toast } = require("sonner");
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("dismisses toast and shows success", () => {
+      dismissLoading("toast-id", { success: true, message: "Done!" });
+      expect(toast.dismiss).toHaveBeenCalledWith("toast-id");
+      expect(toast.success).toHaveBeenCalledWith("Done!", { description: undefined });
+    });
+
+    it("dismisses toast and shows error", () => {
+      dismissLoading("toast-id", { success: false, message: "Failed!" });
+      expect(toast.dismiss).toHaveBeenCalledWith("toast-id");
+      expect(toast.error).toHaveBeenCalledWith("Failed!", { description: undefined });
+    });
+
+    it("includes description in success toast", () => {
+      dismissLoading("toast-id", { success: true, message: "Done!", description: "All good" });
+      expect(toast.success).toHaveBeenCalledWith("Done!", { description: "All good" });
+    });
+  });
+
+  describe("withErrorHandling", () => {
+    const { toast } = require("sonner");
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it("returns success with data on success", async () => {
+      const result = await withErrorHandling(async () => "data");
+      expect(result).toEqual({ success: true, data: "data" });
+    });
+
+    it("returns error on failure", async () => {
+      const result = await withErrorHandling(async () => {
+        throw new Error("Failed");
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toBe("Failed");
+    });
+
+    it("calls onSuccess callback", async () => {
+      const onSuccess = jest.fn();
+      await withErrorHandling(async () => "data", { onSuccess });
+      expect(onSuccess).toHaveBeenCalledWith("data");
+    });
+
+    it("calls onError callback", async () => {
+      const onError = jest.fn();
+      await withErrorHandling(
+        async () => {
+          throw new Error("Failed");
+        },
+        { onError }
+      );
+      expect(onError).toHaveBeenCalled();
+    });
+
+    it("shows loading toast when showLoading is true", async () => {
+      await withErrorHandling(async () => "data", { showLoading: true });
+      expect(toast.loading).toHaveBeenCalled();
+      expect(toast.dismiss).toHaveBeenCalled();
+    });
+
+    it("handles non-Error throws", async () => {
+      const result = await withErrorHandling(async () => {
+        throw "string error";
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toBe("string error");
     });
   });
 });

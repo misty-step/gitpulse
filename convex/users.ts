@@ -5,6 +5,11 @@
 import { v } from "convex/values";
 import { query, mutation, internalQuery } from "./_generated/server";
 import { logger } from "./lib/logger.js";
+import {
+  getMidnightUtcHour,
+  isValidTimezone,
+  getTimezoneOrDefault,
+} from "./lib/timeWindows.js";
 
 /**
  * Get user by GitHub login
@@ -101,19 +106,34 @@ export const upsert = mutation({
     const now = Date.now();
 
     if (existing) {
-      // Update existing user
-      await ctx.db.patch(existing._id, {
-        ...args,
-        updatedAt: now,
-      });
+      // Skip update - return existing user to avoid OCC conflicts during parallel sync.
+      // User metadata rarely changes; can be updated via explicit profile refresh if needed.
       return existing._id;
-    } else {
-      // Create new user
+    }
+
+    // Try insert, handle OCC race condition
+    // When parallel jobs process events from the same author,
+    // another job may have inserted this user between our read and write
+    try {
       return await ctx.db.insert("users", {
         ...args,
         createdAt: now,
         updatedAt: now,
       });
+    } catch (e: unknown) {
+      // Race condition: another job inserted the user - retry query and patch
+      const retryExisting = await ctx.db
+        .query("users")
+        .withIndex("by_ghId", (q) => q.eq("ghId", args.ghId))
+        .first();
+
+      if (retryExisting) {
+        // Another job created the user - just return their ID (no patch to avoid OCC)
+        return retryExisting._id;
+      }
+
+      // Not a race condition - propagate the real error
+      throw e;
     }
   },
 });
@@ -412,8 +432,8 @@ function calculateWeeklyScheduleUTC(timezone: string): {
 /**
  * Update user settings (timezone, report schedule)
  *
- * Calculates UTC hours from timezone for efficient cron queries.
- * Pre-calculation per ultrathink: avoid runtime timezone math in cron jobs.
+ * Computes midnightUtcHour from timezone for efficient cron queries.
+ * Reports now generate at local midnight (not 9am).
  */
 export const updateSettings = mutation({
   args: {
@@ -433,23 +453,33 @@ export const updateSettings = mutation({
       throw new Error(`User not found for Clerk ID: ${args.clerkId}`);
     }
 
-    // Calculate UTC hours for 9am in user's timezone
-    const reportHourUTC = calculateReportHourUTC(args.timezone);
-    const weeklySchedule = calculateWeeklyScheduleUTC(args.timezone);
+    // Validate timezone
+    const validTimezone = getTimezoneOrDefault(args.timezone);
+
+    // Compute when midnight occurs in UTC for this timezone
+    const midnightUtcHour = getMidnightUtcHour(validTimezone);
+
+    // DEPRECATED: Keep old fields populated for backwards compatibility
+    const reportHourUTC = calculateReportHourUTC(validTimezone);
+    const weeklySchedule = calculateWeeklyScheduleUTC(validTimezone);
 
     // Update settings
     const now = Date.now();
     await ctx.db.patch(user._id, {
-      timezone: args.timezone,
-      reportHourUTC,
+      timezone: validTimezone,
+      midnightUtcHour,
       dailyReportsEnabled: args.dailyReportsEnabled,
       weeklyReportsEnabled: args.weeklyReportsEnabled,
+      // DEPRECATED fields - kept for migration
+      reportHourUTC,
       weeklyDayUTC: weeklySchedule.dayUTC,
       updatedAt: now,
     });
 
     return {
       success: true,
+      midnightUtcHour,
+      // DEPRECATED - kept for API compatibility
       reportHourUTC,
       weeklyDayUTC: weeklySchedule.dayUTC,
       weeklyHourUTC: weeklySchedule.hourUTC,
@@ -479,8 +509,14 @@ export const completeOnboarding = mutation({
       throw new Error(`User not found for Clerk ID: ${args.clerkId}`);
     }
 
-    // Use provided timezone or detect from browser
-    const timezone = args.timezone || user.timezone || "America/Los_Angeles";
+    // Use provided timezone or detect from browser, with validation
+    const rawTimezone = args.timezone || user.timezone || "America/Los_Angeles";
+    const timezone = getTimezoneOrDefault(rawTimezone);
+
+    // Compute when midnight occurs in UTC for this timezone
+    const midnightUtcHour = getMidnightUtcHour(timezone);
+
+    // DEPRECATED: Keep old fields populated for backwards compatibility
     const reportHourUTC = calculateReportHourUTC(timezone);
     const weeklySchedule = calculateWeeklyScheduleUTC(timezone);
 
@@ -489,9 +525,11 @@ export const completeOnboarding = mutation({
     await ctx.db.patch(user._id, {
       onboardingCompleted: true,
       timezone,
-      reportHourUTC,
+      midnightUtcHour,
       dailyReportsEnabled: true, // Default: both enabled
       weeklyReportsEnabled: true,
+      // DEPRECATED fields - kept for migration
+      reportHourUTC,
       weeklyDayUTC: weeklySchedule.dayUTC,
       updatedAt: now,
     });
@@ -527,6 +565,8 @@ export const getUsersByReportHour = internalQuery({
  *
  * Internal query called by weekly report cron jobs.
  * Uses by_weeklySchedule compound index for efficient lookup.
+ *
+ * DEPRECATED: Use getUsersByMidnightHour instead.
  */
 export const getUsersByWeeklySchedule = internalQuery({
   args: {
@@ -544,5 +584,44 @@ export const getUsersByWeeklySchedule = internalQuery({
       )
       .filter((q) => q.eq(q.field("weeklyReportsEnabled"), args.weeklyEnabled))
       .collect();
+  },
+});
+
+// ============================================================================
+// New Midnight-Based Scheduling (Phase 4)
+// ============================================================================
+
+/**
+ * Get users by midnight UTC hour (for midnight-based report generation)
+ *
+ * Called by daily/weekly midnight cron jobs.
+ * Uses by_midnightUtcHour index for efficient lookup.
+ */
+export const getUsersByMidnightHour = internalQuery({
+  args: {
+    midnightUtcHour: v.number(),
+    dailyEnabled: v.optional(v.boolean()),
+    weeklyEnabled: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    let query = ctx.db
+      .query("users")
+      .withIndex("by_midnightUtcHour", (q) =>
+        q.eq("midnightUtcHour", args.midnightUtcHour),
+      );
+
+    // Apply filters if specified
+    if (args.dailyEnabled !== undefined) {
+      query = query.filter((q) =>
+        q.eq(q.field("dailyReportsEnabled"), args.dailyEnabled),
+      );
+    }
+    if (args.weeklyEnabled !== undefined) {
+      query = query.filter((q) =>
+        q.eq(q.field("weeklyReportsEnabled"), args.weeklyEnabled),
+      );
+    }
+
+    return await query.collect();
   },
 });

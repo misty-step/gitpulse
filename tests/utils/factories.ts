@@ -10,8 +10,6 @@
  */
 
 import type { Id } from "../../convex/_generated/dataModel";
-import type { ReportContext } from "../../convex/lib/reportContext";
-import type { PromptPayload } from "../../convex/lib/prompts";
 
 // ============================================================================
 // Core Database Entities
@@ -211,7 +209,7 @@ export function createMockReport(overrides?: Partial<{
     citations: ["https://github.com/acme/test-repo/pull/42"],
     promptVersion: "v1.0.0",
     provider: "google",
-    model: "gemini-2.5-flash",
+    model: "google/gemini-3-pro-preview",
     generatedAt: now,
     cacheKey: "cache_key_123",
     coverageScore: 0.85,
@@ -440,57 +438,6 @@ export function createMockTimelineResult(overrides?: any) {
       remaining: 4999,
       resetAt: new Date(Date.now() + 3600000).toISOString(),
     },
-    ...overrides,
-  };
-}
-
-// ============================================================================
-// Report Generation Context
-// ============================================================================
-
-/**
- * Creates a mock report context (for report generator tests)
- */
-export function createMockReportContext(overrides?: Partial<ReportContext>): ReportContext {
-  return {
-    timeframe: {
-      start: new Date(1000).toISOString(),
-      end: new Date(2000).toISOString(),
-      days: 1,
-    },
-    totals: {
-      eventCount: 5,
-      repoCount: 1,
-      byType: {
-        commit: 3,
-        pr_opened: 1,
-        review: 1,
-      },
-    },
-    repos: [{
-      repo: "acme/test-repo",
-      repoUrl: "https://github.com/acme/test-repo",
-      eventCount: 5,
-      commits: 3,
-      pullRequests: 1,
-      reviews: 1,
-      issues: 0,
-    }],
-    timeline: [],
-    ...overrides,
-  };
-}
-
-/**
- * Creates a mock prompt payload (for LLM orchestrator tests)
- */
-export function createMockPrompt(overrides?: Partial<PromptPayload>): PromptPayload {
-  return {
-    systemPrompt: "You are a helpful assistant",
-    userPrompt: "Generate a report",
-    allowedUrls: [],
-    requiredHeadings: ["## Work Completed", "## Key Decisions"],
-    minWordCount: 50,
     ...overrides,
   };
 }

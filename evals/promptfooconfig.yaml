@@ -1,0 +1,124 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "GitPulse Report Generation Evaluation"
+
+# Prompts under test - must match production prompts in generateReport.ts
+prompts:
+  - file://prompts/daily-report.txt
+  - file://prompts/weekly-report.txt
+
+# Production model only - test what we ship
+providers:
+  - id: openrouter:google/gemini-3-pro-preview
+    config:
+      temperature: 1.0  # Match prod (generateReport.ts:290)
+      max_tokens: 4000  # Match prod (generateReport.ts:291)
+      maxRetries: 3
+
+# Default assertions for all tests
+defaultTest:
+  options:
+    transform: |
+      // Normalize markdown output
+      return output.trim();
+  assert:
+    # Must contain GitHub citations
+    - type: contains
+      value: "github.com"
+    # Must not be empty
+    - type: javascript
+      value: output.length > 100
+    # Must have proper markdown structure
+    - type: icontains
+      value: "##"
+
+# Test cases
+tests:
+  # Daily report test with PR events
+  - description: "Daily report with PR activity"
+    vars:
+      kind: daily
+      username: testuser
+      dateRange: "December 10, 2025"
+      events: |
+        - **PR #42** (merged): Add user authentication [https://github.com/org/repo/pull/42]
+        - **PR #43** (opened): Fix rate limiting bug [https://github.com/org/repo/pull/43]
+        - **Commit** (abc1234): Update README with setup instructions [https://github.com/org/repo/commit/abc1234]
+    assert:
+      - type: icontains
+        value: "PR #42"
+      - type: icontains
+        value: "authentication"
+      - type: llm-rubric
+        value: |
+          The report should:
+          1. Summarize the PR merges and opens
+          2. Include inline citations as markdown links
+          3. Be written in professional technical prose
+          4. Not invent any activity not in the events list
+        provider: openai:gpt-4o-mini
+
+  # Daily report with minimal activity
+  - description: "Daily report with minimal activity"
+    vars:
+      kind: daily
+      username: quietuser
+      dateRange: "December 10, 2025"
+      events: |
+        - **Commit** (def5678): Minor typo fix [https://github.com/org/repo/commit/def5678]
+    assert:
+      - type: icontains
+        value: "typo"
+      - type: icontains
+        value: "github.com/org/repo/commit/def5678"
+
+  # Weekly retrospective test
+  - description: "Weekly retro with mixed activity"
+    vars:
+      kind: weekly
+      username: activeuser
+      dateRange: "December 2 - December 8, 2025"
+      events: |
+        - **PR #100** (merged): Implement OAuth2 flow (+500/-200, 15 files) [https://github.com/org/repo/pull/100]
+        - **PR #101** (merged): Add rate limiting middleware (+150/-30, 4 files) [https://github.com/org/repo/pull/101]
+        - **Issue #50** (closed): Fix memory leak in worker pool [https://github.com/org/repo/issues/50]
+        - **Review PR #99**: approved - "LGTM, nice refactor" [https://github.com/org/repo/pull/99#pullrequestreview-1]
+        - **Release v1.2.0**: December release with OAuth and rate limiting [https://github.com/org/repo/releases/tag/v1.2.0]
+    assert:
+      - type: icontains
+        value: "OAuth"
+      - type: icontains
+        value: "rate limit"
+      - type: llm-rubric
+        value: |
+          The weekly retrospective should:
+          1. Group related work thematically (e.g., OAuth work together)
+          2. Highlight the release as a milestone
+          3. Include technical details like line changes
+          4. Reflect on challenges and accomplishments
+        provider: openai:gpt-4o-mini
+
+  # Citation accuracy test
+  - description: "Citation extraction accuracy"
+    vars:
+      kind: daily
+      username: citationtest
+      dateRange: "December 10, 2025"
+      events: |
+        - **PR #1** (merged): Feature A [https://github.com/acme/app/pull/1]
+        - **PR #2** (merged): Feature B [https://github.com/acme/app/pull/2]
+        - **PR #3** (merged): Feature C [https://github.com/acme/app/pull/3]
+    assert:
+      # All 3 PRs should be cited
+      - type: javascript
+        value: |
+          const citations = output.match(/github\.com\/acme\/app\/pull\/\d+/g) || [];
+          return citations.length >= 3;
+      - type: icontains
+        value: "github.com/acme/app/pull/1"
+      - type: icontains
+        value: "github.com/acme/app/pull/2"
+      - type: icontains
+        value: "github.com/acme/app/pull/3"
+
+# Output config
+outputPath: evals/.promptfoo/output/latest.json

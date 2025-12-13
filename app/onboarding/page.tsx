@@ -320,7 +320,7 @@ export default function OnboardingPage() {
                         Daily Standups
                       </p>
                       <p className="text-xs text-gray-500">
-                        Every morning at 9:00 AM
+                        Every day at midnight
                       </p>
                     </div>
                     <div className="w-2 h-2 bg-green-600 rounded-full" />
@@ -331,7 +331,7 @@ export default function OnboardingPage() {
                         Weekly Retros
                       </p>
                       <p className="text-xs text-gray-500">
-                        Every Monday at 9:00 AM
+                        Every Sunday at midnight
                       </p>
                     </div>
                     <div className="w-2 h-2 bg-green-600 rounded-full" />
@@ -363,8 +363,7 @@ export default function OnboardingPage() {
                 <div className="flex-1 text-sm text-green-700">
                   <p className="font-medium mb-1">You&apos;re all set!</p>
                   <p>
-                    Your first report will be generated tomorrow morning at 9:00
-                    AM{" "}
+                    Your first report will be generated at midnight tonight{" "}
                     {timezone
                       ? `(${timezone.split("/").pop()?.replace(/_/g, " ")} time)`
                       : ""}
