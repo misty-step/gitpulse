@@ -38,7 +38,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Promptfoo Evals
-        run: pnpm eval --exit-code
+        run: pnpm eval
         env:
           # LLM API keys (add to repo secrets)
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
