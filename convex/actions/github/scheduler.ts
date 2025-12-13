@@ -76,10 +76,10 @@ export const resumeStuckBackfills = internalAction({
 
     for (const job of stuckJobs) {
       try {
-        // Schedule immediate continuation
+        // Schedule immediate continuation via the new sync worker
         await ctx.scheduler.runAfter(
           0,
-          internal.actions.github.startBackfill.continueBackfill,
+          internal.actions.sync.processSyncJob.processSyncJob,
           { jobId: job._id },
         );
 

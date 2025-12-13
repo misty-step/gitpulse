@@ -295,7 +295,7 @@ export function expectValidLLMMetadata(report: {
   expect(["google", "openai", "system"]).toContain(report.provider);
 
   if (report.provider === "google") {
-    expect(report.model).toMatch(/^gemini-/);
+    expect(report.model).toMatch(/gemini/);
   } else if (report.provider === "openai") {
     expect(report.model).toMatch(/^gpt-/);
   } else if (report.provider === "system") {

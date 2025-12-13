@@ -1,0 +1,61 @@
+name: LLM Evals
+
+on:
+  pull_request:
+    paths:
+      - 'convex/lib/generateReport.ts'
+      - 'convex/lib/LLMClient.ts'
+      - 'convex/lib/prompts.ts'
+      - 'evals/**'
+  workflow_dispatch:
+
+concurrency:
+  group: evals-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    name: Run LLM Evals
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Promptfoo Evals
+        run: pnpm eval
+        env:
+          # LLM API keys (add to repo secrets)
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Langfuse for tracing eval runs
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: https://us.cloud.langfuse.com
+          # Retry configuration for transient failures
+          PROMPTFOO_REQUEST_BACKOFF_MS: "5000"
+          PROMPTFOO_RETRY_5XX: "1"
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: evals/.promptfoo/output/
+          retention-days: 7

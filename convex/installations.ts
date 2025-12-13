@@ -145,6 +145,86 @@ export const updateSyncState = internalMutation({
 });
 
 /**
+ * Update sync orchestration status (Phase 2 - Sync Service)
+ */
+export const updateSyncStatus = internalMutation({
+  args: {
+    installationId: v.number(),
+    syncStatus: v.optional(
+      v.union(
+        v.literal("idle"),
+        v.literal("syncing"),
+        v.literal("rate_limited"),
+        v.literal("error")
+      )
+    ),
+    lastManualSyncAt: v.optional(v.number()),
+    nextSyncAt: v.optional(v.number()),
+    lastSyncError: v.optional(v.string()),
+    lastSyncDuration: v.optional(v.number()),
+    recoveryAttempts: v.optional(v.number()),
+    lastRecoveryAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const installation = await ctx.db
+      .query("installations")
+      .withIndex("by_installationId", (q) =>
+        q.eq("installationId", args.installationId),
+      )
+      .unique();
+
+    if (!installation) {
+      return;
+    }
+
+    const update: Record<string, unknown> = {
+      updatedAt: Date.now(),
+    };
+
+    for (const [key, value] of Object.entries(args)) {
+      if (key === "installationId" || value === undefined) continue;
+      update[key] = value;
+    }
+
+    await ctx.db.patch(installation._id, update);
+  },
+});
+
+/**
+ * Reset sync state to allow a fresh full sync.
+ *
+ * Clears lastSyncedAt and lastManualSyncAt so the next sync will
+ * calculate a 30-day window instead of the narrow lastSyncedAt - 1hr window.
+ *
+ * Use case: When syncs have been completing but ingesting no events due to
+ * the narrow time window bug, resetting state allows a fresh backfill.
+ */
+export const resetSyncState = internalMutation({
+  args: { installationId: v.number() },
+  handler: async (ctx, { installationId }) => {
+    const installation = await ctx.db
+      .query("installations")
+      .withIndex("by_installationId", (q) => q.eq("installationId", installationId))
+      .first();
+
+    if (!installation) {
+      return { success: false, error: "Installation not found" };
+    }
+
+    await ctx.db.patch(installation._id, {
+      lastSyncedAt: undefined,
+      lastManualSyncAt: undefined,
+      lastCursor: undefined,
+      syncStatus: "idle",
+      lastSyncError: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
  * List all installations (internal use for reconciliation)
  */
 export const listAll = internalQuery({

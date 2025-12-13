@@ -16,7 +16,7 @@
 // Types
 // ============================================================================
 
-export type SyncTrigger = "manual" | "cron" | "webhook" | "maintenance";
+export type SyncTrigger = "manual" | "cron" | "webhook" | "maintenance" | "recovery";
 
 export type SyncAction = "start" | "skip" | "block";
 
@@ -117,6 +117,7 @@ export function evaluate(
   }
 
   // 3. Manual sync cooldown (with stale bypass)
+  // Recovery syncs bypass cooldown entirely (system-initiated auto-healing)
   if (trigger === "manual") {
     const cooldownResult = evaluateManualCooldown(state, now);
     if (cooldownResult) {
@@ -131,6 +132,7 @@ export function evaluate(
   }
 
   // 5. Already syncing guard (manual only)
+  // Recovery syncs can proceed even if already syncing (they're re-queued for later)
   if (trigger === "manual" && state.syncStatus === "syncing") {
     return {
       action: "block",

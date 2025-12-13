@@ -113,7 +113,7 @@ describe("persistCanonicalEvent", () => {
       expect.objectContaining({ contentHash: expect.any(String) }),
     );
     expect(schedulerRunAfter).toHaveBeenCalledWith(
-      0,
+      5000, // 5 second delay for batch coalescing
       internal.actions.embeddings.ensureBatch.ensureBatch,
       {},
     );

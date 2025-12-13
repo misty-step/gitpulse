@@ -28,17 +28,19 @@ export default function RepositoriesPage() {
 
   const handleSync = async (installationId: number) => {
     try {
-      // eslint-disable-next-line react-hooks/purity
-      const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
-      await startBackfill({
+      const result = await startBackfill({
         installationId,
-        repositories: [], // Empty array means "sync all from installation"
-        since: ninetyDaysAgo,
       });
-      showSuccess(
-        "Sync started",
-        "Repository backfill is running in the background.",
-      );
+      
+      if (result.started) {
+        showSuccess(
+          "Sync started",
+          result.message,
+        );
+      } else {
+        // Show the reason why sync didn't start (cooldown, rate limit, etc.)
+        handleConvexError(new Error(result.message));
+      }
     } catch (err) {
       handleConvexError(err as Error);
     }
@@ -525,6 +527,9 @@ function AddRepositoryForm({ onClose }: { onClose: () => void }) {
 }
 
 function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
+  // Use sync view-model for sync state
+  const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
+
   if (status.kind === "unauthenticated" || status.kind === "missing_user") {
     return null;
   }
@@ -533,25 +538,37 @@ function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
   const lastEventText = status.lastEventTs
     ? formatTimestamp(status.lastEventTs)
     : "Never";
-  const lastSyncedText = status.lastSyncedAt
-    ? formatTimestamp(status.lastSyncedAt)
-    : "Never";
-  const needsAttention = status.kind !== "healthy";
+
+  // Derive last sync from sync view-model (most recent across all installations)
+  const lastSyncedAt = syncStatuses?.reduce((latest, s) => {
+    const syncTime = s.lastSyncedAt ?? 0;
+    return syncTime > latest ? syncTime : latest;
+  }, 0);
+  const lastSyncedText =
+    lastSyncedAt && lastSyncedAt > 0 ? formatTimestamp(lastSyncedAt) : "Never";
+
+  // Check for sync errors
+  const syncErrors = syncStatuses?.filter((s) => s.state === "error") ?? [];
+  const hasSyncErrors = syncErrors.length > 0;
+
+  const needsAttention = status.kind !== "healthy" || hasSyncErrors;
 
   const summary =
-    status.kind === "healthy"
-      ? "GitHub App installed and ingesting events."
-      : status.kind === "missing_installation"
-        ? "No GitHub App installation detected."
-        : status.kind === "no_events"
-          ? "No events have been ingested yet."
-          : "Ingestion paused—no new events detected.";
+    hasSyncErrors && status.kind === "healthy"
+      ? `Sync error on ${syncErrors.length} installation${syncErrors.length > 1 ? "s" : ""}.`
+      : status.kind === "healthy"
+        ? "GitHub App installed and ingesting events."
+        : status.kind === "missing_installation"
+          ? "No GitHub App installation detected."
+          : status.kind === "no_events"
+            ? "No events have been ingested yet."
+            : "Ingestion paused—no new events detected.";
 
   return (
     <div
       className={`border p-5 ${
         needsAttention
-          ? "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-100"
           : "border-border bg-surface text-foreground"
       }`}
     >
@@ -567,11 +584,23 @@ function IntegrationHealthCard({ status }: { status: IntegrationStatus }) {
 
         <p className="text-sm">{summary}</p>
 
+        {/* Show sync error details */}
+        {hasSyncErrors && (
+          <div className="text-xs text-amber-700 bg-amber-100/50 rounded p-2">
+            {syncErrors.map((s) => (
+              <div key={s.installationId}>
+                {s.accountLogin ?? `Installation ${s.installationId}`}:{" "}
+                {s.lastSyncError ?? "Unknown error"}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3 border-t border-black/5 pt-4 mt-2">
           <div>
             <dt className="text-muted mb-1 font-mono">INSTALLATIONS</dt>
             <dd className="text-base font-semibold">
-              {status.installCount ?? 0}
+              {syncStatuses?.length ?? status.installCount ?? 0}
             </dd>
           </div>
           <div>

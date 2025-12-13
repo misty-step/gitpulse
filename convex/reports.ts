@@ -69,6 +69,8 @@ export const listByUser = query({
       .order("desc")
       .take(limit * 3); // overfetch to allow dedupe
 
+    // Return all reports - let UI decide what to show
+    // Silent filtering here caused bugs where generated reports were invisible
     return dedupeByWindow(raw).slice(0, limit);
   },
 });
@@ -90,6 +92,7 @@ export const listByGhLogin = query({
       .order("desc")
       .take(limit * 3); // Get extra to filter & dedupe
 
+    // Filter by ghLogin only - let UI decide what to show
     const filteredReports = allReports.filter(
       (report) => report.userId === `gh:${args.ghLogin}`,
     );
@@ -254,6 +257,7 @@ export const create = internalMutation({
     startDate: v.number(),
     endDate: v.number(),
     ghLogins: v.array(v.string()),
+    repos: v.optional(v.array(v.string())), // ["owner/repo", ...] for display
     markdown: v.string(),
     html: v.string(),
     json: v.optional(v.string()),
@@ -284,6 +288,10 @@ export const create = internalMutation({
         }),
       ),
     ),
+    // Diagnostic fields
+    eventCount: v.optional(v.number()),
+    citationCount: v.optional(v.number()),
+    expectedCitations: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -306,3 +314,165 @@ export const getByCacheKey = internalQuery({
       .first();
   },
 });
+
+// ============================================================================
+// Report Staleness Management (for intelligent post-sync report generation)
+// ============================================================================
+
+/**
+ * Mark a report as stale (new events exist that weren't included)
+ */
+export const markStale = internalMutation({
+  args: {
+    reportId: v.id("reports"),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.reportId);
+    if (!report) return null;
+
+    // Don't re-mark if already stale
+    if (report.isStale) return report._id;
+
+    await ctx.db.patch(args.reportId, {
+      isStale: true,
+      staleDetectedAt: Date.now(),
+    });
+    return report._id;
+  },
+});
+
+/**
+ * Clear staleness flag (called after regeneration)
+ */
+export const clearStale = internalMutation({
+  args: {
+    reportId: v.id("reports"),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.reportId);
+    if (!report) return null;
+
+    await ctx.db.patch(args.reportId, {
+      isStale: false,
+      staleDetectedAt: undefined,
+    });
+    return report._id;
+  },
+});
+
+/**
+ * Get stale reports for a user (for badge display and regeneration prompts)
+ */
+export const getStaleReportsForUser = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("reports")
+      .withIndex("by_userId_and_isStale", (q) =>
+        q.eq("userId", args.userId).eq("isStale", true),
+      )
+      .collect();
+  },
+});
+
+/**
+ * Get reports for a specific window (for staleness detection during post-sync analysis)
+ */
+export const getReportForWindow = internalQuery({
+  args: {
+    userId: v.string(),
+    startDate: v.number(),
+    endDate: v.number(),
+    scheduleType: v.union(v.literal("daily"), v.literal("weekly")),
+  },
+  handler: async (ctx, args) => {
+    // Get the most recent report for this exact window
+    const reports = await ctx.db
+      .query("reports")
+      .withIndex("by_userId_and_schedule", (q) =>
+        q.eq("userId", args.userId).eq("scheduleType", args.scheduleType),
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("startDate"), args.startDate),
+          q.eq(q.field("endDate"), args.endDate),
+        ),
+      )
+      .order("desc")
+      .first();
+
+    return reports;
+  },
+});
+
+/**
+ * Internal: Patch coverageScore on existing report (data fix)
+ */
+export const patchCoverageScore = internalMutation({
+  args: {
+    reportId: v.id("reports"),
+    coverageScore: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.reportId);
+    if (!report) return null;
+
+    await ctx.db.patch(args.reportId, {
+      coverageScore: args.coverageScore,
+    });
+    return args.reportId;
+  },
+});
+
+/**
+ * Internal: Delete report by ID (for upsert behavior)
+ */
+export const deleteById = internalMutation({
+  args: {
+    id: v.id("reports"),
+  },
+  handler: async (ctx, args) => {
+    const report = await ctx.db.get(args.id);
+    if (!report) return null;
+
+    await ctx.db.delete(args.id);
+    return args.id;
+  },
+});
+
+/**
+ * Internal: Clean up duplicate reports (keep newest per window)
+ */
+export const cleanupDuplicates = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("reports").collect();
+    const windows = new Map<string, Report[]>();
+
+    // Group by window
+    for (const report of all as Report[]) {
+      if (!report.scheduleType) continue;
+      const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
+      if (!windows.has(key)) windows.set(key, []);
+      windows.get(key)!.push(report);
+    }
+
+    let deleted = 0;
+    for (const [, reports] of windows) {
+      if (reports.length <= 1) continue;
+
+      // Sort by createdAt desc, keep first (newest)
+      reports.sort((a, b) => b.createdAt - a.createdAt);
+      for (let i = 1; i < reports.length; i++) {
+        await ctx.db.delete(reports[i]._id);
+        deleted++;
+      }
+    }
+
+    console.log(`Cleaned up ${deleted} duplicate reports`);
+    return { deleted };
+  },
+});
+

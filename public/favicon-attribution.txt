@@ -1,0 +1,4 @@
+Favicon Credits:
+- Source: Twitter Twemoji
+- License: CC-BY 4.0
+- URL: https://github.com/twitter/twemoji

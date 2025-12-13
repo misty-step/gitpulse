@@ -7,10 +7,10 @@
  * Each job passes its UTC day/hour, queries users with matching weeklyDayUTC + reportHourUTC,
  * and generates weekly retro reports for all of them.
  *
- * Design per ultrathink:
- * - No iteration through all users - indexed query for efficiency
- * - No runtime timezone math - day/hour pre-calculated at settings save
- * - Separate cron jobs (not one job checking all combinations)
+ * Design:
+ * - Uses legacy weeklyDayUTC + reportHourUTC for scheduling (will be deprecated)
+ * - But uses timeWindows module for correct timezone-aware window calculation
+ * - TODO: Refactor to use midnightUtcHour + Sunday detection
  */
 
 import { v } from "convex/values";
@@ -42,12 +42,16 @@ export const run = internalAction({
     );
 
     // Query users who want weekly reports at this day/hour
-    const users: Array<{ clerkId?: string; githubUsername?: string }> =
-      await ctx.runQuery(internal.users.getUsersByWeeklySchedule, {
-        weeklyDayUTC: args.dayUTC,
-        reportHourUTC: args.hourUTC,
-        weeklyEnabled: true,
-      });
+    // Note: Still using legacy schedule fields, but window calculation is now timezone-aware
+    const users: Array<{
+      clerkId?: string;
+      githubUsername?: string;
+      timezone?: string;
+    }> = await ctx.runQuery(internal.users.getUsersByWeeklySchedule, {
+      weeklyDayUTC: args.dayUTC,
+      reportHourUTC: args.hourUTC,
+      weeklyEnabled: true,
+    });
 
     if (users.length === 0) {
       logger.info(
@@ -85,7 +89,11 @@ export const run = internalAction({
     for (const user of users) {
       try {
         logger.info(
-          { userId: user.clerkId, githubUsername: user.githubUsername },
+          {
+            userId: user.clerkId,
+            githubUsername: user.githubUsername,
+            timezone: user.timezone,
+          },
           "Generating weekly report for user",
         );
 
@@ -93,6 +101,7 @@ export const run = internalAction({
           internal.actions.generateScheduledReport.generateWeeklyReport,
           {
             userId: user.clerkId!,
+            timezone: user.timezone, // Pass timezone to avoid redundant lookup
           },
         );
 

@@ -327,18 +327,19 @@ async function handleInstallationEvent(
 
       // Automatically start backfill if we identified the user
       if (clerkUserId && repoNames.length > 0) {
-        const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
-        await ctx.runAction(
-          internal.actions.github.startBackfill.adminStartBackfill,
+        const result = await ctx.runAction(
+          internal.actions.sync.requestSync.requestSync,
           {
             installationId: installation.id,
-            clerkUserId,
-            repositories: repoNames,
-            since: ninetyDaysAgo,
+            trigger: "webhook" as const,
           },
         );
         logger.info(
-          { installationId: installation.id },
+          {
+            installationId: installation.id,
+            started: result.started,
+            message: result.message,
+          },
           "Auto-triggered backfill for new installation",
         );
       }

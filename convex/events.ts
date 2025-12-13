@@ -336,6 +336,75 @@ export const upsertCanonical = internalMutation({
 });
 
 /**
+ * Internal: Get the latest event timestamp for a user (by Clerk user ID)
+ *
+ * Used by sync recovery logic to detect stale data patterns.
+ */
+export const getLatestEventTsForUser = internalQuery({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    // First, look up the user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    // Then get the latest event for this user
+    const latestEvent = await ctx.db
+      .query("events")
+      .withIndex("by_actor_and_ts", (q) => q.eq("actorId", user._id))
+      .order("desc")
+      .first();
+
+    return latestEvent?.ts ?? null;
+  },
+});
+
+/**
+ * Internal: List events by multiple repos within a time window
+ *
+ * Used by report generation to get all events from a user's tracked repos.
+ * Queries each repo individually (Convex doesn't support OR in index queries)
+ * then merges and sorts by timestamp.
+ */
+export const listByReposInWindow = internalQuery({
+  args: {
+    repoIds: v.array(v.id("repos")),
+    startDate: v.number(),
+    endDate: v.number(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 2000;
+    const allEvents: Doc<"events">[] = [];
+
+    // Query each repo individually
+    for (const repoId of args.repoIds) {
+      const repoEvents = await ctx.db
+        .query("events")
+        .withIndex("by_repo_and_ts", (q) => q.eq("repoId", repoId))
+        .filter((q) =>
+          q.and(
+            q.gte(q.field("ts"), args.startDate),
+            q.lte(q.field("ts"), args.endDate)
+          )
+        )
+        .collect();
+
+      allEvents.push(...repoEvents);
+    }
+
+    // Sort by timestamp descending and apply limit
+    allEvents.sort((a, b) => b.ts - a.ts);
+    return allEvents.slice(0, limit);
+  },
+});
+
+/**
  * Internal: List events without embeddings
  */
 export const listWithoutEmbeddings = internalQuery({

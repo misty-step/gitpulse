@@ -55,6 +55,12 @@ describe("syncPolicy.evaluate", () => {
       expect(decision.action).toBe("start");
       expect(decision.reason).toBe("ready");
     });
+
+    it("returns start for recovery trigger", () => {
+      const decision = evaluate(baseState, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
+    });
   });
 
   describe("no_clerk_user check", () => {
@@ -110,7 +116,7 @@ describe("syncPolicy.evaluate", () => {
     it("skips when manual cooldown is active", () => {
       const state: InstallationState = {
         ...baseState,
-        lastManualSyncAt: NOW - 30 * 60 * 1000, // 30 minutes ago
+        lastManualSyncAt: NOW - 30 * 60 * 1000, // 30 minutes ago (within 1-hour cooldown)
         lastSyncedAt: NOW - 30 * 60 * 1000, // Recent enough to not be stale
       };
 
@@ -132,7 +138,7 @@ describe("syncPolicy.evaluate", () => {
 
       const decision = evaluate(state, "manual", NOW);
       expect(decision.action).toBe("skip");
-      // Should have 15 minutes remaining
+      // Should have 15 minutes remaining (1 hour cooldown - 45 min elapsed)
       expect(decision.metadata?.cooldownMs).toBe(15 * 60 * 1000);
     });
 
@@ -204,6 +210,18 @@ describe("syncPolicy.evaluate", () => {
       const decision = evaluate(state, "maintenance", NOW);
       expect(decision.action).toBe("start");
     });
+
+    it("does not apply cooldown for recovery trigger (auto-healing bypass)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        lastManualSyncAt: NOW - 30 * 60 * 1000, // In cooldown
+        lastSyncedAt: NOW - 30 * 60 * 1000, // Not stale
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
+    });
   });
 
   describe("rate_limited check", () => {
@@ -262,6 +280,28 @@ describe("syncPolicy.evaluate", () => {
 
       const decision = evaluate(state, "webhook", NOW);
       expect(decision.action).toBe("start");
+    });
+
+    it("blocks recovery trigger when budget is below minimum", () => {
+      const state: InstallationState = {
+        ...baseState,
+        rateLimitRemaining: MIN_SYNC_BUDGET - 1,
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("block");
+      expect(decision.reason).toBe("rate_limited");
+    });
+
+    it("allows recovery trigger when budget meets minimum (no webhook reserve)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        rateLimitRemaining: MIN_SYNC_BUDGET,
+      };
+
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
     });
 
     it("includes blockedUntil from rateLimitReset", () => {
@@ -362,6 +402,18 @@ describe("syncPolicy.evaluate", () => {
       const decision = evaluate(state, "manual", NOW);
       expect(decision.action).toBe("start");
     });
+
+    it("allows recovery sync when already syncing (will be re-queued)", () => {
+      const state: InstallationState = {
+        ...baseState,
+        syncStatus: "syncing",
+      };
+
+      // Recovery doesn't have "already syncing" guard - it's re-queued for later
+      const decision = evaluate(state, "recovery", NOW);
+      expect(decision.action).toBe("start");
+      expect(decision.reason).toBe("ready");
+    });
   });
 
   describe("check order (first failure wins)", () => {
@@ -380,7 +432,7 @@ describe("syncPolicy.evaluate", () => {
       const state: InstallationState = {
         ...baseState,
         repositories: [],
-        lastManualSyncAt: NOW - 30 * 60 * 1000,
+        lastManualSyncAt: NOW - 30 * 60 * 1000, // within 1-hour cooldown
         lastSyncedAt: NOW - 30 * 60 * 1000,
       };
 
@@ -391,7 +443,7 @@ describe("syncPolicy.evaluate", () => {
     it("returns cooldown before rate_limited", () => {
       const state: InstallationState = {
         ...baseState,
-        lastManualSyncAt: NOW - 30 * 60 * 1000,
+        lastManualSyncAt: NOW - 30 * 60 * 1000, // within 1-hour cooldown
         lastSyncedAt: NOW - 30 * 60 * 1000,
         rateLimitRemaining: 0,
       };

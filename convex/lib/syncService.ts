@@ -9,8 +9,13 @@
  *
  * Design (Ousterhout):
  * - Simple interface: request({ installationId, trigger }) → SyncResult
- * - Hides: policy evaluation, job management, status updates, metrics
- * - Enforces: one active job per installation invariant
+ * - Hides: policy evaluation, batch/job management, status updates, metrics
+ * - Enforces: one active batch per installation invariant
+ *
+ * Architecture: Job-per-repo
+ * - Each sync request creates one batch containing N jobs (one per repo)
+ * - No chaining logic needed — each job is independent
+ * - Batch tracks overall progress, jobs track per-repo progress
  */
 
 import type { ActionCtx } from "../_generated/server";
@@ -60,6 +65,8 @@ export interface RequestSyncParams {
   since?: number;
   /** Override the until timestamp (optional, defaults to now) */
   until?: number;
+  /** Force full 30-day backfill, ignoring lastSyncedAt (for recovery) */
+  forceFullSync?: boolean;
 }
 
 // ============================================================================
@@ -71,9 +78,10 @@ export interface RequestSyncParams {
  *
  * This is the single entrypoint for all sync operations. It:
  * 1. Loads installation state
- * 2. Evaluates policy to decide if sync should start
- * 3. On start: sets status, enqueues job, returns success
- * 4. On skip/block: returns decision for caller to handle
+ * 2. Checks for existing active batch (one-batch-per-installation invariant)
+ * 3. Evaluates policy to decide if sync should start
+ * 4. On start: creates batch with N jobs, schedules workers
+ * 5. On skip/block: returns decision for caller to handle
  *
  * Callers include:
  * - Cron scheduler (continuous sync)
@@ -106,34 +114,47 @@ export async function request(
     };
   }
 
-  // 2. Check for existing active job (one-job-per-installation invariant)
-  const activeJob = await ctx.runQuery(
-    internal.ingestionJobs.getActiveForInstallation,
+  // 2. Check for existing active batch (one-batch-per-installation invariant)
+  const activeBatch = await ctx.runQuery(
+    internal.syncBatches.getActiveForInstallation,
     { installationId }
   );
 
-  if (activeJob) {
-    emitSyncMetric(installationId, trigger, "already_has_job");
+  if (activeBatch) {
+    emitSyncMetric(installationId, trigger, "already_has_batch");
     logger.info(
-      { installationId, trigger, existingJobId: activeJob._id },
-      "Sync request skipped - active job exists"
+      { installationId, trigger, existingBatchId: activeBatch._id },
+      "Sync request skipped - active batch exists"
     );
     return {
       started: false,
       message: "A sync is already in progress",
-      details: { jobId: activeJob._id },
+      details: { jobId: activeBatch._id },
     };
   }
 
-  // 3. Evaluate policy
+  // 3. Clean up stale syncStatus: "syncing" if no active batch exists
+  if (installation.syncStatus === "syncing") {
+    logger.warn(
+      { installationId, trigger },
+      "Cleaning up stale syncStatus: syncing with no active batch"
+    );
+    await ctx.runMutation(internal.installations.updateSyncStatus, {
+      installationId,
+      syncStatus: "idle",
+    });
+    installation.syncStatus = "idle";
+  }
+
+  // 4. Evaluate policy
   const decision = evaluate(toInstallationState(installation), trigger, now);
 
-  // 4. Handle decision
+  // 5. Handle decision
   if (!canStart(decision)) {
     return handleSkipOrBlock(ctx, installation, trigger, decision);
   }
 
-  // 5. Start the sync
+  // 6. Start the sync
   return startSync(ctx, installation, trigger, params, now);
 }
 
@@ -186,7 +207,13 @@ async function handleSkipOrBlock(
 }
 
 /**
- * Start a sync by setting status and enqueuing a job.
+ * Start a sync by creating a batch with jobs and scheduling workers.
+ *
+ * Job-per-repo architecture:
+ * - Creates one batch for the sync request
+ * - Batch contains N jobs (one per repository)
+ * - Each job processes exactly one repo (no chaining)
+ * - Batch tracks overall progress
  */
 async function startSync(
   ctx: ActionCtx,
@@ -198,7 +225,6 @@ async function startSync(
   const { installationId, clerkUserId } = installation;
 
   if (!clerkUserId) {
-    // Policy should have caught this, but defensive check
     return {
       started: false,
       message: "Installation not configured",
@@ -207,7 +233,6 @@ async function startSync(
 
   const repositories = installation.repositories ?? [];
   if (repositories.length === 0) {
-    // Policy should have caught this, but defensive check
     return {
       started: false,
       message: "No repositories selected for sync",
@@ -215,10 +240,31 @@ async function startSync(
   }
 
   // Calculate time window
-  const since = params.since ?? calculateSyncSince(installation.lastSyncedAt, now);
+  // forceFullSync: Always go back 30 days regardless of lastSyncedAt
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const since = params.since ?? (params.forceFullSync
+    ? now - THIRTY_DAYS_MS
+    : calculateSyncSince(installation.lastSyncedAt, now));
   const until = params.until;
 
-  // Update status to syncing and track manual sync time
+  // Debug logging for time window analysis
+  const windowDays = (now - since) / (24 * 60 * 60 * 1000);
+  logger.info(
+    {
+      installationId,
+      trigger,
+      forceFullSync: params.forceFullSync ?? false,
+      lastSyncedAt: installation.lastSyncedAt
+        ? new Date(installation.lastSyncedAt).toISOString()
+        : null,
+      since: new Date(since).toISOString(),
+      until: until ? new Date(until).toISOString() : "now",
+      windowDays: Math.round(windowDays * 10) / 10,
+    },
+    "Sync time window calculated"
+  );
+
+  // Update status to syncing
   await ctx.runMutation(internal.installations.updateSyncStatus, {
     installationId,
     syncStatus: "syncing" as const,
@@ -226,20 +272,34 @@ async function startSync(
     ...(trigger === "manual" ? { lastManualSyncAt: now } : {}),
   });
 
-  // Enqueue the backfill job
-  // Note: We use the existing adminStartBackfill for now.
-  // Phase 3 will replace this with a dedicated processSyncJob worker.
   try {
-    await ctx.runAction(
-      internal.actions.github.startBackfill.adminStartBackfill,
+    // Create batch with N jobs (one per repo)
+    const { batchId, jobIds } = await ctx.runMutation(
+      internal.syncBatches.create,
       {
         installationId,
-        clerkUserId,
-        repositories,
+        userId: clerkUserId,
+        trigger,
+        repos: repositories,
         since,
         until,
       }
     );
+
+    // Schedule workers in batches to avoid OCC conflicts
+    // When all jobs complete simultaneously, they race to update syncBatches
+    const BATCH_SIZE = 20;
+    const BATCH_DELAY_MS = 1000;
+
+    for (let i = 0; i < jobIds.length; i++) {
+      const batchIndex = Math.floor(i / BATCH_SIZE);
+      const delay = batchIndex * BATCH_DELAY_MS;
+      await ctx.scheduler.runAfter(
+        delay,
+        internal.actions.sync.processSyncJob.processSyncJob,
+        { jobId: jobIds[i] }
+      );
+    }
 
     emitSyncMetric(installationId, trigger, "started");
 
@@ -247,18 +307,20 @@ async function startSync(
       {
         installationId,
         trigger,
+        batchId,
         repoCount: repositories.length,
+        jobCount: jobIds.length,
         since: new Date(since).toISOString(),
       },
-      "Sync started"
+      "Sync batch started"
     );
 
     return {
       started: true,
       message: "Sync started",
+      details: { jobId: batchId as string },
     };
   } catch (error) {
-    // Backfill failed to start — update status to error
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
     await ctx.runMutation(internal.installations.updateSyncStatus, {
@@ -271,7 +333,7 @@ async function startSync(
 
     logger.error(
       { installationId, trigger, error: errorMessage },
-      "Sync failed to start"
+      "Sync batch failed to start"
     );
 
     return {

@@ -9,7 +9,7 @@ const features = [
   {
     title: "Daily Intelligence",
     description: "Automated standups derived from commit graphs.",
-    metric: "9AM",
+    metric: "12AM",
     unit: "Delivery",
   },
   {
@@ -161,10 +161,10 @@ export default function Home() {
                 <div className="w-full max-w-3xl p-12 space-y-8 relative z-10">
                   <div className="flex items-baseline justify-between border-b border-border pb-6">
                     <h2 className="text-3xl font-bold tracking-tight">
-                      Morning Standup
+                      Daily Standup
                     </h2>
                     <span className="font-mono text-sm text-muted">
-                      09:00 AM
+                      12:00 AM
                     </span>
                   </div>
                   <div className="space-y-4">

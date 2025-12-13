@@ -23,9 +23,9 @@ jest.mock("../../../_generated/api", () => ({
       updateStatus: "internal.webhookEvents.updateStatus",
     },
     actions: {
-      github: {
-        startBackfill: {
-          adminStartBackfill: "internal.actions.github.startBackfill.adminStartBackfill",
+      sync: {
+        requestSync: {
+          requestSync: "internal.actions.sync.requestSync.requestSync",
         },
       },
     },
@@ -174,6 +174,7 @@ describe("processWebhook", () => {
 
     const runMutation = createAsyncMock();
     const runAction = createAsyncMock();
+    runAction.mockResolvedValue({ started: true, message: "Sync started" }); // Mock SyncResult
     const ctx = createMockActionCtx({ runQuery, runMutation, runAction });
 
     await processWebhookHandler(ctx, { webhookEventId: "install-1" as Id<"webhookEvents"> });
@@ -184,8 +185,8 @@ describe("processWebhook", () => {
     });
     expect(runMutation).toHaveBeenCalledWith(api.installations.upsert, expect.any(Object));
     expect(runAction).toHaveBeenCalledWith(
-      internal.actions.github.startBackfill.adminStartBackfill,
-      expect.objectContaining({ installationId: 55 }),
+      internal.actions.sync.requestSync.requestSync,
+      expect.objectContaining({ installationId: 55, trigger: "webhook" }),
     );
     expect(runMutation).toHaveBeenCalledWith(internal.webhookEvents.updateStatus, {
       id: "install-1",

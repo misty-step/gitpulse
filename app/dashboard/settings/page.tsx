@@ -40,7 +40,7 @@ export default function SettingsPage() {
         weeklyReportsEnabled: weeklyEnabled,
       });
       toast.success(
-        "Settings saved! Reports will be generated at your local 9am.",
+        "Settings saved! Reports will be generated at your local midnight.",
       );
     } catch (error) {
       toast.error(
@@ -182,7 +182,7 @@ export default function SettingsPage() {
               <option value="UTC">UTC</option>
             </select>
             <p className="text-[10px] text-muted pt-1">
-              Reports dispatched at 09:00 local time.
+              Reports generated at midnight local time.
             </p>
           </div>
 

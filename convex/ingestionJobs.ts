@@ -156,6 +156,15 @@ export const create = internalMutation({
     reposRemaining: v.optional(v.array(v.string())),
     rateLimitRemaining: v.optional(v.number()),
     rateLimitReset: v.optional(v.number()),
+    trigger: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("cron"),
+        v.literal("webhook"),
+        v.literal("maintenance"),
+        v.literal("recovery")
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const jobId = await ctx.db.insert("ingestionJobs", {
@@ -270,7 +279,6 @@ export const markBlocked = internalMutation({
 export const resume = internalMutation({
   args: {
     jobId: v.id("ingestionJobs"),
-    reposRemaining: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
@@ -281,7 +289,6 @@ export const resume = internalMutation({
     await ctx.db.patch(args.jobId, {
       status: "running",
       blockedUntil: undefined,
-      reposRemaining: args.reposRemaining ?? job.reposRemaining,
       startedAt: job.startedAt ?? job.createdAt ?? Date.now(),
       lastUpdatedAt: Date.now(),
     });
@@ -327,6 +334,21 @@ export const getById = internalQuery({
   args: { jobId: v.id("ingestionJobs") },
   handler: async (ctx, args) => {
     return ctx.db.get(args.jobId);
+  },
+});
+
+/**
+ * List jobs for a batch (internal use)
+ *
+ * Used by post-sync analysis to get userId from batch jobs.
+ */
+export const listByBatch = internalQuery({
+  args: { batchId: v.id("syncBatches") },
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("ingestionJobs")
+      .withIndex("by_batchId", (q) => q.eq("batchId", args.batchId))
+      .collect();
   },
 });
 
