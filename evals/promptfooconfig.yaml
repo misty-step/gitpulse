@@ -68,8 +68,8 @@ tests:
     assert:
       - type: icontains
         value: "typo"
-      - type: javascript
-        value: output.length < 1500  # Should be concise for minimal activity
+      - type: icontains
+        value: "github.com/org/repo/commit/def5678"
 
   # Weekly retrospective test
   - description: "Weekly retro with mixed activity"
