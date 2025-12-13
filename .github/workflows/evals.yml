@@ -48,6 +48,9 @@ jobs:
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: https://us.cloud.langfuse.com
+          # Retry configuration for transient failures
+          PROMPTFOO_REQUEST_BACKOFF_MS: "5000"
+          PROMPTFOO_RETRY_5XX: "1"
 
       - name: Upload eval results
         if: always()
