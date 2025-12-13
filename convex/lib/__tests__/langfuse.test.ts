@@ -12,13 +12,16 @@ import {
 } from "../langfuse";
 
 // Mock langfuse module to avoid actual API calls
-jest.mock("langfuse", () => ({
-  Langfuse: jest.fn().mockImplementation((config) => ({
-    flushAsync: jest.fn().mockResolvedValue(undefined),
-    trace: jest.fn(),
-    ...config,
-  })),
-}));
+jest.mock("langfuse", () => {
+  const mockFlushAsync = jest.fn<() => Promise<void>>().mockResolvedValue(undefined as void);
+  return {
+    Langfuse: jest.fn().mockImplementation((config) => ({
+      flushAsync: mockFlushAsync,
+      trace: jest.fn(),
+      ...(config || {}),
+    })),
+  };
+});
 
 describe("langfuse", () => {
   const originalEnv = process.env;

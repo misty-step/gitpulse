@@ -383,7 +383,7 @@ describe("processSyncJob", () => {
 
       const runMutation = createAsyncMock();
 
-      const ctx = createMockActionCtx({
+      createMockActionCtx({
         runQuery,
         runMutation,
         runAction: createAsyncMock(),
@@ -391,7 +391,7 @@ describe("processSyncJob", () => {
       });
 
       // Handler should detect completed status and return early
-      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" });
+      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" }) as Doc<"ingestionJobs">;
       expect(job.status).toBe("completed");
 
       // No mutations should be called for already-complete jobs
@@ -416,7 +416,7 @@ describe("processSyncJob", () => {
       const runMutation = createAsyncMock();
 
       // Handler should detect failed status and return early
-      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" });
+      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" }) as Doc<"ingestionJobs">;
       expect(job.status).toBe("failed");
 
       // No mutations for already-failed jobs
@@ -435,7 +435,7 @@ describe("processSyncJob", () => {
       const runMutation = createAsyncMock();
 
       // Handler should call fail mutation
-      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" });
+      const job = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" }) as Doc<"ingestionJobs">;
       expect(job.installationId).toBeUndefined();
 
       // Simulate calling fail mutation
@@ -462,7 +462,7 @@ describe("processSyncJob", () => {
       const runMutation = createAsyncMock();
 
       // Simulate handler flow
-      const loadedJob = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" });
+      const loadedJob = await runQuery("internal.ingestionJobs.getById", { jobId: "job_123" }) as Doc<"ingestionJobs">;
       const loadedInstallation = await runQuery("api.installations.getByInstallationId", {
         installationId: loadedJob.installationId,
       });
@@ -498,13 +498,22 @@ describe("processSyncJob", () => {
         node_id: "R_kgDOABC123",
         name: "repo1",
         full_name: "owner/repo1",
-        owner: { login: "owner", id: 1, node_id: "U_1", avatar_url: "", url: "" },
+        owner: { login: "owner", id: 1, node_id: "U_1" },
         private: false,
         html_url: "https://github.com/owner/repo1",
         description: "Test repo",
+        homepage: null,
         fork: false,
-        url: "https://api.github.com/repos/owner/repo1",
-      } as ReturnType<typeof getRepository> extends Promise<infer T> ? T : never);
+        archived: false,
+        language: "TypeScript",
+        stargazers_count: 100,
+        watchers_count: 100,
+        forks_count: 10,
+        open_issues_count: 5,
+        created_at: new Date(NOW - 365 * 24 * 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(NOW).toISOString(),
+        pushed_at: new Date(NOW).toISOString(),
+      });
 
       asMock(listCommits).mockResolvedValue([]);
 

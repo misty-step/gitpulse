@@ -209,7 +209,7 @@ export function createMockReport(overrides?: Partial<{
     citations: ["https://github.com/acme/test-repo/pull/42"],
     promptVersion: "v1.0.0",
     provider: "google",
-    model: "gemini-2.5-flash",
+    model: "google/gemini-3-pro-preview",
     generatedAt: now,
     cacheKey: "cache_key_123",
     coverageScore: 0.85,

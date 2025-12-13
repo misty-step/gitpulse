@@ -1,24 +1,18 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "GitPulse Report Generation Evaluation"
 
-# Prompts under test
+# Prompts under test - must match production prompts in generateReport.ts
 prompts:
   - file://prompts/daily-report.txt
   - file://prompts/weekly-report.txt
 
-# LLM providers to test
+# Production model only - test what we ship
 providers:
-  - id: google:gemini-2.5-flash
+  - id: openrouter:google/gemini-3-pro-preview
     config:
-      temperature: 0.1
-      maxOutputTokens: 2500
-      maxRetries: 3  # Retry on transient failures
-  # OpenRouter for A/B testing
-  - id: openrouter:anthropic/claude-3.5-sonnet
-    config:
-      temperature: 0.1
-      max_tokens: 2500
-      maxRetries: 3  # Retry on transient failures
+      temperature: 1.0  # Match prod (generateReport.ts:290)
+      max_tokens: 4000  # Match prod (generateReport.ts:291)
+      maxRetries: 3
 
 # Default assertions for all tests
 defaultTest:
@@ -63,7 +57,7 @@ tests:
           4. Not invent any activity not in the events list
         provider: openai:gpt-4o-mini
 
-  # Daily report with no events (edge case)
+  # Daily report with minimal activity
   - description: "Daily report with minimal activity"
     vars:
       kind: daily

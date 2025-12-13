@@ -5,6 +5,15 @@
 import { describe, expect, it, beforeEach, afterEach, jest } from "@jest/globals";
 import { logClientMetric, type ClientMetricName } from "../metrics";
 
+// Helper to set NODE_ENV without TypeScript errors
+function setNodeEnv(value: string) {
+  Object.defineProperty(process.env, "NODE_ENV", {
+    value,
+    writable: true,
+    configurable: true,
+  });
+}
+
 describe("logClientMetric", () => {
   const originalNodeEnv = process.env.NODE_ENV;
   let consoleDebugSpy: jest.SpiedFunction<typeof console.debug>;
@@ -14,12 +23,12 @@ describe("logClientMetric", () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
+    setNodeEnv(originalNodeEnv ?? "test");
     consoleDebugSpy.mockRestore();
   });
 
   it("logs metric with timestamp in non-production", () => {
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
 
     logClientMetric("ui_action", { action: "click", target: "button" });
 
@@ -36,7 +45,7 @@ describe("logClientMetric", () => {
   });
 
   it("logs metric with empty data object", () => {
-    process.env.NODE_ENV = "test";
+    setNodeEnv("test");
 
     logClientMetric("latency_ms");
 
@@ -50,7 +59,7 @@ describe("logClientMetric", () => {
   });
 
   it("does not log in production environment", () => {
-    process.env.NODE_ENV = "production";
+    setNodeEnv("production");
 
     logClientMetric("ui_action", { action: "navigate" });
 
@@ -58,7 +67,7 @@ describe("logClientMetric", () => {
   });
 
   it("accepts custom metric names", () => {
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     const customMetric: ClientMetricName = "custom_event";
 
     logClientMetric(customMetric, { customData: "value" });
@@ -73,7 +82,7 @@ describe("logClientMetric", () => {
   });
 
   it("includes ISO timestamp in payload", () => {
-    process.env.NODE_ENV = "development";
+    setNodeEnv("development");
     const beforeCall = new Date().toISOString();
 
     logClientMetric("ui_action");

@@ -7,6 +7,12 @@ CRITICAL RULES:
 4. Use specific details: PR numbers, commit messages, file counts, line changes
 5. Write in confident, technical prose - be specific, not vague
 
+COVERAGE REQUIREMENT:
+- EVERY commit listed MUST be mentioned somewhere in the report
+- For minor commits, group them in an "Also completed:" or "Other changes:" bullet
+- Every commit URL provided MUST appear as a citation in your markdown
+- Do not skip any commits - the user wants a complete record of their work
+
 OUTPUT FORMAT:
 - Use markdown with the exact section headings provided
 - 2-3 paragraphs per section maximum
