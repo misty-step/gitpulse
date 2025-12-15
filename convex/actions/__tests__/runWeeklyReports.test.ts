@@ -1,5 +1,7 @@
 /**
  * Tests for Weekly Reports Cron Runner
+ *
+ * Tests the new midnightUtcHour + isLocalSunday filtering behavior.
  */
 
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
@@ -10,7 +12,7 @@ import { createAsyncMock } from "../../../tests/utils/jestMocks";
 jest.mock("../../_generated/api", () => ({
   internal: {
     users: {
-      getUsersByWeeklySchedule: "internal.users.getUsersByWeeklySchedule",
+      getUsersByMidnightHour: "internal.users.getUsersByMidnightHour",
     },
     reportJobHistory: {
       logRun: "internal.reportJobHistory.logRun",
@@ -32,19 +34,33 @@ jest.mock("../../lib/logger.js", () => ({
   },
 }));
 
+// Mock timeWindows - we control isLocalSunday to test filtering logic
+jest.mock("../../lib/timeWindows.js", () => ({
+  isLocalSunday: jest.fn(),
+  getTimezoneOrDefault: jest.fn((tz) => tz ?? "UTC"),
+}));
+
 // Import after mocks
- 
+
 const { run } = require("../runWeeklyReports");
 import { logger } from "../../lib/logger.js";
+import { isLocalSunday } from "../../lib/timeWindows.js";
+
+const mockedIsLocalSunday = isLocalSunday as jest.MockedFunction<
+  typeof isLocalSunday
+>;
 
 describe("runWeeklyReports", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: all users are on Sunday (tests can override)
+    mockedIsLocalSunday.mockReturnValue(true);
   });
 
   const mockUser = {
     clerkId: "clerk_123",
     githubUsername: "octocat",
+    timezone: "America/Chicago",
   };
 
   describe("successful execution", () => {
@@ -61,38 +77,37 @@ describe("runWeeklyReports", () => {
       expect(result.errors).toBe(0);
     });
 
-    it("queries users with correct parameters", async () => {
+    it("queries users with midnightUtcHour", async () => {
       const runQuery = createAsyncMock().mockResolvedValue([]);
       const runMutation = createAsyncMock().mockResolvedValue(undefined);
       const ctx = createMockActionCtx({ runQuery, runMutation });
 
-      await run.handler(ctx, { dayUTC: 5, hourUTC: 14 }); // Friday 2pm
+      await run.handler(ctx, { dayUTC: 5, hourUTC: 14 });
 
       expect(runQuery).toHaveBeenCalledWith(
-        "internal.users.getUsersByWeeklySchedule",
+        "internal.users.getUsersByMidnightHour",
         {
-          weeklyDayUTC: 5,
-          reportHourUTC: 14,
+          midnightUtcHour: 14,
           weeklyEnabled: true,
         },
       );
     });
 
     it("generates reports for multiple users", async () => {
-      const user2 = { clerkId: "clerk_456", githubUsername: "alice" };
+      const user2 = { clerkId: "clerk_456", githubUsername: "alice", timezone: "America/New_York" };
       const runQuery = createAsyncMock().mockResolvedValue([mockUser, user2]);
       const runAction = createAsyncMock().mockResolvedValue(undefined);
       const runMutation = createAsyncMock().mockResolvedValue(undefined);
       const ctx = createMockActionCtx({ runQuery, runAction, runMutation });
 
-      const result = await run.handler(ctx, { dayUTC: 0, hourUTC: 10 }); // Sunday 10am
+      const result = await run.handler(ctx, { dayUTC: 0, hourUTC: 10 });
 
       expect(result.usersProcessed).toBe(2);
       expect(result.reportsGenerated).toBe(2);
       expect(runAction).toHaveBeenCalledTimes(2);
     });
 
-    it("calls generateWeeklyReport for each user", async () => {
+    it("calls generateWeeklyReport for each user with timezone", async () => {
       const runQuery = createAsyncMock().mockResolvedValue([mockUser]);
       const runAction = createAsyncMock().mockResolvedValue(undefined);
       const runMutation = createAsyncMock().mockResolvedValue(undefined);
@@ -102,7 +117,7 @@ describe("runWeeklyReports", () => {
 
       expect(runAction).toHaveBeenCalledWith(
         "internal.actions.generateScheduledReport.generateWeeklyReport",
-        { userId: "clerk_123" },
+        { userId: "clerk_123", timezone: "America/Chicago" },
       );
     });
   });
@@ -113,7 +128,7 @@ describe("runWeeklyReports", () => {
       const runMutation = createAsyncMock().mockResolvedValue(undefined);
       const ctx = createMockActionCtx({ runQuery, runMutation });
 
-      const result = await run.handler(ctx, { dayUTC: 6, hourUTC: 3 }); // Saturday 3am
+      const result = await run.handler(ctx, { dayUTC: 6, hourUTC: 3 });
 
       expect(result.usersProcessed).toBe(0);
       expect(result.reportsGenerated).toBe(0);
@@ -141,9 +156,80 @@ describe("runWeeklyReports", () => {
     });
   });
 
+  describe("Sunday filtering", () => {
+    it("filters out users where it's not Sunday in their timezone", async () => {
+      const sundayUser = { clerkId: "clerk_123", githubUsername: "octocat", timezone: "UTC" };
+      const nonSundayUser = { clerkId: "clerk_456", githubUsername: "alice", timezone: "Pacific/Auckland" };
+
+      const runQuery = createAsyncMock().mockResolvedValue([sundayUser, nonSundayUser]);
+      const runAction = createAsyncMock().mockResolvedValue(undefined);
+      const runMutation = createAsyncMock().mockResolvedValue(undefined);
+      const ctx = createMockActionCtx({ runQuery, runAction, runMutation });
+
+      // Sunday for first user, not Sunday for second
+      mockedIsLocalSunday
+        .mockReturnValueOnce(true)  // sundayUser
+        .mockReturnValueOnce(false); // nonSundayUser
+
+      const result = await run.handler(ctx, { dayUTC: 0, hourUTC: 6 });
+
+      expect(result.usersProcessed).toBe(1);
+      expect(result.reportsGenerated).toBe(1);
+      expect(runAction).toHaveBeenCalledTimes(1);
+      expect(runAction).toHaveBeenCalledWith(
+        "internal.actions.generateScheduledReport.generateWeeklyReport",
+        { userId: "clerk_123", timezone: "UTC" },
+      );
+    });
+
+    it("returns zero users when none are on Sunday", async () => {
+      const user1 = { clerkId: "clerk_123", githubUsername: "octocat", timezone: "UTC" };
+      const user2 = { clerkId: "clerk_456", githubUsername: "alice", timezone: "America/Chicago" };
+
+      const runQuery = createAsyncMock().mockResolvedValue([user1, user2]);
+      const runMutation = createAsyncMock().mockResolvedValue(undefined);
+      const ctx = createMockActionCtx({ runQuery, runMutation });
+
+      // Neither user is on Sunday
+      mockedIsLocalSunday.mockReturnValue(false);
+
+      const result = await run.handler(ctx, { dayUTC: 1, hourUTC: 6 });
+
+      expect(result.usersProcessed).toBe(0);
+      expect(result.reportsGenerated).toBe(0);
+    });
+
+    it("records usersAttempted as eligible count, not queried count", async () => {
+      const user1 = { clerkId: "clerk_123", githubUsername: "octocat", timezone: "UTC" };
+      const user2 = { clerkId: "clerk_456", githubUsername: "alice", timezone: "America/Chicago" };
+      const user3 = { clerkId: "clerk_789", githubUsername: "bob", timezone: "Asia/Tokyo" };
+
+      const runQuery = createAsyncMock().mockResolvedValue([user1, user2, user3]);
+      const runAction = createAsyncMock().mockResolvedValue(undefined);
+      const runMutation = createAsyncMock().mockResolvedValue(undefined);
+      const ctx = createMockActionCtx({ runQuery, runAction, runMutation });
+
+      // Only user1 is on Sunday
+      mockedIsLocalSunday
+        .mockReturnValueOnce(true)
+        .mockReturnValueOnce(false)
+        .mockReturnValueOnce(false);
+
+      await run.handler(ctx, { dayUTC: 0, hourUTC: 6 });
+
+      expect(runMutation).toHaveBeenCalledWith(
+        "internal.reportJobHistory.logRun",
+        expect.objectContaining({
+          usersAttempted: 1, // Only 1 eligible, not 3 queried
+          reportsGenerated: 1,
+        }),
+      );
+    });
+  });
+
   describe("error handling", () => {
     it("continues processing when one user fails", async () => {
-      const user2 = { clerkId: "clerk_456", githubUsername: "alice" };
+      const user2 = { clerkId: "clerk_456", githubUsername: "alice", timezone: "America/New_York" };
       const runQuery = createAsyncMock().mockResolvedValue([mockUser, user2]);
       const runAction = createAsyncMock()
         .mockRejectedValueOnce(new Error("Report generation failed"))
@@ -295,7 +381,7 @@ describe("runWeeklyReports", () => {
       await run.handler(ctx, { dayUTC: 5, hourUTC: 3 });
 
       expect(logger.info).toHaveBeenCalledWith(
-        { dayName: "Friday", hourUTC: 3 },
+        { dayName: "Friday", hourUTC: 3, queriedCount: 0 },
         "No users scheduled for weekly reports",
       );
     });
@@ -309,7 +395,7 @@ describe("runWeeklyReports", () => {
       await run.handler(ctx, { dayUTC: 1, hourUTC: 9 });
 
       expect(logger.info).toHaveBeenCalledWith(
-        { userCount: 1, dayName: "Monday", hourUTC: 9 },
+        { userCount: 1, dayName: "Monday", hourUTC: 9, queriedCount: 1 },
         "Found users for weekly reports",
       );
     });
@@ -334,7 +420,7 @@ describe("runWeeklyReports", () => {
       );
     });
 
-    it("logs each user report generation", async () => {
+    it("logs each user report generation with timezone", async () => {
       const runQuery = createAsyncMock().mockResolvedValue([mockUser]);
       const runAction = createAsyncMock().mockResolvedValue(undefined);
       const runMutation = createAsyncMock().mockResolvedValue(undefined);
@@ -343,7 +429,7 @@ describe("runWeeklyReports", () => {
       await run.handler(ctx, { dayUTC: 1, hourUTC: 9 });
 
       expect(logger.info).toHaveBeenCalledWith(
-        { userId: "clerk_123", githubUsername: "octocat" },
+        { userId: "clerk_123", githubUsername: "octocat", timezone: "America/Chicago" },
         "Generating weekly report for user",
       );
     });

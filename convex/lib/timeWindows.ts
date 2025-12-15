@@ -317,6 +317,23 @@ export function getTimezoneOrDefault(tz: string | undefined | null): string {
   return "UTC";
 }
 
+/**
+ * Check if it's Sunday in the user's local timezone.
+ *
+ * Used by weekly cron to filter users: only run weekly reports
+ * when it's actually Sunday in the user's timezone.
+ *
+ * @param referenceTime - UTC timestamp to check
+ * @param timezone - IANA timezone (e.g., "America/Chicago")
+ */
+export function isLocalSunday(referenceTime: number, timezone: string): boolean {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+  }).format(new Date(referenceTime));
+  return weekday === "Sun";
+}
+
 // ============================================================================
 // Internal Helpers
 // ============================================================================
