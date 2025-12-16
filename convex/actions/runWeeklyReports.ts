@@ -3,28 +3,30 @@
 /**
  * Weekly Reports Cron Runner
  *
- * Called by Convex cron jobs once per week (168 jobs total, 7 days × 24 hours).
- * Each job passes its UTC day/hour, queries users with matching weeklyDayUTC + reportHourUTC,
- * and generates weekly retro reports for all of them.
+ * Called by Convex cron jobs (168 jobs total, 7 days × 24 hours).
+ * Each job passes its UTC day/hour, queries users whose local midnight maps to hourUTC,
+ * filters for users where it's actually Sunday in their timezone, and generates reports.
  *
  * Design:
- * - Uses legacy weeklyDayUTC + reportHourUTC for scheduling (will be deprecated)
- * - But uses timeWindows module for correct timezone-aware window calculation
- * - TODO: Refactor to use midnightUtcHour + Sunday detection
+ * - Queries by midnightUtcHour (when user's midnight occurs in UTC)
+ * - Filters by isLocalSunday() to only run on user's local Sunday
+ * - Uses timeWindows module for all timezone logic
  */
 
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { logger } from "../lib/logger.js";
+import { isLocalSunday, getTimezoneOrDefault } from "../lib/timeWindows.js";
 
 export const run = internalAction({
   args: {
-    dayUTC: v.number(), // UTC day of week (0=Sunday, 6=Saturday)
-    hourUTC: v.number(), // UTC hour (0-23)
+    dayUTC: v.number(), // UTC day of week (0=Sunday, 6=Saturday) - for logging/history only
+    hourUTC: v.number(), // UTC hour (0-23) - used as midnightUtcHour
   },
   handler: async (ctx, args) => {
     const startTime = Date.now();
+    const now = Date.now();
     const dayNames = [
       "Sunday",
       "Monday",
@@ -41,21 +43,24 @@ export const run = internalAction({
       "Starting weekly reports",
     );
 
-    // Query users who want weekly reports at this day/hour
-    // Note: Still using legacy schedule fields, but window calculation is now timezone-aware
+    // Query users whose local midnight maps to this UTC hour
     const users: Array<{
       clerkId?: string;
       githubUsername?: string;
       timezone?: string;
-    }> = await ctx.runQuery(internal.users.getUsersByWeeklySchedule, {
-      weeklyDayUTC: args.dayUTC,
-      reportHourUTC: args.hourUTC,
+    }> = await ctx.runQuery(internal.users.getUsersByMidnightHour, {
+      midnightUtcHour: args.hourUTC,
       weeklyEnabled: true,
     });
 
-    if (users.length === 0) {
+    // Filter to only users where it's currently Sunday in their timezone
+    const eligible = users.filter((u) =>
+      isLocalSunday(now, getTimezoneOrDefault(u.timezone))
+    );
+
+    if (eligible.length === 0) {
       logger.info(
-        { dayName, hourUTC: args.hourUTC },
+        { dayName, hourUTC: args.hourUTC, queriedCount: users.length },
         "No users scheduled for weekly reports",
       );
       await ctx.runMutation(internal.reportJobHistory.logRun, {
@@ -78,15 +83,15 @@ export const run = internalAction({
     }
 
     logger.info(
-      { userCount: users.length, dayName, hourUTC: args.hourUTC },
+      { userCount: eligible.length, dayName, hourUTC: args.hourUTC, queriedCount: users.length },
       "Found users for weekly reports",
     );
 
     let reportsGenerated = 0;
     let errors = 0;
 
-    // Generate report for each user
-    for (const user of users) {
+    // Generate report for each eligible user
+    for (const user of eligible) {
       try {
         logger.info(
           {
@@ -131,7 +136,7 @@ export const run = internalAction({
       type: "weekly",
       hourUTC: args.hourUTC,
       dayUTC: args.dayUTC,
-      usersAttempted: users.length,
+      usersAttempted: eligible.length,
       reportsGenerated,
       errors,
       durationMs: duration,
@@ -140,7 +145,7 @@ export const run = internalAction({
     });
 
     return {
-      usersProcessed: users.length,
+      usersProcessed: eligible.length,
       reportsGenerated,
       errors,
       durationMs: duration,

@@ -17,6 +17,7 @@ import {
   formatRelativeTime,
   isValidTimezone,
   getTimezoneOrDefault,
+  isLocalSunday,
 } from "../timeWindows";
 
 // ============================================================================
@@ -422,6 +423,60 @@ describe("getTimezoneOrDefault", () => {
     expect(getTimezoneOrDefault(undefined)).toBe("UTC");
     expect(getTimezoneOrDefault(null)).toBe("UTC");
     expect(getTimezoneOrDefault("")).toBe("UTC");
+  });
+});
+
+// ============================================================================
+// isLocalSunday Tests
+// ============================================================================
+
+describe("isLocalSunday", () => {
+  it("returns true when it's Sunday in UTC", () => {
+    // Sunday Dec 7, 2025 at noon UTC
+    const sundayUtc = Date.UTC(2025, 11, 7, 12, 0, 0, 0);
+    expect(isLocalSunday(sundayUtc, "UTC")).toBe(true);
+  });
+
+  it("returns false when it's not Sunday in UTC", () => {
+    // Monday Dec 8, 2025 at noon UTC
+    const mondayUtc = Date.UTC(2025, 11, 8, 12, 0, 0, 0);
+    expect(isLocalSunday(mondayUtc, "UTC")).toBe(false);
+  });
+
+  it("handles date-line edge case: UTC Saturday but local Sunday", () => {
+    // Pacific/Kiritimati is UTC+14
+    // At 11:00 UTC on Saturday Dec 6, 2025, it's Sunday Dec 7 01:00 in Kiritimati
+    const saturdayUtc = Date.UTC(2025, 11, 6, 11, 0, 0, 0);
+    expect(isLocalSunday(saturdayUtc, "UTC")).toBe(false);
+    expect(isLocalSunday(saturdayUtc, "Pacific/Kiritimati")).toBe(true);
+  });
+
+  it("handles date-line edge case: UTC Sunday but local Monday", () => {
+    // Pacific/Kiritimati is UTC+14
+    // At 12:00 UTC on Sunday Dec 7, 2025, it's Monday Dec 8 02:00 in Kiritimati
+    const sundayUtc = Date.UTC(2025, 11, 7, 12, 0, 0, 0);
+    expect(isLocalSunday(sundayUtc, "UTC")).toBe(true);
+    expect(isLocalSunday(sundayUtc, "Pacific/Kiritimati")).toBe(false);
+  });
+
+  it("handles America/Chicago correctly", () => {
+    // Sunday Dec 7, 2025 at midnight CST = 06:00 UTC
+    const sundayCst = Date.UTC(2025, 11, 7, 6, 0, 0, 0);
+    expect(isLocalSunday(sundayCst, "America/Chicago")).toBe(true);
+
+    // Saturday Dec 6, 2025 at 11pm CST = 05:00 UTC on Dec 7
+    const saturdayCst = Date.UTC(2025, 11, 7, 5, 0, 0, 0);
+    expect(isLocalSunday(saturdayCst, "America/Chicago")).toBe(false);
+  });
+
+  it("handles Asia/Tokyo correctly", () => {
+    // Sunday Dec 7, 2025 at noon JST = 03:00 UTC
+    const sundayJst = Date.UTC(2025, 11, 7, 3, 0, 0, 0);
+    expect(isLocalSunday(sundayJst, "Asia/Tokyo")).toBe(true);
+
+    // Sunday Dec 7, 2025 at 4pm UTC = Monday Dec 8 at 1am JST
+    const lateSundayUtc = Date.UTC(2025, 11, 7, 16, 0, 0, 0);
+    expect(isLocalSunday(lateSundayUtc, "Asia/Tokyo")).toBe(false);
   });
 });
 

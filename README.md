@@ -365,6 +365,7 @@ pnpm build
 
 - **Vercel:** https://vercel.com/dashboard - View deployment status, logs
 - **Convex:** https://dashboard.convex.dev/ - Monitor backend, check logs
+- **Sentry:** Error tracking and performance monitoring (configured in sentry.*.config.ts)
 - **GitHub Actions:** Quality gates run on every PR and push
 
 ### Troubleshooting
@@ -448,6 +449,7 @@ Built with:
 - [Voyage AI](https://www.voyageai.com/) - Embeddings
 - [Google Gemini](https://ai.google.dev/) - LLM
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
+- [Sentry](https://sentry.io/) - Error tracking
 
 Inspired by John Ousterhout's _A Philosophy of Software Design_ - fighting complexity through deep modules and information hiding.
 

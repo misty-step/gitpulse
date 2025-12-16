@@ -87,6 +87,16 @@ npx jest --coverage
 - **Hides**: LLM prompting, citation validation, coverage computation, cache key generation
 - **Exposes**: `generateReport()`, `computeCoverage()`
 
+**5. SyncService** (`convex/actions/sync/SyncService.ts`)
+
+- **Hides**: One-job-per-installation invariant, incremental cursor-based fetching, rate-limit coordination
+- **Exposes**: `startSync()`, `getStatus()`
+
+**6. Time Windows** (`convex/lib/timeWindows.ts`)
+
+- **Hides**: Timezone calculations, UTC hour mapping, DST handling
+- **Exposes**: `isLocalSunday()`, `getTimezoneOrDefault()`, `getMidnightUtcHour()`
+
 ### Content-Addressed Fact Pattern
 
 ```typescript
@@ -125,6 +135,28 @@ Each abstraction layer changes vocabulary:
 - **Normalization**: EventFact, contentHash, canonicalText, metrics
 - **Intelligence**: Report sections, citations, coverage score
 - **Experience**: Cards, tables, charts, UI components
+
+### Scheduled Report Pattern
+
+Weekly and daily reports use timezone-aware scheduling:
+
+```typescript
+// User preferences stored as UTC hour when midnight occurs in their timezone
+// e.g., America/Chicago (UTC-6) → midnightUtcHour = 6
+
+// Cron runs every hour, queries users by midnightUtcHour
+const users = await ctx.runQuery(internal.users.getUsersByMidnightHour, {
+  midnightUtcHour: currentHour,
+  weeklyEnabled: true,
+});
+
+// Filter to only users where it's actually Sunday in their timezone
+const eligible = users.filter((u) =>
+  isLocalSunday(Date.now(), getTimezoneOrDefault(u.timezone))
+);
+```
+
+Key files: `convex/crons.ts`, `convex/actions/runWeeklyReports.ts`, `convex/lib/timeWindows.ts`
 
 ## Key Database Tables
 
@@ -502,7 +534,7 @@ emitMetric({
 
 - Convex Dashboard → Logs tab (structured JSON logs)
 - Convex Dashboard → Functions tab (function execution traces)
-- Optional: Sentry for Next.js UI errors
+- Sentry for Next.js error tracking (client, server, edge configs in `sentry.*.config.ts`)
 
 ## Cost Optimization
 
@@ -551,14 +583,13 @@ emitMetric({
 - `test:` - Test changes
 - `chore:` - Maintenance
 
-**Recent Commits** (as of Nov 9, 2025):
+**Recent Commits** (as of Dec 2025):
 
 ```
-e2bd3d8 feat(metrics): add structured logging
-3ff448b feat(cron): log report job history
-a8fd873 feat(app): surface report coverage
-2e77a81 feat(reports): introduce orchestrator
-60dcc6d feat(reports): add coverage helpers
+fc4f184 fix(cron): address PR feedback - cache formatters, fix test comments
+9b9b686 feat(cron): migrate weekly reports to midnightUtcHour + Sunday filter
+753c85e Sync architecture overhaul: deep modules with comprehensive testing (#16)
+cfe4da4 feat(sync): add SyncService orchestrator with one-job-per-installation invariant
 ```
 
 ## Important Constraints
@@ -611,10 +642,11 @@ pnpm build
 - ✅ Core ingestion pipeline (REST API)
 - ✅ Report generation with citations
 - ✅ Coverage scoring
+- ✅ SyncService architecture (one-job-per-installation)
+- ✅ Timezone-aware weekly scheduling (midnightUtcHour pattern)
 - 🚧 GitHub App webhook integration
 - 🚧 Embedding service optimization
-- 🚧 Daily/weekly automation
-- 📋 Planned: Secret rotation, observability dashboards
+- 📋 Planned: Secret rotation, observability dashboards, Stripe integration
 
 ---
 

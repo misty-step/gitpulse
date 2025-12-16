@@ -1,8 +1,9 @@
 # BACKLOG
 
-Last groomed: 2025-12-09
-Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus direct analysis + Gemini competitive intelligence
+Last groomed: 2025-12-13
+Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus direct analysis + Gemini competitive intelligence + external consultant audit
 **Architectural Audit**: 2025-12-09 — Council score 7.6/10, verdict: KEEP
+**Consultant Audit**: 2025-12-13 — Full codebase review, risk register, GTM analysis
 
 **Strategic Context**: GitPulse occupies a unique "High-Trust Niche" - combining the *automation* of standup assistants (Spinach/Standuply) with the *rigor* of enterprise platforms (LinearB/Waydev). Citation-backed reporting directly addresses the #1 user complaint: **distrust of AI-generated content**.
 
@@ -16,6 +17,8 @@ Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus
 - sometimes i want to see my activity for a specific repo or set of repos across an arbitrary time period
 - sometimes i want to see my activity for a specific org across an arbitrary time period
 - we should support all of these flows
+** this maybe speaks to a need to define and design around our core primitives -- in this case, the github event
+** all of these actions -- reports with various filters / contexts, essentially -- are just llm-enhanced operations on these primitives
 
 ### [Performance] N+1 Query in KPI Calculations
 **File**: `convex/kpis.ts:46-52`
@@ -152,6 +155,107 @@ const result = await client.generate({ systemPrompt, userPrompt });
 
 ---
 
+### [Reliability] Integration Status Index Migration
+**File**: `convex/integrations.ts:38`
+**Perspectives**: consultant audit (Risk 5), maintainability-maven
+**Impact**: Uses deprecated `by_clerkUserId` index. Status logic may diverge from reality.
+**Fix**: Query `userInstallations` table as canonical source:
+```typescript
+// Current: Deprecated index
+const installations = await ctx.db
+  .query("installations")
+  .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", identity.subject))
+  .collect();
+
+// Fixed: Use canonical userInstallations table
+const userInstalls = await ctx.db
+  .query("userInstallations")
+  .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
+  .collect();
+const installationIds = userInstalls.map(ui => ui.installationId);
+```
+**Effort**: 1h | **Risk**: LOW | **Benefit**: Single source of truth for installation mapping
+**Acceptance**: integrations.ts queries userInstallations, no deprecated index usage
+
+---
+
+### [UX] Coverage Meter + Trust Warning
+**File**: `app/dashboard/reports/[id]/page.tsx`
+**Perspectives**: consultant audit, user-experience-advocate, product-visionary
+**Impact**: Coverage score exists but not surfaced. Users can't tell if report is trustworthy.
+**Fix**: Display coverage meter; if < 0.7, show warning + "Sync now" CTA
+**Effort**: 2h | **Risk**: LOW | **Strategic Value**: HIGH (trust differentiation)
+**Acceptance**: Report page shows coverage meter, warning shown below threshold
+
+---
+
+### [Security] Reduce OAuth Scopes
+**File**: `app/api/auth/github/route.ts`
+**Perspectives**: consultant audit (Risk 3), security-sentinel
+**Impact**: Current scopes `repo,user,read:org` are broad. Spooks users, fails security reviews.
+**Fix**: Reduce to minimum: `repo` for private access, `read:user` for identity
+```typescript
+// Current
+scope: "repo,user,read:org"
+
+// Fixed
+scope: "repo,read:user"
+```
+**Effort**: 30m | **Risk**: LOW | **Benefit**: Higher conversion, easier security reviews
+**Acceptance**: OAuth scope minimized, no user-facing functionality lost
+
+---
+
+### [Reliability] Non-hourly Timezone Support for Weekly Reports
+**File**: `convex/actions/runWeeklyReports.ts:59`
+**Perspectives**: Codex PR review (P1)
+**Impact**: Users in half-hour offset timezones (Asia/Kolkata UTC+05:30, Nepal UTC+05:45, etc.) may miss weekly reports. Current cron runs on the hour, but midnight for these timezones occurs at :30 or :45.
+**Options**:
+1. Expand cron to every 30 minutes (336 jobs vs 168)
+2. Round `midnightUtcHour` to nearest hour, accept ±30min error
+3. Store minute offset in user preferences
+**Effort**: 2h | **Risk**: LOW | **Impact**: ~1.5B people in affected timezones
+**Acceptance**: Users in half-hour offset timezones receive weekly reports on local Sunday
+
+---
+
+### [Observability] Log Warning for Invalid Timezone Fallback
+**File**: `convex/lib/timeWindows.ts:313-318`
+**Perspectives**: CodeRabbit PR review
+**Impact**: `getTimezoneOrDefault()` silently falls back to UTC for invalid timezones. Users with invalid TZ data get UTC-based scheduling without warning.
+**Fix**: Add structured log warning when falling back
+**Effort**: 15m | **Risk**: LOW
+
+---
+
+### [API Hygiene] Deprecate getUsersByWeeklySchedule Export
+**File**: `convex/users.ts:571`
+**Perspectives**: CodeRabbit PR review
+**Impact**: Old query still exported but unused at runtime. Could confuse future developers.
+**Fix**: Add `@deprecated` JSDoc or remove export
+**Effort**: 10m | **Risk**: LOW
+
+---
+
+### [Reliability] Runtime clerkId Validation Before Report Generation
+**File**: `convex/actions/runWeeklyReports.ts:108`
+**Perspectives**: CodeRabbit PR review
+**Impact**: Uses `!` assertion without runtime check. DB constraints should prevent null, but defense-in-depth.
+**Fix**: Add `.filter(u => u.clerkId != null)` before processing
+**Effort**: 10m | **Risk**: LOW
+
+---
+
+### Kill List (after TODO.md Phase 4 complete)
+
+Delete once SyncService is wired to all callers:
+- `convex/lib/githubIngestionService.ts` — old ingestion service
+- `convex/lib/continuousSync.ts` — old continuous sync
+- Legacy backfill paths in `convex/actions/github/startBackfill.ts`
+- Deprecated schema fields: `reportHourUTC`, `weeklyDayUTC`, `by_weeklySchedule` index
+
+---
+
 ## Next (This Quarter, <3 months)
 
 ### [Product] Interactive Citation Drawer (Competitive Moat)
@@ -229,20 +333,22 @@ const result = await client.generate({ systemPrompt, userPrompt });
 
 ### [MONETIZATION] Stripe Payment Infrastructure
 **Scope**: Subscription management, usage limits, plan upgrade flows
-**Perspectives**: product-visionary (CRITICAL for business viability)
+**Perspectives**: product-visionary (CRITICAL for business viability), consultant audit
 **Business Case**: With 1000 free users, 10% conversion = 100 Pro users × $15 = **$1500 MRR**
-**Pricing Tiers**:
+**Pricing Tiers** (validated by consultant analysis against LinearB/Waydev benchmarks):
 - Free: 1 user, 3 repos, daily reports only
 - Pro ($15/mo): Unlimited repos, daily+weekly, Slack+email
 - Team ($40/user/mo): Everything + team dashboards, workspaces
 **Effort**: 2 weeks | **Impact**: Creates revenue stream (currently $0)
+**Consultant note**: Per-seat pricing aligns with competitor norms; consider usage-based add-on for heavy LLM users later
 
 ---
 
 ### [DISTRIBUTION] Slack Integration
 **Scope**: Slack bot posts reports to channels, slash commands
-**Perspectives**: product-visionary (CRITICAL for retention)
+**Perspectives**: product-visionary (CRITICAL for retention), consultant audit
 **Why**: Users who receive Slack reports have 5x higher retention. Reports trapped in web app = low engagement.
+**Consultant note**: Primary retention driver; creates daily habit + viral loop (report posted -> teammates click -> new installs)
 **Effort**: 1 week | **Impact**: 5x retention lift, viral growth
 
 ---
@@ -378,6 +484,21 @@ const result = await client.generate({ systemPrompt, userPrompt });
 - "Invisible Work" mode addresses developer advocacy gap
 - Personal-only insights avoid surveillance optics
 
+**From consultant audit (2025-12-13):**
+
+- **Dual ingestion confirmed** — `syncJobs/syncBatches` + `ingestionJobs` both active. TODO.md SyncService overhaul addresses this.
+- **Weekly cron legacy** — Uses deprecated `weeklyDayUTC + reportHourUTC` schedule fields. Migration to `midnightUtcHour` added to Now.
+- **Integration status deprecated index** — `by_clerkUserId` still in use, should migrate to `userInstallations`. Added to Now.
+- **Path A chosen** — Commit-first ingestion strategy; PR/review ingestion deferred until commit loop stable. See STRATEGY.md.
+- **Trust is the moat** — Citation-backed reporting differentiates from competitors; double down on coverage scoring.
+- **OAuth scope drag** — Broad scopes (`repo,user,read:org`) hurt adoption; minimize to `repo,read:user`.
+- **Kill list codified** — Legacy ingestion files queued for deletion after SyncService Phase 4.
+
+**Key risks (inline with relevant items):**
+- Commit-only gap: Users may notice missing PR/review work → Label reports clearly until expanded
+- LLM costs: Mitigated by existing caching + cacheKey design
+- GitHub native summaries: Differentiate on trust + workflow integration
+
 ---
 
 **Backlog Health Check:**
@@ -390,3 +511,7 @@ const result = await client.generate({ systemPrompt, userPrompt });
 - Strategic mix (fixes + velocity unlocks + revenue drivers + differentiation)
 
 **Next Grooming:** Q1 2026 or when strategic priorities shift
+
+**Related Docs:**
+- `STRATEGY.md` — Positioning, north star metrics, ICP, pricing, GTM channels, moats
+- `TODO.md` — Current sprint work (Sync Architecture Overhaul)
