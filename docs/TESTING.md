@@ -466,8 +466,8 @@ const context = createMockReportContext({
 - `createMockInstallation()` - Installation documents
 - `createMockGitHubUser()` - GitHub API user payloads
 - `createMockWebhookPayload()` - Webhook payloads
-- `createMockReportContext()` - Report generation context
-- `createMockPrompt()` - LLM prompt payloads
+- `createMockTimelineNode()` - GitHub timeline nodes
+- `createMockTimelineResult()` - GitHub timeline query results
 - `createMockResponse()` - HTTP success responses
 - `createMockErrorResponse()` - HTTP error responses
 - `createMockActionCtx()` - Convex action context
@@ -503,9 +503,9 @@ expectCoverageAboveThreshold(0.85, 0.8);
 
 **Available assertions**:
 - Content Hash: `expectValidContentHash`, `expectIdenticalHashes`, `expectDifferentHashes`
-- Citations: `expectValidCitation`, `expectValidCitations`, `expectDeduplicatedCitations`
-- Coverage: `expectValidCoverageScore`, `expectCoverageAboveThreshold`
-- Reports: `expectReportHasRequiredSections`, `expectReportMeetsWordCount`
+- Citations: `expectValidCitation`, `expectValidCitations`, `expectDeduplicatedCitations`, `expectCitationsFromAllowedUrls`
+- Coverage: `expectValidCoverageScore`, `expectCoverageAboveThreshold`, `expectValidCoverageBreakdown`
+- Reports: `expectReportHasRequiredSections`, `expectReportMeetsWordCount`, `expectValidLLMMetadata`
 - Events: `expectValidCanonicalEvent`, `expectValidEventType`
 - HTTP: `expectResponseStatus`, `expectResponseHeaders`
 - Convex: `expectValidConvexId`, `expectValidTimestamps`
