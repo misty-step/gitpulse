@@ -474,7 +474,7 @@ describe("isLocalSunday", () => {
     const sundayJst = Date.UTC(2025, 11, 7, 3, 0, 0, 0);
     expect(isLocalSunday(sundayJst, "Asia/Tokyo")).toBe(true);
 
-    // Sunday Dec 7, 2025 at 10am UTC = Monday Dec 8 at 7pm JST
+    // Sunday Dec 7, 2025 at 4pm UTC = Monday Dec 8 at 1am JST
     const lateSundayUtc = Date.UTC(2025, 11, 7, 16, 0, 0, 0);
     expect(isLocalSunday(lateSundayUtc, "Asia/Tokyo")).toBe(false);
   });

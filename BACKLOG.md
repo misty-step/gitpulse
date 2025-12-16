@@ -17,6 +17,8 @@ Analyzed by: 15 perspectives (8 domain specialists + 7 master personas) via Opus
 - sometimes i want to see my activity for a specific repo or set of repos across an arbitrary time period
 - sometimes i want to see my activity for a specific org across an arbitrary time period
 - we should support all of these flows
+** this maybe speaks to a need to define and design around our core primitives -- in this case, the github event
+** all of these actions -- reports with various filters / contexts, essentially -- are just llm-enhanced operations on these primitives
 
 ### [Performance] N+1 Query in KPI Calculations
 **File**: `convex/kpis.ts:46-52`
@@ -201,6 +203,46 @@ scope: "repo,read:user"
 ```
 **Effort**: 30m | **Risk**: LOW | **Benefit**: Higher conversion, easier security reviews
 **Acceptance**: OAuth scope minimized, no user-facing functionality lost
+
+---
+
+### [Reliability] Non-hourly Timezone Support for Weekly Reports
+**File**: `convex/actions/runWeeklyReports.ts:59`
+**Perspectives**: Codex PR review (P1)
+**Impact**: Users in half-hour offset timezones (Asia/Kolkata UTC+05:30, Nepal UTC+05:45, etc.) may miss weekly reports. Current cron runs on the hour, but midnight for these timezones occurs at :30 or :45.
+**Options**:
+1. Expand cron to every 30 minutes (336 jobs vs 168)
+2. Round `midnightUtcHour` to nearest hour, accept ±30min error
+3. Store minute offset in user preferences
+**Effort**: 2h | **Risk**: LOW | **Impact**: ~1.5B people in affected timezones
+**Acceptance**: Users in half-hour offset timezones receive weekly reports on local Sunday
+
+---
+
+### [Observability] Log Warning for Invalid Timezone Fallback
+**File**: `convex/lib/timeWindows.ts:313-318`
+**Perspectives**: CodeRabbit PR review
+**Impact**: `getTimezoneOrDefault()` silently falls back to UTC for invalid timezones. Users with invalid TZ data get UTC-based scheduling without warning.
+**Fix**: Add structured log warning when falling back
+**Effort**: 15m | **Risk**: LOW
+
+---
+
+### [API Hygiene] Deprecate getUsersByWeeklySchedule Export
+**File**: `convex/users.ts:571`
+**Perspectives**: CodeRabbit PR review
+**Impact**: Old query still exported but unused at runtime. Could confuse future developers.
+**Fix**: Add `@deprecated` JSDoc or remove export
+**Effort**: 10m | **Risk**: LOW
+
+---
+
+### [Reliability] Runtime clerkId Validation Before Report Generation
+**File**: `convex/actions/runWeeklyReports.ts:108`
+**Perspectives**: CodeRabbit PR review
+**Impact**: Uses `!` assertion without runtime check. DB constraints should prevent null, but defense-in-depth.
+**Fix**: Add `.filter(u => u.clerkId != null)` before processing
+**Effort**: 10m | **Risk**: LOW
 
 ---
 

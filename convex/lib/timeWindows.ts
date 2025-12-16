@@ -318,6 +318,12 @@ export function getTimezoneOrDefault(tz: string | undefined | null): string {
 }
 
 /**
+ * Cache for DateTimeFormat instances used by isLocalSunday.
+ * Avoids repeated instantiation when processing many users in a loop.
+ */
+const sundayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
  * Check if it's Sunday in the user's local timezone.
  *
  * Used by weekly cron to filter users: only run weekly reports
@@ -327,11 +333,15 @@ export function getTimezoneOrDefault(tz: string | undefined | null): string {
  * @param timezone - IANA timezone (e.g., "America/Chicago")
  */
 export function isLocalSunday(referenceTime: number, timezone: string): boolean {
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-  }).format(new Date(referenceTime));
-  return weekday === "Sun";
+  let formatter = sundayFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+    });
+    sundayFormatters.set(timezone, formatter);
+  }
+  return formatter.format(new Date(referenceTime)) === "Sun";
 }
 
 // ============================================================================

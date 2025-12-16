@@ -105,6 +105,14 @@ describe("runWeeklyReports", () => {
       expect(result.usersProcessed).toBe(2);
       expect(result.reportsGenerated).toBe(2);
       expect(runAction).toHaveBeenCalledTimes(2);
+      expect(runAction).toHaveBeenCalledWith(
+        "internal.actions.generateScheduledReport.generateWeeklyReport",
+        { userId: "clerk_123", timezone: "America/Chicago" },
+      );
+      expect(runAction).toHaveBeenCalledWith(
+        "internal.actions.generateScheduledReport.generateWeeklyReport",
+        { userId: "clerk_456", timezone: "America/New_York" },
+      );
     });
 
     it("calls generateWeeklyReport for each user with timezone", async () => {
