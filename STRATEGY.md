@@ -83,3 +83,54 @@ Last updated: 2025-12-13 (consultant audit synthesis)
 - Full DORA dashboard (not our wedge)
 - Multi-integration sprawl before GitHub is solid
 - Enterprise SSO/SOC2 before PLG proven
+
+---
+
+## Competitive Intelligence (Gemini Analysis 2025-11-29)
+
+**Market Position**: GitPulse occupies unique "High-Trust Niche"
+- Enterprise tools (LinearB/Waydev/Jellyfish): Focus on DORA metrics, suffer "big brother" perception
+- AI Assistants (Spinach/Standuply): Automation but shallow/hallucination-prone
+- **GitPulse Advantage**: RAG + Citation Verification = "Proof of work" tool
+
+**Key Competitor Moves (2025)**:
+- LinearB: Launching "Model Context Protocol" for natural language queries
+- Waydev: Rebranding as "AI-native" with "AI Coach"
+- GitClear: Positioning against AI, publishing anti-AI research
+
+**Strategic Recommendations**:
+1. Double down on citations - this is the moat
+2. Attack the "Black Box" - market transparency vs competitors
+3. Leverage content addressing for "Zero Duplication" reports
+
+---
+
+## Learnings
+
+**From architectural audit (2025-12-09):**
+- **Council verdict: KEEP** — 7.6/10 average score from 7 master perspectives
+- **Deep modules working** — syncPolicy.ts, syncService.ts, canonicalFactService.ts, githubApp.ts exemplify Ousterhout's principles
+- **canonicalizeEvent.ts complexity debt** — 1,159 lines, largest file, needs extraction
+- **LLMClient abstraction violation** — generateReport.ts bypasses existing abstraction
+- **Cron job explosion** — 192 jobs approaching 50% of Convex soft limit
+- **Scaling path clear** — production-ready for 0-100k events, add vector DB at 500k
+
+**From grooming session (2025-11-29):**
+- **Event type mismatch** — `"review"` vs `"review_submitted"` causes silent KPI gaps
+- **KPI query O(n)** — Convex indexes support range filtering but code fetches full table
+- **Console.log leakage** — 18 occurrences despite Pino installed
+- **Lefthook gap** — Package installed but config file never created
+
+**From consultant audit (2025-12-13):**
+- **Dual ingestion confirmed** — `syncJobs/syncBatches` + `ingestionJobs` both active
+- **Weekly cron legacy** — Uses deprecated schedule fields; migration to `midnightUtcHour` needed
+- **Path A chosen** — Commit-first ingestion; PR/review deferred until commit loop stable
+- **Trust is the moat** — Citation-backed reporting differentiates from competitors
+- **OAuth scope drag** — Broad scopes hurt adoption; minimize to `repo,read:user`
+
+**Cross-validation signals (15 perspectives converged):**
+- Performance + Ousterhout + Carmack → N+1 patterns as critical
+- Security + Maintainability → Console.log cleanup
+- Product + Jobs + UX → Citation drawer as high-value enhancement
+- Beck + Architecture-guardian → Test infrastructure gaps
+- Grug + Carmack + Jobs → Report orchestrator needs simplification
