@@ -34,5 +34,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           test-script: pnpm test:coverage
           annotations: none
+          skip-step: install
+          package-manager: pnpm
           # Thresholds enforced in jest.config.cjs (60% lines/functions/statements, 55% branches)
           # Target: 80% patch coverage (Phase 4), 70% overall (TASK.md)
