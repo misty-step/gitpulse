@@ -44,11 +44,23 @@ function dedupeByWindow(reports: Report[]): Report[] {
 
 /**
  * Get report by ID
+ *
+ * Security: Verifies ownership before returning to prevent IDOR attacks.
+ * Returns null for unauthenticated requests or reports owned by other users.
  */
 export const getById = query({
   args: { id: v.id("reports") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const report = await ctx.db.get(args.id);
+    if (!report) return null;
+
+    // Verify ownership
+    if (report.userId !== identity.subject) return null;
+
+    return report;
   },
 });
 
