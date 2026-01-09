@@ -12,6 +12,7 @@ import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { track } from "@vercel/analytics";
+import { trackFunnel } from "@/lib/analytics";
 import { toast } from "sonner";
 
 export default function ReportsPage() {
@@ -165,6 +166,10 @@ export default function ReportsPage() {
       if (result.success) {
         const { reportsGenerated, daysSkipped, daysWithoutEvents } = result;
         if (reportsGenerated > 0) {
+          trackFunnel("report_generated", {
+            reportKind: "daily",
+            count: reportsGenerated,
+          });
           toast.success(`Generated ${reportsGenerated} report${reportsGenerated > 1 ? "s" : ""}`);
         } else if (daysSkipped === 7) {
           toast.info("All days already have reports");
@@ -193,6 +198,12 @@ export default function ReportsPage() {
 
       if (result.success) {
         const { reportsGenerated, reportsDeleted } = result;
+        if (reportsGenerated > 0) {
+          trackFunnel("report_generated", {
+            reportKind: "daily",
+            count: reportsGenerated,
+          });
+        }
         toast.success(
           `Regenerated ${reportsGenerated} report${reportsGenerated !== 1 ? "s" : ""} (deleted ${reportsDeleted})`
         );

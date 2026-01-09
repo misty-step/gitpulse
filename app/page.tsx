@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Footer } from "@/components/Footer";
 import { HeroMetadata } from "@/components/HeroMetadata";
+import { trackFunnel } from "@/lib/analytics";
 
 const features = [
   {
@@ -52,6 +53,7 @@ export default function Home() {
             </Link>
             <Link
               href="/sign-up"
+              onClick={() => trackFunnel("signup_started", { source: "nav" })}
               className="rounded-full bg-foreground px-4 py-1.5 text-background transition-transform hover:scale-105 active:scale-95"
             >
               Get Started
@@ -80,6 +82,7 @@ export default function Home() {
                 <div className="mt-10 flex flex-wrap gap-4">
                   <Link
                     href="/sign-up"
+                    onClick={() => trackFunnel("signup_started", { source: "hero" })}
                     className="inline-flex h-12 items-center justify-center rounded-full bg-foreground px-8 text-sm font-semibold text-background transition-transform hover:-translate-y-1"
                   >
                     Start Integration

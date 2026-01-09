@@ -4,8 +4,9 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { trackOnce } from "@/lib/analytics";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
@@ -48,6 +49,18 @@ export default function ReportViewerPage() {
         idx < allReports.length - 1 ? allReports[idx + 1]._id : null,
     };
   }, [allReports, reportId]);
+
+  // Track first_report_viewed once when report loads
+  const hasTrackedView = useRef(false);
+  useEffect(() => {
+    if (report && !hasTrackedView.current) {
+      trackOnce("first_report_viewed", {
+        reportId: report._id,
+        reportKind: report.scheduleType ?? "daily",
+      });
+      hasTrackedView.current = true;
+    }
+  }, [report]);
 
   // Keyboard shortcuts: Escape, ←, →
   useEffect(() => {
