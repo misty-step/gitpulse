@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -39,22 +39,18 @@ export default function OnboardingPage() {
     }
   }, [convexUser, timezone]);
 
-  // Track signup_completed when convexUser is first created
-  const hasTrackedSignup = useRef(false);
+  // Track signup_completed when convexUser exists (trackOnce handles deduplication)
   useEffect(() => {
-    if (convexUser && !hasTrackedSignup.current) {
-      trackOnce("signup_completed", { clerkUserId: clerkUser?.id ?? "" });
-      hasTrackedSignup.current = true;
+    if (convexUser && clerkUser?.id) {
+      trackOnce("signup_completed", { clerkUserId: clerkUser.id });
     }
   }, [convexUser, clerkUser?.id]);
 
-  // Track github_install_completed when connection becomes true
-  const prevGitHubConnected = useRef(false);
+  // Track github_install_completed when connected (trackOnce handles deduplication)
   useEffect(() => {
-    if (isGitHubConnected && !prevGitHubConnected.current) {
+    if (isGitHubConnected) {
       trackOnce("github_install_completed");
     }
-    prevGitHubConnected.current = isGitHubConnected;
   }, [isGitHubConnected]);
 
   // Redirect if already completed onboarding

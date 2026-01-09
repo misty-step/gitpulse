@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAction, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { handleConvexError, showSuccess } from "@/lib/errors";
@@ -27,14 +27,12 @@ export default function RepositoriesPage() {
   const installations = useQuery(api.installations.listMyInstallations);
   const startBackfill = useAction(api.actions.startBackfill.startBackfill);
 
-  // Track first_sync_completed when repos first appear
-  const hasTrackedSync = useRef(false);
+  // Track first_sync_completed when repos appear (trackOnce handles deduplication)
   useEffect(() => {
-    if (repos.length > 0 && !hasTrackedSync.current) {
+    if (repos.length > 0) {
       trackOnce("first_sync_completed", {
-        repoCount: repos.length,
+        count: repos.length,
       });
-      hasTrackedSync.current = true;
     }
   }, [repos.length]);
 

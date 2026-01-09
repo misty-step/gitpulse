@@ -15,7 +15,7 @@ export type FunnelEvent =
   | "first_report_viewed"
   | "report_generated";
 
-type EventProperties = Record<string, string | number | boolean>;
+type EventProperties = Record<string, string | number | boolean | null>;
 
 /**
  * Track a funnel event with optional properties.
