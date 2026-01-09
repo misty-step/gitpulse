@@ -20,7 +20,35 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GitPulse - GitHub Activity Analytics",
   description:
-    "Natural language-powered GitHub analytics with semantic search and AI-generated reports",
+    "AI-generated daily standups and weekly retros from your GitHub activity. No more manual status updates.",
+
+  // Open Graph
+  openGraph: {
+    title: "GitPulse - GitHub Activity Analytics",
+    description:
+      "AI-generated daily standups and weekly retros from your GitHub activity. No more manual status updates.",
+    url: "https://gitpulse.app",
+    siteName: "GitPulse",
+    images: [
+      {
+        url: "https://gitpulse.app/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "GitPulse - GitHub activity, distilled",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+
+  // Twitter Card
+  twitter: {
+    card: "summary_large_image",
+    title: "GitPulse - GitHub Activity Analytics",
+    description:
+      "AI-generated daily standups and weekly retros from your GitHub activity. No more manual status updates.",
+    images: ["https://gitpulse.app/og-image.png"],
+  },
 
   // Icon configuration
   icons: {
