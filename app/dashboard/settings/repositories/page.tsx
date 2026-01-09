@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAction, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { handleConvexError, showSuccess } from "@/lib/errors";
@@ -11,6 +11,7 @@ import { SkeletonRepoList } from "@/components/Skeleton";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { formatTimestamp, getGithubInstallUrl } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
+import { trackOnce } from "@/lib/analytics";
 
 export default function RepositoriesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -25,6 +26,15 @@ export default function RepositoriesPage() {
 
   const installations = useQuery(api.installations.listMyInstallations);
   const startBackfill = useAction(api.actions.startBackfill.startBackfill);
+
+  // Track first_sync_completed when repos appear (trackOnce handles deduplication)
+  useEffect(() => {
+    if (repos.length > 0) {
+      trackOnce("first_sync_completed", {
+        count: repos.length,
+      });
+    }
+  }, [repos.length]);
 
   const handleSync = async (installationId: number) => {
     try {

@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+import { trackFunnel, trackOnce } from "@/lib/analytics";
 
 type Step = 1 | 2 | 3;
 
@@ -17,6 +18,7 @@ export default function OnboardingPage() {
   const [isCompleting, setIsCompleting] = useState(false);
 
   const completeOnboarding = useMutation(api.users.completeOnboarding);
+  const isGitHubConnected = !!convexUser?.githubAccessToken;
 
   // Auto-detect timezone from browser
   useEffect(() => {
@@ -37,6 +39,20 @@ export default function OnboardingPage() {
     }
   }, [convexUser, timezone]);
 
+  // Track signup_completed when convexUser exists (trackOnce handles deduplication)
+  useEffect(() => {
+    if (convexUser && clerkUser?.id) {
+      trackOnce("signup_completed", { clerkUserId: clerkUser.id });
+    }
+  }, [convexUser, clerkUser?.id]);
+
+  // Track github_install_completed when connected (trackOnce handles deduplication)
+  useEffect(() => {
+    if (isGitHubConnected) {
+      trackOnce("github_install_completed");
+    }
+  }, [isGitHubConnected]);
+
   // Redirect if already completed onboarding
   useEffect(() => {
     if (convexUser?.onboardingCompleted) {
@@ -52,6 +68,7 @@ export default function OnboardingPage() {
   }, [clerkUser, isLoading, router]);
 
   const handleConnectGitHub = () => {
+    trackFunnel("github_install_started");
     // Redirect to GitHub OAuth
     window.location.href = "/api/auth/github";
   };
@@ -87,7 +104,6 @@ export default function OnboardingPage() {
     }
   };
 
-  const isGitHubConnected = !!convexUser?.githubAccessToken;
   const canProceedToStep2 = isGitHubConnected;
   const canProceedToStep3 = canProceedToStep2; // For now, no repo selection required
 
