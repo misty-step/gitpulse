@@ -17,11 +17,11 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+    <div className="min-h-screen bg-surface-muted flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-background rounded-lg shadow-lg p-8 text-center">
+        <div className="w-16 h-16 bg-error-muted rounded-full flex items-center justify-center mx-auto mb-4">
           <svg
-            className="w-8 h-8 text-red-600"
+            className="w-8 h-8 text-error"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -35,17 +35,17 @@ export default function Error({
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl font-bold text-foreground mb-2">
           Something went wrong
         </h1>
 
-        <p className="text-gray-600 mb-6">
+        <p className="text-foreground-muted mb-6">
           We encountered an unexpected error. This has been logged and
           we&apos;ll look into it.
         </p>
 
         {error.digest && (
-          <p className="text-sm text-gray-500 mb-6 font-mono bg-gray-100 p-2 rounded">
+          <p className="text-sm text-muted mb-6 font-mono bg-surface-muted p-2 rounded">
             Error ID: {error.digest}
           </p>
         )}
@@ -53,21 +53,21 @@ export default function Error({
         <div className="space-y-3">
           <button
             onClick={reset}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full px-4 py-2 bg-indigo text-white rounded-lg hover:bg-indigo/90 transition-colors font-medium"
           >
             Try Again
           </button>
 
           <Link
             href="/dashboard"
-            className="block w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            className="block w-full px-4 py-2 border border-border text-foreground-muted rounded-lg hover:bg-surface-muted transition-colors font-medium"
           >
             Go to Dashboard
           </Link>
 
           <Link
             href="/"
-            className="block text-sm text-gray-500 hover:text-gray-700"
+            className="block text-sm text-muted hover:text-foreground-muted"
           >
             Return to Home
           </Link>
