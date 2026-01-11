@@ -65,6 +65,7 @@ import type * as reports from "../reports.js";
 import type * as repos from "../repos.js";
 import type * as sync_getStatus from "../sync/getStatus.js";
 import type * as syncBatches from "../syncBatches.js";
+import type * as userInstallations from "../userInstallations.js";
 import type * as users from "../users.js";
 import type * as webhookEvents from "../webhookEvents.js";
 
@@ -132,6 +133,7 @@ declare const fullApi: ApiFromModules<{
   repos: typeof repos;
   "sync/getStatus": typeof sync_getStatus;
   syncBatches: typeof syncBatches;
+  userInstallations: typeof userInstallations;
   users: typeof users;
   webhookEvents: typeof webhookEvents;
 }>;
