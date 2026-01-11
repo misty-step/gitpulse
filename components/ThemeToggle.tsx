@@ -24,9 +24,9 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     // Return a placeholder with the same shape but no theme-specific logic
     return (
       <div
-        className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm ${className ?? ""}`}
+        className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm ${className ?? ""}`}
       >
-        <span className="h-3 w-3 rounded-full bg-gray-300" />
+        <span className="h-3 w-3 rounded-full bg-muted" />
       </div>
     );
   }
@@ -44,7 +44,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       onClick={handleToggle}
       aria-label={label}
       title={label}
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-slate-200 dark:hover:border-neutral-500 dark:hover:text-white ${className ?? ""}`}
+      className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-muted shadow-sm transition-all hover:border-foreground/20 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo ${className ?? ""}`}
     >
       <span className="sr-only">{label}</span>
       {isDark ? (

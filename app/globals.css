@@ -24,16 +24,24 @@
   --foreground-muted: oklch(0.45 0.01 90); /* Warm gray */
   --muted: oklch(0.6 0.005 90);
   
-  /* Accent - "International Orange" / "Pulse Red" */
-  --accent: #000000; /* Primary Action is Black (Architecture) */
+  /* Accent - Primary Action is Black (Architecture) */
+  --accent: #000000;
   --accent-foreground: #ffffff;
-  --pulse: #ef4444; /* The literal "Pulse" indicator */
+  --pulse: #ff4f00; /* International Orange - biological status indicator */
   
   /* Indigo accent for visual rhythm */
   --indigo: oklch(0.5 0.15 260);
   --indigo-foreground: oklch(0.98 0.01 260);
   
   --code-surface: oklch(0.96 0.005 90);
+
+  /* Semantic status colors */
+  --success: oklch(0.65 0.18 145);
+  --success-muted: oklch(0.95 0.05 145);
+  --error: oklch(0.60 0.22 25);
+  --error-muted: oklch(0.95 0.05 25);
+  --info: oklch(0.55 0.15 260);
+  --info-muted: oklch(0.95 0.05 260);
 }
 
 .dark {
@@ -52,17 +60,26 @@
   
   --accent: #ffffff;
   --accent-foreground: #000000;
-  --pulse: #f87171;
+  --pulse: #ff6b35; /* International Orange (lighter for dark mode) */
   
   --indigo: oklch(0.6 0.15 260);
   --indigo-foreground: oklch(0.15 0.01 250);
   
   --code-surface: oklch(0.18 0.01 250);
+
+  /* Semantic status colors (dark mode - slightly more vibrant) */
+  --success: oklch(0.70 0.20 145);
+  --success-muted: oklch(0.25 0.08 145);
+  --error: oklch(0.65 0.24 25);
+  --error-muted: oklch(0.25 0.08 25);
+  --info: oklch(0.60 0.18 260);
+  --info-muted: oklch(0.25 0.08 260);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-border: var(--border);
@@ -70,6 +87,13 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-pulse: var(--pulse);
+  --color-indigo: var(--indigo);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-error: var(--error);
+  --color-error-muted: var(--error-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -83,6 +107,18 @@ body {
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   /* No transition on background for instant, snappy feel (Swiss) */
   /* transition: background-color 0.2s ease, color 0.2s ease; */
+}
+
+/* Global paper texture - kills the plastic digital sheen */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.015;
+  pointer-events: none;
+  z-index: 9999;
+  mix-blend-mode: overlay;
 }
 
 /* Typography - The "Swiss" Grid */
@@ -186,6 +222,43 @@ h1, h2, h3, h4, h5, h6 {
   20% { opacity: 1; }
   80% { opacity: 1; }
   100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+/* Hero entrance animations */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+.animate-fade-up-delay {
+  opacity: 0;
+  animation: fade-up 0.6s ease-out 0.15s forwards;
+}
+
+/* Brand pulse - subtle heartbeat for logo */
+@keyframes brand-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.8;
+  }
+}
+
+.logo-pulse {
+  animation: brand-pulse 2s ease-in-out infinite;
 }
 
 /* ============================================================================
