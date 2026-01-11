@@ -11,6 +11,7 @@
 
 import { v } from "convex/values";
 import { internalAction, action } from "../../_generated/server";
+import { internal } from "../../_generated/api";
 import { request, type SyncResult } from "../../lib/syncService";
 
 /**
@@ -31,13 +32,7 @@ export const requestSync = internalAction({
     forceFullSync: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<SyncResult> => {
-    return request(ctx, {
-      installationId: args.installationId,
-      trigger: args.trigger,
-      since: args.since,
-      until: args.until,
-      forceFullSync: args.forceFullSync,
-    });
+    return request(ctx, args);
   },
 });
 
@@ -63,7 +58,19 @@ export const requestManualSync = action({
       };
     }
 
-    // The syncService will verify the user owns this installation
+    // Verify the user owns this installation
+    const userInstallation = await ctx.runQuery(
+      internal.userInstallations.getByUserAndInstallation,
+      { userId: identity.subject, installationId: args.installationId }
+    );
+
+    if (!userInstallation) {
+      return {
+        started: false,
+        message: "Installation not found or not authorized",
+      };
+    }
+
     // Default to full sync for manual requests to ensure complete data
     return request(ctx, {
       installationId: args.installationId,
