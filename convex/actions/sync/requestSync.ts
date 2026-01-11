@@ -13,6 +13,7 @@ import { v } from "convex/values";
 import { internalAction, action } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { request, type SyncResult } from "../../lib/syncService";
+import { logger } from "../../lib/logger.js";
 
 /**
  * Internal action for requesting a sync (used by crons, webhooks, maintenance)
@@ -52,6 +53,7 @@ export const requestManualSync = action({
   handler: async (ctx, args): Promise<SyncResult> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
+      logger.warn({ installationId: args.installationId }, "Manual sync attempted without authentication");
       return {
         started: false,
         message: "Authentication required",
@@ -65,6 +67,10 @@ export const requestManualSync = action({
     );
 
     if (!userInstallation) {
+      logger.warn(
+        { userId: identity.subject, installationId: args.installationId },
+        "Manual sync denied: user not authorized for installation"
+      );
       return {
         started: false,
         message: "Installation not found or not authorized",
