@@ -2,6 +2,33 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 
 /**
+ * Determine the base URL for OAuth callbacks based on environment.
+ *
+ * Priority:
+ * 1. Explicit NEXT_PUBLIC_BASE_URL override
+ * 2. Vercel production → gitpulse.app
+ * 3. Vercel preview → gitpulse.app (OAuth completes on prod, user already has Clerk session)
+ * 4. Local development → localhost:3000
+ */
+function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return process.env.NEXT_PUBLIC_BASE_URL;
+  }
+
+  if (process.env.VERCEL_ENV === "production") {
+    return "https://gitpulse.app";
+  }
+
+  // Preview deployments redirect OAuth to production
+  // (dynamic preview URLs can't be registered as callbacks)
+  if (process.env.VERCEL_URL) {
+    return "https://gitpulse.app";
+  }
+
+  return "http://localhost:3000";
+}
+
+/**
  * GitHub OAuth initiation route
  *
  * Redirects user to GitHub authorization page with proper OAuth parameters.
@@ -10,7 +37,7 @@ import { randomBytes } from "crypto";
 export async function GET() {
   // Get OAuth configuration from environment
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const baseUrl = getBaseUrl();
 
   if (!clientId) {
     return NextResponse.json(
