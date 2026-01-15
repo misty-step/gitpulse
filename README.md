@@ -11,7 +11,7 @@
 
 Transform raw GitHub events into cited, trustworthy insights. Ask "What did the React team ship last quarter?" and get factual summaries with GitHub URL citations for every claim.
 
-## ✨ Features
+## Features
 
 - **📊 Repository Analytics** - Track PRs, commits, and reviews with interactive charts
 - **🤖 AI-Powered Reports** - Generate activity summaries with Gemini 2.5 Flash
@@ -20,12 +20,14 @@ Transform raw GitHub events into cited, trustworthy insights. Ask "What did the 
 - **⚡ Real-time Updates** - Reactive queries with Convex keep data fresh
 - **🔐 Secure Auth** - Clerk authentication with GitHub OAuth integration
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 - **Node.js** >= 22.15.0 ([Download](https://nodejs.org/))
 - **pnpm** >= 9.0.0 (`npm install -g pnpm`)
+- **Clerk account** ([clerk.com](https://clerk.com)) with GitHub OAuth enabled
+- **Convex account** ([convex.dev](https://www.convex.dev))
 
 ### Installation
 
@@ -37,13 +39,36 @@ cd gitpulse
 # Install dependencies
 pnpm install
 
+# Copy environment template and fill in your keys
+cp .env.example .env.local
+# Edit .env.local with your Clerk and Convex credentials
+
+# Initialize Convex (creates deployment, opens browser for auth)
+npx convex dev --once
+
 # Start development server (runs Next.js + Convex concurrently)
 pnpm dev
 ```
 
-Visit **http://localhost:3000** and sign up with Clerk to get started!
+Visit **http://localhost:3000** and sign up with Clerk to get started.
 
-## 📋 Usage
+### Minimum Environment Variables
+
+At minimum, `.env.local` needs:
+
+```bash
+# Clerk (from clerk.com dashboard)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+
+# Convex (auto-configured by `npx convex dev`)
+CONVEX_DEPLOYMENT=dev:your-deployment
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+```
+
+See [Configuration](#-configuration) for full environment setup.
+
+## Usage
 
 ### 1. Add a Repository
 
@@ -84,7 +109,7 @@ Reports include:
 - GitHub URL references for every claim
 - Download as markdown
 
-### 🧪 Regenerate Reports During Development
+### Regenerate Reports During Development
 
 Need to inspect new prompt changes or re-run a noisy report window? Use the Convex action wrapper:
 
@@ -109,7 +134,9 @@ Arguments:
 
 The command calls `actions/reports/regenerate` under the hood, persists the new report, and prints the Convex document ID so you can open it immediately in the app UI.
 
-## 🏗️ Architecture
+## Architecture
+
+For detailed architecture with data flow diagrams and deep module documentation, see **[DESIGN.md](DESIGN.md)**.
 
 ### Tech Stack
 
@@ -152,7 +179,7 @@ gitpulse/
 └── public/                 # Static assets
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -221,7 +248,7 @@ Get API keys from:
 - **Google AI Studio**: https://ai.google.dev/
 - **GitHub**: https://github.com/settings/tokens (needs `repo` scope)
 
-## 🧪 Development
+## Development
 
 ### Run Development Server
 
@@ -285,7 +312,7 @@ npx convex dashboard
 
 Or visit: https://dashboard.convex.dev/
 
-## 📊 Database Schema
+## Database Schema
 
 ### Tables
 
@@ -305,7 +332,7 @@ Or visit: https://dashboard.convex.dev/
 
 See `convex/schema.ts` for full schema.
 
-## 🚀 Deployment
+## Deployment
 
 GitPulse uses **Vercel-managed deployments** for automatic preview and production deployments.
 
@@ -377,7 +404,7 @@ See [`docs/deployment/PREVIEW_DEPLOYMENTS_GUIDE.md`](docs/deployment/PREVIEW_DEP
 - Preview deployment configuration
 - Production readiness checklist
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Database Issues
 
@@ -411,7 +438,7 @@ pnpm install
 pnpm build
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! See [TODO.md](TODO.md) for current tasks.
 
@@ -435,11 +462,11 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `test:` test changes
 - `chore:` maintenance
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built with:
 

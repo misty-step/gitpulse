@@ -22,4 +22,34 @@ Use Conventional Commits with scoped subjects (`feat(app): add report panel`, `f
 
 ## Security & Configuration Tips
 
-Copy `.env.local.example` before `pnpm dev`; populate Convex, Clerk, GitHub, and AI provider keys but keep them out of git. Rotate shared secrets (`NEXTAUTH_SECRET`, Clerk keys, Convex tokens) and scrub traces with `pnpm logs:clean`. Prefer least-privilege GitHub App scopes, document new permissions in repo docs, and keep secrets out of Storybook stories or test fixtures.
+Copy `.env.example` to `.env.local` before `pnpm dev`; populate Convex, Clerk, GitHub, and AI provider keys but keep them out of git. Rotate shared secrets (`NEXTAUTH_SECRET`, Clerk keys, Convex tokens) and scrub traces with `pnpm logs:clean`. Prefer least-privilege GitHub App scopes, document new permissions in repo docs, and keep secrets out of Storybook stories or test fixtures.
+
+## Architecture Patterns (Important)
+
+**Deep modules hide complexity** - see `DESIGN.md` for the five core services. Don't bypass them:
+
+- **Sync requests:** Use `SyncService.request()`, not direct job/batch manipulation
+- **Event persistence:** Use `persistCanonicalEvent()`, not raw event inserts
+- **Content hashing:** Done inside `persistCanonicalEvent()`, never call `computeContentHash()` directly
+- **Reports:** Use `generateReport()`, not raw LLM calls
+- **Timezone logic:** Use `timeWindows.ts`, not manual `Date` math
+
+**Content-addressed deduplication:** Events keyed by SHA-256 of (canonicalText + sourceUrl + metrics). Same event = same hash = one row.
+
+**One-batch-per-installation:** `syncService.request()` enforces this invariant. Never create ingestion jobs directly.
+
+## Anti-Patterns to Avoid
+
+- **Shallow wrappers:** If your function just calls another function, delete it
+- **Manual status checks:** Don't query `installations.syncStatus` directly; let SyncService decide
+- **Direct GitHub payloads:** Always go through `canonicalizeEvent()` first
+- **Timezone math with Date:** Use `timeWindows.ts` exclusively
+- **Pass-through props:** Components should receive intent, not raw Convex docs
+
+## Where to Find Things
+
+- **Schema:** `convex/schema.ts` (12 tables)
+- **Deep modules:** `convex/lib/syncService.ts`, `canonicalFactService.ts`, `generateReport.ts`, `timeWindows.ts`
+- **Cron jobs:** `convex/crons.ts`
+- **UI components:** `components/` (ShadCN in `components/ui/`)
+- **Tests:** Colocated as `*.test.ts` next to source
