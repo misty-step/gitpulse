@@ -7,6 +7,7 @@ export const PUBLIC_ROUTES = [
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/api/health(.*)",
+  "/preview(.*)",
 ] as const;
 
 /**
