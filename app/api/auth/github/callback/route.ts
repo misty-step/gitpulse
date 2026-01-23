@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { logger } from "@/lib/logger";
 
 /**
  * GitHub OAuth callback route
@@ -171,9 +172,11 @@ export async function GET(req: NextRequest) {
     );
     response.cookies.delete("github_oauth_state");
 
+    logger.info({ githubUserId: githubUser.id }, "GitHub OAuth completed");
+
     return response;
   } catch (error) {
-    console.error("GitHub OAuth callback error:", error);
+    logger.error({ err: error }, "GitHub OAuth callback failed");
     return NextResponse.redirect(
       new URL(
         "/dashboard/settings?github=error&message=An unexpected error occurred",

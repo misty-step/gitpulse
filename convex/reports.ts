@@ -9,6 +9,7 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import { logger } from "./lib/logger";
 
 type Report = {
   _id: any;
@@ -483,7 +484,7 @@ export const cleanupDuplicates = internalMutation({
       }
     }
 
-    console.log(`Cleaned up ${deleted} duplicate reports`);
+    logger.info({ deleted }, "Cleaned up duplicate reports");
     return { deleted };
   },
 });
