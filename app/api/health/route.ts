@@ -1,6 +1,6 @@
 import {
   buildHealthResponse,
-  checkConvexHealth,
+  checkAllServices,
   makeHealthResponse,
   parseHealthMode,
 } from "@/lib/health";
@@ -14,8 +14,9 @@ async function handle(request: Request, method: "GET" | "HEAD") {
     return makeHealthResponse(body, ok, method);
   }
 
-  const convex = await checkConvexHealth();
-  const { body, ok } = buildHealthResponse("deep", convex);
+  // Deep check: verify all external services in parallel
+  const services = await checkAllServices();
+  const { body, ok } = buildHealthResponse("deep", undefined, services);
   return makeHealthResponse(body, ok, method);
 }
 

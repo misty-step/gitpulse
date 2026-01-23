@@ -2,7 +2,14 @@
  * Tests for Health Check utilities
  */
 
-import { describe, expect, it, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+  describe,
+  expect,
+  it,
+  jest,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
 
 // Store original env
 const originalEnv = process.env;
@@ -57,26 +64,78 @@ describe("health utilities", () => {
 
     it("returns ok for deep mode with healthy convex", async () => {
       const { buildHealthResponse } = await import("../index");
-      const { body, ok } = buildHealthResponse("deep", "ok");
+      const { body, ok } = buildHealthResponse("deep", { status: "ok" });
       expect(ok).toBe(true);
       expect(body.status).toBe("ok");
-      expect(body.convex).toBe("ok");
-    });
-
-    it("returns error for deep mode with degraded convex", async () => {
-      const { buildHealthResponse } = await import("../index");
-      const { body, ok } = buildHealthResponse("deep", "degraded");
-      expect(ok).toBe(false);
-      expect(body.status).toBe("error");
-      expect(body.error).toContain("degraded");
+      expect(body.services?.convex?.status).toBe("ok");
     });
 
     it("returns error for deep mode with error convex", async () => {
       const { buildHealthResponse } = await import("../index");
-      const { body, ok } = buildHealthResponse("deep", "error");
+      const { body, ok } = buildHealthResponse("deep", {
+        status: "error",
+        message: "Connection failed",
+      });
       expect(ok).toBe(false);
       expect(body.status).toBe("error");
-      expect(body.error).toContain("error");
+      expect(body.error).toContain("unhealthy");
+    });
+
+    it("returns ok for deep mode with all services healthy", async () => {
+      const { buildHealthResponse } = await import("../index");
+      const services = {
+        convex: { status: "ok" as const, latencyMs: 50 },
+        github: { status: "ok" as const, latencyMs: 100 },
+        openrouter: { status: "ok" as const, latencyMs: 150 },
+        clerk: { status: "ok" as const, latencyMs: 80 },
+      };
+      const { body, ok } = buildHealthResponse("deep", undefined, services);
+      expect(ok).toBe(true);
+      expect(body.status).toBe("ok");
+      expect(body.services).toEqual(services);
+    });
+
+    it("returns degraded when non-critical service fails", async () => {
+      const { buildHealthResponse } = await import("../index");
+      const services = {
+        convex: { status: "ok" as const, latencyMs: 50 },
+        github: { status: "error" as const, message: "API down" },
+        openrouter: { status: "ok" as const, latencyMs: 150 },
+        clerk: { status: "ok" as const, latencyMs: 80 },
+      };
+      const { body, ok } = buildHealthResponse("deep", undefined, services);
+      // Degraded returns 200 (ok=true) but status is degraded
+      expect(ok).toBe(true);
+      expect(body.status).toBe("degraded");
+    });
+
+    it("returns error when convex (critical) fails", async () => {
+      const { buildHealthResponse } = await import("../index");
+      const services = {
+        convex: { status: "error" as const, message: "Connection refused" },
+        github: { status: "ok" as const, latencyMs: 100 },
+        openrouter: { status: "ok" as const, latencyMs: 150 },
+        clerk: { status: "ok" as const, latencyMs: 80 },
+      };
+      const { body, ok } = buildHealthResponse("deep", undefined, services);
+      expect(ok).toBe(false);
+      expect(body.status).toBe("error");
+    });
+
+    it("ignores unconfigured services", async () => {
+      const { buildHealthResponse } = await import("../index");
+      const services = {
+        convex: { status: "ok" as const, latencyMs: 50 },
+        github: { status: "ok" as const, latencyMs: 100 },
+        openrouter: {
+          status: "unconfigured" as const,
+          message: "OPENROUTER_API_KEY not set",
+        },
+        clerk: { status: "ok" as const, latencyMs: 80 },
+      };
+      const { body, ok } = buildHealthResponse("deep", undefined, services);
+      expect(ok).toBe(true);
+      expect(body.status).toBe("ok");
     });
   });
 });
