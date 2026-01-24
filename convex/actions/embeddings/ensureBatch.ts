@@ -5,6 +5,7 @@ import { internalAction } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
 import type { ActionCtx } from "../../_generated/server";
 import type { Doc } from "../../_generated/dataModel";
+import { logger } from "../../lib/logger";
 
 const DEFAULT_BATCH_SIZE = 25;
 
@@ -29,13 +30,18 @@ export async function ensureBatchHandler(
     return { processed: 0 };
   }
 
+  const eventIds = pending.map((job) => job.eventId);
+
+  logger.info(
+    { batchSize: pending.length, eventIds },
+    "Starting embedding batch processing",
+  );
+
   await Promise.all(
     pending.map((job) =>
       ctx.runMutation(internal.embeddingQueue.markProcessing, { id: job._id }),
     ),
   );
-
-  const eventIds = pending.map((job) => job.eventId);
 
   try {
     await ctx.runAction(api.actions.generateEmbeddings.generateBatch, {
@@ -48,10 +54,20 @@ export async function ensureBatchHandler(
       ),
     );
 
+    logger.info(
+      { batchSize: pending.length },
+      "Embedding batch completed successfully",
+    );
+
     return { processed: pending.length };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+
+    logger.error(
+      { err: error, batchSize: pending.length, eventIds },
+      "Embedding batch failed",
+    );
 
     await Promise.all(
       pending.map((job) =>
