@@ -1,4 +1,11 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from "@jest/globals";
+import {
+  describe,
+  expect,
+  it,
+  jest,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
 import {
   backfillPRs,
   listReviews,
@@ -8,7 +15,10 @@ import {
   listOrgRepositories,
   RateLimitError,
 } from "../github";
-import { createMockResponse, createMockErrorResponse } from "../../../tests/utils/factories";
+import {
+  createMockResponse,
+  createMockErrorResponse,
+} from "../../../tests/utils/factories";
 
 // Type for fetch mock that properly types parameters for toHaveBeenCalledWith assertions
 type FetchMock = jest.Mock<
@@ -140,11 +150,16 @@ describe("githubFetch - rate limit handling", () => {
 
   it("throws standard error for 403 without rate limit indicators", async () => {
     // Mock a 403 error that is NOT a rate limit (e.g., insufficient permissions)
+    // IMPORTANT: Must include .text() method since githubFetch calls response.text() first
     const mockFetch = jest.fn(() =>
       Promise.resolve({
         ok: false,
         status: 403,
         statusText: "Forbidden",
+        text: async () =>
+          JSON.stringify({
+            message: "Resource not accessible by integration",
+          }),
         json: async () => ({
           message: "Resource not accessible by integration",
         }),
@@ -355,9 +370,13 @@ describe("listCommits", () => {
     const mockFetch = jest.fn(() => {
       callCount++;
       if (callCount === 1) {
-        return createMockResponse(Array.from({ length: 100 }, (_, i) => ({ sha: `sha${i}` })));
+        return createMockResponse(
+          Array.from({ length: 100 }, (_, i) => ({ sha: `sha${i}` })),
+        );
       }
-      return createMockResponse(Array.from({ length: 25 }, (_, i) => ({ sha: `sha${i + 100}` })));
+      return createMockResponse(
+        Array.from({ length: 25 }, (_, i) => ({ sha: `sha${i + 100}` })),
+      );
     });
     global.fetch = mockFetch as any;
 
@@ -378,9 +397,13 @@ describe("listUserRepositories and listOrgRepositories", () => {
     const mockFetch = jest.fn(() => {
       callCount++;
       if (callCount === 1) {
-        return createMockResponse(Array.from({ length: 100 }, (_, i) => ({ id: i })));
+        return createMockResponse(
+          Array.from({ length: 100 }, (_, i) => ({ id: i })),
+        );
       }
-      return createMockResponse(Array.from({ length: 10 }, (_, i) => ({ id: i + 100 })));
+      return createMockResponse(
+        Array.from({ length: 10 }, (_, i) => ({ id: i + 100 })),
+      );
     });
     global.fetch = mockFetch as any;
 

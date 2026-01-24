@@ -7,6 +7,8 @@
  * Deep module: Simple interface hiding GitHub API pagination, auth, rate limits.
  */
 
+import { logger } from "./logger";
+
 /**
  * GitHub API base URL
  */
@@ -48,6 +50,10 @@ async function withRetry<T>(
 
       // Don't retry on final attempt
       if (attempt === maxRetries) {
+        logger.warn(
+          { attempt, maxRetries, err: lastError },
+          "GitHub API max retries exhausted",
+        );
         break;
       }
 
@@ -57,11 +63,19 @@ async function withRetry<T>(
         // Let it throw so the caller can schedule a long-term pause
         const waitTime = error.reset - Date.now();
         if (waitTime > 60 * 1000) {
+          logger.warn(
+            { resetMs: waitTime, resetAt: new Date(error.reset).toISOString() },
+            "GitHub rate limit exceeded, long wait required",
+          );
           throw error;
         }
 
         // Otherwise, if it's a short wait (e.g. secondary rate limit), wait and retry
         const delay = Math.max(baseDelay * Math.pow(2, attempt), 1000);
+        logger.info(
+          { attempt, delayMs: delay, err: error },
+          "GitHub API rate limit, retrying after delay",
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
@@ -73,6 +87,10 @@ async function withRetry<T>(
 
       if (is403Or429) {
         const delay = baseDelay * Math.pow(2, attempt);
+        logger.info(
+          { attempt, delayMs: delay, err: error },
+          "GitHub API 403/429 error, retrying after delay",
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
         // For other errors, throw immediately
@@ -111,11 +129,17 @@ async function githubFetch<T>(
       // Parse error body first to check message
       let message = "GitHub API rate limit exceeded";
       let errorBody: GitHubError | null = null;
+      let rawText: string | undefined;
       try {
-        errorBody = (await response.json()) as GitHubError;
+        rawText = await response.text();
+        errorBody = JSON.parse(rawText) as GitHubError;
         message = errorBody.message;
       } catch (e) {
-        // ignore json parse error
+        // Log when JSON parse fails - may contain useful debug info
+        logger.warn(
+          { err: e, status: response.status, rawText: rawText?.slice(0, 500) },
+          "Failed to parse GitHub error response as JSON",
+        );
       }
 
       const remainingHeader = response.headers.get("x-ratelimit-remaining");
@@ -137,6 +161,16 @@ async function githubFetch<T>(
         } else if (retryAfterHeader) {
           reset = Date.now() + parseInt(retryAfterHeader, 10) * 1000;
         }
+
+        logger.warn(
+          {
+            status: response.status,
+            remaining: remainingHeader,
+            resetAt: new Date(reset).toISOString(),
+            message,
+          },
+          "GitHub API rate limit hit",
+        );
 
         throw new RateLimitError(
           reset,
