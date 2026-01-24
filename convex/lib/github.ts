@@ -51,7 +51,7 @@ async function withRetry<T>(
       // Don't retry on final attempt
       if (attempt === maxRetries) {
         logger.warn(
-          { attempt, maxRetries, error: lastError.message },
+          { attempt, maxRetries, err: lastError },
           "GitHub API max retries exhausted",
         );
         break;
@@ -73,7 +73,7 @@ async function withRetry<T>(
         // Otherwise, if it's a short wait (e.g. secondary rate limit), wait and retry
         const delay = Math.max(baseDelay * Math.pow(2, attempt), 1000);
         logger.info(
-          { attempt, delayMs: delay, error: error.message },
+          { attempt, delayMs: delay, err: error },
           "GitHub API rate limit, retrying after delay",
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -88,7 +88,7 @@ async function withRetry<T>(
       if (is403Or429) {
         const delay = baseDelay * Math.pow(2, attempt);
         logger.info(
-          { attempt, delayMs: delay, error: (error as Error).message },
+          { attempt, delayMs: delay, err: error },
           "GitHub API 403/429 error, retrying after delay",
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -137,7 +137,7 @@ async function githubFetch<T>(
       } catch (e) {
         // Log when JSON parse fails - may contain useful debug info
         logger.warn(
-          { status: response.status, rawText: rawText?.slice(0, 500) },
+          { err: e, status: response.status, rawText: rawText?.slice(0, 500) },
           "Failed to parse GitHub error response as JSON",
         );
       }
