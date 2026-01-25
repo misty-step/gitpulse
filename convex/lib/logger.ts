@@ -12,6 +12,8 @@ const REDACT_PATHS = [
   "githubEmail",
   "clerkId",
   "userId",
+  "oldUserId",
+  "newUserId",
   "ghLogin",
   "githubUsername",
 
