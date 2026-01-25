@@ -229,9 +229,12 @@ export const pruneDuplicates = internalMutation({
 });
 
 /**
- * Update report userId (for fixing test data)
+ * Internal: Update report userId (for data migration/maintenance only)
+ *
+ * Security: This is an internalMutation - only callable from server-side code.
+ * Previously was a public mutation which allowed unauthorized ownership transfer (IDOR).
  */
-export const updateUserId = mutation({
+export const updateUserId = internalMutation({
   args: {
     oldUserId: v.string(),
     newUserId: v.string(),
@@ -250,6 +253,15 @@ export const updateUserId = mutation({
       reports.map((report) =>
         ctx.db.patch(report._id, { userId: args.newUserId }),
       ),
+    );
+
+    logger.info(
+      {
+        oldUserId: args.oldUserId,
+        newUserId: args.newUserId,
+        count: updates.length,
+      },
+      "Migrated report ownership",
     );
 
     return {
@@ -488,4 +500,3 @@ export const cleanupDuplicates = internalMutation({
     return { deleted };
   },
 });
-
