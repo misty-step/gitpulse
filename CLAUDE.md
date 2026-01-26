@@ -648,6 +648,41 @@ pnpm build
 - 🚧 Embedding service optimization
 - 📋 Planned: Secret rotation, observability dashboards, Stripe integration
 
+## Infrastructure (Terraform)
+
+The `infrastructure/` directory contains Terraform configurations for Vercel and other cloud resources.
+
+### Conventions
+
+1. **Always use current provider versions** - Check the Terraform registry for the latest version before adding providers. Outdated versions miss security fixes.
+   ```hcl
+   # Check: https://registry.terraform.io/providers/vercel/vercel/latest
+   version = "~> 4.0"  # Not ~> 2.0
+   ```
+
+2. **Consolidate identical rules** - Use OR-ed `condition_group` blocks instead of duplicate rules with identical actions.
+   ```hcl
+   # Good: Single rule with OR-ed conditions
+   condition_group = [
+     { conditions = [{ type = "path", op = "eq", value = "/api/a" }] },
+     { conditions = [{ type = "path", op = "eq", value = "/api/b" }] }
+   ]
+   
+   # Bad: Two separate rules with identical actions
+   ```
+
+3. **Prefer precise matching** - Use `op = "eq"` over `op = "pre"` + `op = "neq"` combinations when targeting specific paths.
+
+### Applying Changes
+
+```bash
+cd infrastructure
+export VERCEL_API_TOKEN=your_token
+terraform init
+terraform plan    # Review changes
+terraform apply   # Apply to Vercel
+```
+
 ---
 
 **Philosophy**: Simplicity through deep modules. Every interface should be minimal; every implementation should hide complexity. Fight accumulating dependencies and obscurity with ruthless information hiding.
