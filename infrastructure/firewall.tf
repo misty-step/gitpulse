@@ -24,48 +24,25 @@ resource "vercel_firewall_config" "oauth_rate_limits" {
   project_id = data.vercel_project.gitpulse.id
 
   rules {
-    # Rule 1: Rate limit OAuth initiation endpoint
     rule {
-      name        = "oauth-init-rate-limit"
-      description = "Rate limit OAuth initiation to prevent state exhaustion"
-      condition_group = [{
-        conditions = [
-          {
+      name        = "oauth-endpoints-rate-limit"
+      description = "Rate limit OAuth initiation and callback endpoints"
+      condition_group = [
+        {
+          conditions = [{
             type  = "path"
-            op    = "pre"  # starts with
+            op    = "eq"
             value = "/api/auth/github"
-          },
-          {
+          }]
+        },
+        {
+          conditions = [{
             type  = "path"
-            op    = "neq"  # not equals
+            op    = "eq"
             value = "/api/auth/github/callback"
-          }
-        ]
-      }]
-      action = {
-        action = "rate_limit"
-        rate_limit = {
-          limit  = 60
-          window = 60
-          keys   = ["ip"]
-          algo   = "fixed_window"
-          action = "deny"
+          }]
         }
-        action_duration = "1m"
-      }
-    }
-
-    # Rule 2: Rate limit OAuth callback endpoint
-    rule {
-      name        = "oauth-callback-rate-limit"
-      description = "Rate limit OAuth callback to prevent brute force"
-      condition_group = [{
-        conditions = [{
-          type  = "path"
-          op    = "eq"
-          value = "/api/auth/github/callback"
-        }]
-      }]
+      ]
       action = {
         action = "rate_limit"
         rate_limit = {
