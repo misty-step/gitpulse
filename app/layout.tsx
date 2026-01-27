@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/react";
 import { ConvexClientProvider } from "./providers";
+import { PostHogIdentify, PostHogProvider } from "@/components/PostHogProvider";
+import { PostHogPageview } from "@/components/PostHogPageview";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
@@ -53,32 +54,32 @@ export const metadata: Metadata = {
   // Icon configuration
   icons: {
     icon: [
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon.ico', sizes: 'any' },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
     ],
-    shortcut: '/favicon.ico',
+    shortcut: "/favicon.ico",
     apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
 
   // Web App Manifest
-  manifest: '/manifest.json',
+  manifest: "/manifest.json",
 
   // Apple Web App configuration
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
-    title: 'GitPulse',
+    statusBarStyle: "default",
+    title: "GitPulse",
   },
 };
 
 // Theme color moved to viewport export (Next.js 16+)
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
   ],
 };
 
@@ -113,9 +114,12 @@ export default function RootLayout({
               },
             }}
           >
-            <ConvexClientProvider>{children}</ConvexClientProvider>
-            <Analytics />
-            <Toaster position="top-right" richColors theme="system" />
+            <PostHogProvider>
+              <ConvexClientProvider>{children}</ConvexClientProvider>
+              <PostHogIdentify />
+              <PostHogPageview />
+              <Toaster position="top-right" richColors theme="system" />
+            </PostHogProvider>
           </ClerkProvider>
         </ThemeProvider>
       </body>

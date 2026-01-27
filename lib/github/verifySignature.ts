@@ -53,14 +53,20 @@ function verifyAgainstSecret(
     .update(payload)
     .digest("hex");
 
+  const providedBuffer = Buffer.from(providedSignature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
   // Use timing-safe comparison to prevent timing attacks
   try {
-    return timingSafeEqual(
-      Buffer.from(providedSignature, "hex"),
-      Buffer.from(expectedSignature, "hex"),
-    );
-  } catch {
-    // timingSafeEqual throws if buffers have different lengths
+    return timingSafeEqual(providedBuffer, expectedBuffer);
+  } catch (error) {
+    console.warn("Unexpected error verifying GitHub webhook signature", {
+      error,
+    });
     return false;
   }
 }

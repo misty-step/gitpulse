@@ -9,6 +9,8 @@
  * All functions are pure and deterministic for easy testing.
  */
 
+import { logger } from "./logger";
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -43,7 +45,7 @@ export interface WeekWindow {
  */
 export function getYesterdayWindow(
   timezone: string,
-  referenceTime?: number
+  referenceTime?: number,
 ): DayWindow {
   const now = referenceTime ?? Date.now();
 
@@ -69,7 +71,7 @@ export function getYesterdayWindow(
  */
 export function getTodayWindow(
   timezone: string,
-  referenceTime?: number
+  referenceTime?: number,
 ): DayWindow {
   const now = referenceTime ?? Date.now();
   const todayLocal = getLocalDateString(now, timezone);
@@ -94,7 +96,7 @@ export function getTodayWindow(
 export function getDayWindow(
   timezone: string,
   daysAgo: number,
-  referenceTime?: number
+  referenceTime?: number,
 ): DayWindow {
   const now = referenceTime ?? Date.now();
 
@@ -125,7 +127,7 @@ export function getDayWindow(
  */
 export function getLastWeekWindow(
   timezone: string,
-  referenceTime?: number
+  referenceTime?: number,
 ): WeekWindow {
   const now = referenceTime ?? Date.now();
 
@@ -136,7 +138,7 @@ export function getLastWeekWindow(
   const lastSundayMidnight = getLocalMidnightNDaysBefore(
     thisSundayMidnight,
     7,
-    timezone
+    timezone,
   );
 
   return {
@@ -175,7 +177,7 @@ export function getMidnightUtcHour(timezone: string, date?: Date): number {
  */
 export function getSundayMidnightUtcHour(
   timezone: string,
-  date?: Date
+  date?: Date,
 ): number {
   const d = date ?? new Date();
 
@@ -225,7 +227,7 @@ export function formatShortDate(ts: number, timezone: string): string {
 export function formatDateRange(
   start: number,
   end: number,
-  timezone: string
+  timezone: string,
 ): string {
   const startDate = new Date(start);
   const endDate = new Date(end - 1); // -1ms so end of Dec 7 shows as Dec 7, not Dec 8
@@ -235,7 +237,10 @@ export function formatDateRange(
       timeZone: timezone,
       year: "numeric",
     }) ===
-    endDate.toLocaleDateString("en-US", { timeZone: timezone, year: "numeric" });
+    endDate.toLocaleDateString("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+    });
 
   const startStr = startDate.toLocaleDateString("en-US", {
     timeZone: timezone,
@@ -302,7 +307,14 @@ export function isValidTimezone(tz: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return true;
-  } catch {
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return false;
+    }
+    logger.warn(
+      { err: error, timezone: tz },
+      "Unexpected timezone validation error",
+    );
     return false;
   }
 }
@@ -332,7 +344,10 @@ const sundayFormatters = new Map<string, Intl.DateTimeFormat>();
  * @param referenceTime - UTC timestamp to check
  * @param timezone - IANA timezone (e.g., "America/Chicago")
  */
-export function isLocalSunday(referenceTime: number, timezone: string): boolean {
+export function isLocalSunday(
+  referenceTime: number,
+  timezone: string,
+): boolean {
   let formatter = sundayFormatters.get(timezone);
   if (!formatter) {
     formatter = new Intl.DateTimeFormat("en-US", {
@@ -382,7 +397,11 @@ function parseLocalMidnight(dateStr: string, timezone: string): number {
   }
 
   // Handle 30/45 minute offset timezones
-  for (let offsetMinutes = -14 * 60; offsetMinutes <= 14 * 60; offsetMinutes += 15) {
+  for (
+    let offsetMinutes = -14 * 60;
+    offsetMinutes <= 14 * 60;
+    offsetMinutes += 15
+  ) {
     const guess = utcMidnight - offsetMinutes * 60 * 1000;
     const localDateAtGuess = getLocalDateString(guess, timezone);
     const localTimeAtGuess = getLocalTimeString(guess, timezone);
@@ -393,6 +412,10 @@ function parseLocalMidnight(dateStr: string, timezone: string): number {
   }
 
   // Fallback: just return UTC midnight (shouldn't happen for valid timezones)
+  logger.warn(
+    { dateStr, timezone },
+    "Falling back to UTC midnight for timezone parsing",
+  );
   return utcMidnight;
 }
 
@@ -445,7 +468,7 @@ function getLocalMidnightAfter(ts: number, timezone: string): number {
 function getLocalMidnightNDaysBefore(
   ts: number,
   days: number,
-  timezone: string
+  timezone: string,
 ): number {
   let currentMidnight = getLocalMidnightOfDay(ts, timezone);
   for (let i = 0; i < days; i++) {
@@ -469,7 +492,7 @@ function getMostRecentSundayMidnight(ts: number, timezone: string): number {
   });
   const weekdayStr = formatter.format(new Date(ts));
   const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
-    weekdayStr
+    weekdayStr,
   );
 
   // Go back to Sunday
