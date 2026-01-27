@@ -485,11 +485,15 @@ function getLocalMidnightNDaysBefore(
 function getMostRecentSundayMidnight(ts: number, timezone: string): number {
   const todayMidnight = getLocalMidnightOfDay(ts, timezone);
 
-  // Get day of week for the date containing ts
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-  });
+  // Reuse cached formatter for weekday lookup
+  let formatter = sundayFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+    });
+    sundayFormatters.set(timezone, formatter);
+  }
   const weekdayStr = formatter.format(new Date(ts));
   const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
     weekdayStr,

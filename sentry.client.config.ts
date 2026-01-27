@@ -1,39 +1,14 @@
 import * as Sentry from "@sentry/nextjs";
+import { scrubPii, getSentryEnvironment } from "./lib/sentry";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-
-  // Performance Monitoring: 10% of transactions sampled
   tracesSampleRate: 0.1,
-
-  // Browser tracing for frontend performance
   integrations: [Sentry.browserTracingIntegration()],
-
-  // Trace requests to Convex backend
   tracePropagationTargets: ["localhost", /^https:\/\/[^/]*\.convex\.cloud/],
-
-  // Session replay: disabled for cost optimization
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 0,
-
-  // Debug mode: disabled (too noisy in dev)
   debug: false,
-
-  // Environment tracking
-  environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "development",
-
-  beforeSend(event) {
-    // Scrub PII to comply with privacy requirements
-    if (event.user) {
-      delete event.user.email;
-      delete event.user.ip_address;
-    }
-    if (event.extra) {
-      delete event.extra.password;
-      delete event.extra.accessToken;
-      delete event.extra.refreshToken;
-      delete event.extra.token;
-    }
-    return event;
-  },
+  environment: getSentryEnvironment(),
+  beforeSend: scrubPii,
 });

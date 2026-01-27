@@ -10,10 +10,8 @@ function PostHogPageviewInner() {
 
   useEffect(() => {
     if (pathname && typeof window !== "undefined") {
-      let url = window.origin + pathname;
-      if (searchParams?.toString()) {
-        url = `${url}?${searchParams.toString()}`;
-      }
+      const search = searchParams?.toString();
+      const url = window.origin + pathname + (search ? `?${search}` : "");
       posthog.capture("$pageview", { $current_url: url });
     }
   }, [pathname, searchParams]);
