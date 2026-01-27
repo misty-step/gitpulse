@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { trackEvent } from "@/lib/analytics";
+import { formatReportDate } from "@/lib/formatters";
 import DOMPurify from "isomorphic-dompurify";
 
 type YesterdayWidgetProps = {
@@ -117,21 +118,4 @@ export function YesterdayWidget({ reports, isLoading }: YesterdayWidgetProps) {
       )}
     </div>
   );
-}
-
-function formatReportDate(startDate: number, endDate: number): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const sameDay = start.toDateString() === end.toDateString();
-
-  if (sameDay) {
-    return end.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }

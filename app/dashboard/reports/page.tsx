@@ -6,6 +6,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
+import { formatReportDate } from "@/lib/formatters";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
@@ -407,27 +408,6 @@ export default function ReportsPage() {
       )}
     </div>
   );
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function formatReportDate(startDate: number, endDate: number): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const sameDay = start.toDateString() === end.toDateString();
-
-  if (sameDay) {
-    return end.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 type ReportDiagnostic = {
