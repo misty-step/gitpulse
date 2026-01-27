@@ -30,9 +30,11 @@ export function PostHogIdentify() {
     if (isLoaded && user) {
       posthog.identify(user.id, {
         // Only include non-PII fields
-        created_at: user.createdAt?.toISOString(),
+        created_at: user.createdAt
+          ? new Date(user.createdAt).toISOString()
+          : undefined,
       });
-    } else if (isLoaded && !user) {
+    } else if (isLoaded && !user && posthog._isIdentified?.()) {
       posthog.reset();
     }
   }, [user, isLoaded]);

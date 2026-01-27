@@ -84,4 +84,4 @@ evals/.promptfoo/
 # clerk configuration (can include secrets)
 /.clerk/
 # Lefthook runtime (regenerated on install)
-.husky/_/
+.lefthook/

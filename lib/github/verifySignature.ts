@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Verify GitHub webhook signature with dual-secret support for rotation
@@ -64,8 +65,9 @@ function verifyAgainstSecret(
   try {
     return timingSafeEqual(providedBuffer, expectedBuffer);
   } catch (error) {
-    console.warn("Unexpected error verifying GitHub webhook signature", {
-      error,
+    Sentry.captureException(error, {
+      tags: { component: "webhook-verification" },
+      level: "warning",
     });
     return false;
   }
