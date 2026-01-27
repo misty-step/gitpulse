@@ -12,13 +12,12 @@ type YesterdayWidgetProps = {
 
 export function YesterdayWidget({ reports, isLoading }: YesterdayWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const dailyReport = reports?.filter(
+  const dailyReport = reports?.find(
     (report) => report.scheduleType === "daily",
-  )[0];
+  );
   const summaryBullets =
-    dailyReport?.sections?.[0]?.bullets?.filter((bullet) =>
-      Boolean(bullet?.trim()),
-    ) ?? [];
+    dailyReport?.sections?.[0]?.bullets?.filter((bullet) => bullet?.trim()) ??
+    [];
   const tldrBullets = summaryBullets.slice(0, 3);
 
   if (isLoading) {
@@ -53,15 +52,10 @@ export function YesterdayWidget({ reports, isLoading }: YesterdayWidgetProps) {
   const reportTitle = dailyReport.title || "Daily Standup";
 
   const handleToggle = () => {
-    setIsExpanded((prev) => {
-      const next = !prev;
-      if (next) {
-        trackEvent("yesterday_widget_expanded", {
-          reportId: dailyReport._id,
-        });
-      }
-      return next;
-    });
+    if (!isExpanded) {
+      trackEvent("yesterday_widget_expanded", { reportId: dailyReport._id });
+    }
+    setIsExpanded(!isExpanded);
   };
 
   return (
