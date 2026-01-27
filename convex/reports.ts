@@ -11,19 +11,21 @@ import {
 } from "./_generated/server";
 import { logger } from "./lib/logger";
 
-type Report = {
-  _id: any;
+/**
+ * Minimal shape required for deduplication logic.
+ * Using interface + generic preserves the full document type through the function.
+ */
+interface ReportLike {
+  _id: unknown;
   userId: string;
   scheduleType?: "daily" | "weekly";
   startDate: number;
   endDate: number;
   createdAt: number;
-  updatedAt: number;
-  [key: string]: any;
-};
+}
 
-function dedupeByWindow(reports: Report[]): Report[] {
-  const seen = new Map<string, Report>();
+function dedupeByWindow<T extends ReportLike>(reports: T[]): T[] {
+  const seen = new Map<string, T>();
 
   for (const report of reports) {
     if (!report.scheduleType) continue;
@@ -204,9 +206,10 @@ export const pruneDuplicates = internalMutation({
   args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query("reports").collect();
-    const keepers = new Map<string, Report>();
+    type ReportDoc = (typeof all)[number];
+    const keepers = new Map<string, ReportDoc>();
 
-    for (const report of all as Report[]) {
+    for (const report of all) {
       if (!report.scheduleType) continue;
       const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
       const existing = keepers.get(key);
@@ -216,7 +219,7 @@ export const pruneDuplicates = internalMutation({
     }
 
     let deleted = 0;
-    for (const report of all as Report[]) {
+    for (const report of all) {
       if (!report.scheduleType) continue;
       const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
       const keeper = keepers.get(key);
@@ -474,10 +477,11 @@ export const cleanupDuplicates = internalMutation({
   args: {},
   handler: async (ctx) => {
     const all = await ctx.db.query("reports").collect();
-    const windows = new Map<string, Report[]>();
+    type ReportDoc = (typeof all)[number];
+    const windows = new Map<string, ReportDoc[]>();
 
     // Group by window
-    for (const report of all as Report[]) {
+    for (const report of all) {
       if (!report.scheduleType) continue;
       const key = `${report.userId}:${report.scheduleType}:${report.startDate}:${report.endDate}`;
       if (!windows.has(key)) windows.set(key, []);

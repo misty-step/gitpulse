@@ -108,6 +108,7 @@ export function YesterdayWidget({ reports, isLoading }: YesterdayWidgetProps) {
 
       {isExpanded && (
         <div className="mt-6 border-t border-border/70 pt-6">
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized via DOMPurify */}
           <div
             className="prose-luxury max-w-none"
             dangerouslySetInnerHTML={{
