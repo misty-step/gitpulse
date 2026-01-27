@@ -2,13 +2,14 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
+import { YesterdayWidget } from "@/components/YesterdayWidget";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { trackEvent, trackFunnel } from "@/lib/analytics";
@@ -247,6 +248,10 @@ export default function ReportsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <IntegrationStatusBanner />
+      <YesterdayWidget
+        reports={reports as Doc<"reports">[] | undefined}
+        isLoading={reports === undefined}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between">
