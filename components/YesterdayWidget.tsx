@@ -101,7 +101,7 @@ export function YesterdayWidget({ reports, isLoading }: YesterdayWidgetProps) {
           </ul>
         ) : (
           <p className="mt-2 text-sm text-muted">
-            Summary bullets will appear after the next run.
+            Expand to read your full report.
           </p>
         )}
       </div>
