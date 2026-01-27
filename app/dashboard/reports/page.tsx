@@ -2,13 +2,15 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { handleConvexError, showSuccess } from "@/lib/errors";
+import { formatReportDate } from "@/lib/formatters";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
+import { YesterdayWidget } from "@/components/YesterdayWidget";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { trackEvent, trackFunnel } from "@/lib/analytics";
@@ -247,6 +249,7 @@ export default function ReportsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <IntegrationStatusBanner />
+      <YesterdayWidget reports={reports} isLoading={reports === undefined} />
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -402,27 +405,6 @@ export default function ReportsPage() {
       )}
     </div>
   );
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function formatReportDate(startDate: number, endDate: number): string {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const sameDay = start.toDateString() === end.toDateString();
-
-  if (sameDay) {
-    return end.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
 type ReportDiagnostic = {
