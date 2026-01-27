@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Verify GitHub webhook signature with dual-secret support for rotation
@@ -53,14 +54,21 @@ function verifyAgainstSecret(
     .update(payload)
     .digest("hex");
 
+  const providedBuffer = Buffer.from(providedSignature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
   // Use timing-safe comparison to prevent timing attacks
   try {
-    return timingSafeEqual(
-      Buffer.from(providedSignature, "hex"),
-      Buffer.from(expectedSignature, "hex"),
-    );
-  } catch {
-    // timingSafeEqual throws if buffers have different lengths
+    return timingSafeEqual(providedBuffer, expectedBuffer);
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { component: "webhook-verification" },
+      level: "warning",
+    });
     return false;
   }
 }

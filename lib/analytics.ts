@@ -1,10 +1,10 @@
 /**
  * Centralized analytics utility for funnel tracking.
  *
- * Uses Vercel Analytics track() with typed event names.
+ * Uses PostHog capture() with typed event names.
  * Provides `trackOnce` for deduplication of one-time events.
  */
-import { track } from "@vercel/analytics";
+import posthog from "posthog-js";
 
 export type FunnelEvent =
   | "signup_started"
@@ -21,7 +21,8 @@ type EventProperties = Record<string, string | number | boolean | null>;
  * Track a funnel event with optional properties.
  */
 export function trackFunnel(event: FunnelEvent, properties?: EventProperties) {
-  track(event, properties);
+  if (typeof window === "undefined") return;
+  posthog.capture(event, properties);
 }
 
 /**
@@ -33,7 +34,15 @@ export function trackOnce(event: FunnelEvent, properties?: EventProperties) {
 
   const key = `gitpulse_tracked_${event}`;
   if (!localStorage.getItem(key)) {
-    track(event, properties);
+    posthog.capture(event, properties);
     localStorage.setItem(key, Date.now().toString());
   }
+}
+
+/**
+ * Track a general event outside the funnel taxonomy.
+ */
+export function trackEvent(event: string, properties?: EventProperties) {
+  if (typeof window === "undefined") return;
+  posthog.capture(event, properties);
 }

@@ -11,8 +11,7 @@ import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
-import { track } from "@vercel/analytics";
-import { trackFunnel } from "@/lib/analytics";
+import { trackEvent, trackFunnel } from "@/lib/analytics";
 import { toast } from "sonner";
 
 export default function ReportsPage() {
@@ -28,8 +27,12 @@ export default function ReportsPage() {
   // Sync state
   const syncStatuses = useQuery(api.sync.getStatus.getStatusForUser);
   const requestSync = useAction(api.actions.sync.requestSync.requestManualSync);
-  const backfillReports = useAction(api.actions.reports.backfill.backfillLastWeek);
-  const regenerateReports = useAction(api.actions.reports.regenerateLastWeek.regenerateLastWeek);
+  const backfillReports = useAction(
+    api.actions.reports.backfill.backfillLastWeek,
+  );
+  const regenerateReports = useAction(
+    api.actions.reports.regenerateLastWeek.regenerateLastWeek,
+  );
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -109,7 +112,7 @@ export default function ReportsPage() {
 
       // Track report deletion event
       if (report) {
-        track("report_deleted", {
+        trackEvent("report_deleted", {
           reportId,
           kind: report.scheduleType || "daily",
         });
@@ -146,7 +149,9 @@ export default function ReportsPage() {
         }
       }
       if (startedCount > 0) {
-        toast.success(`Sync started for ${startedCount} installation${startedCount > 1 ? "s" : ""}`);
+        toast.success(
+          `Sync started for ${startedCount} installation${startedCount > 1 ? "s" : ""}`,
+        );
       } else {
         toast.info("All installations are up to date");
       }
@@ -170,7 +175,9 @@ export default function ReportsPage() {
             reportKind: "daily",
             count: reportsGenerated,
           });
-          toast.success(`Generated ${reportsGenerated} report${reportsGenerated > 1 ? "s" : ""}`);
+          toast.success(
+            `Generated ${reportsGenerated} report${reportsGenerated > 1 ? "s" : ""}`,
+          );
         } else if (daysSkipped === 7) {
           toast.info("All days already have reports");
         } else if (daysWithoutEvents === 7 - daysSkipped) {
@@ -205,7 +212,7 @@ export default function ReportsPage() {
           });
         }
         toast.success(
-          `Regenerated ${reportsGenerated} report${reportsGenerated !== 1 ? "s" : ""} (deleted ${reportsDeleted})`
+          `Regenerated ${reportsGenerated} report${reportsGenerated !== 1 ? "s" : ""} (deleted ${reportsDeleted})`,
         );
       } else {
         toast.error(result.error || "Regeneration failed");
@@ -230,7 +237,10 @@ export default function ReportsPage() {
   // Compute sync state for button
   const hasInstallation = syncStatuses && syncStatuses.length > 0;
   const isActivelySyncing = syncStatuses?.some(
-    (s) => s.state === "syncing" || s.state === "blocked" || s.state === "recovering"
+    (s) =>
+      s.state === "syncing" ||
+      s.state === "blocked" ||
+      s.state === "recovering",
   );
   const lastSyncedAt = syncStatuses?.[0]?.lastSyncedAt;
 
@@ -268,7 +278,12 @@ export default function ReportsPage() {
           {hasInstallation && process.env.NODE_ENV !== "production" && (
             <button
               onClick={handleRegenerateClick}
-              disabled={isRegenerating || isSyncing || isActivelySyncing || isBackfilling}
+              disabled={
+                isRegenerating ||
+                isSyncing ||
+                isActivelySyncing ||
+                isBackfilling
+              }
               className="px-4 py-2 text-sm font-medium rounded-lg border border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isRegenerating ? "Regenerating..." : "Regenerate 7 Days"}
@@ -352,7 +367,9 @@ export default function ReportsPage() {
                       </div>
 
                       {diagnostic && (
-                        <span className={`text-xs font-medium ${diagnostic.className}`}>
+                        <span
+                          className={`text-xs font-medium ${diagnostic.className}`}
+                        >
                           {diagnostic.label}
                         </span>
                       )}
@@ -431,12 +448,18 @@ function getReportDiagnostic(report: {
 
   // Events exist but no citations extracted
   if (eventCount > 0 && citationCount === 0 && expectedCitations > 0) {
-    return { label: "Review needed", className: "text-amber-600 dark:text-amber-400" };
+    return {
+      label: "Review needed",
+      className: "text-amber-600 dark:text-amber-400",
+    };
   }
 
   // Events exist but none have URLs
   if (eventCount > 0 && expectedCitations === 0) {
-    return { label: "Data issue", className: "text-rose-600 dark:text-rose-400" };
+    return {
+      label: "Data issue",
+      className: "text-rose-600 dark:text-rose-400",
+    };
   }
 
   return null;

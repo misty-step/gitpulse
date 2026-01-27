@@ -5,14 +5,16 @@
  */
 import { trackFunnel, trackOnce, FunnelEvent } from "../analytics";
 
-// Mock Vercel Analytics track function
-jest.mock("@vercel/analytics", () => ({
-  track: jest.fn(),
+// Mock PostHog capture function
+jest.mock("posthog-js", () => ({
+  capture: jest.fn(),
 }));
 
-import { track } from "@vercel/analytics";
+import posthog from "posthog-js";
 
-const mockTrack = track as jest.MockedFunction<typeof track>;
+const mockCapture = posthog.capture as jest.MockedFunction<
+  typeof posthog.capture
+>;
 
 describe("analytics", () => {
   beforeEach(() => {
@@ -22,42 +24,44 @@ describe("analytics", () => {
   });
 
   describe("trackFunnel", () => {
-    it("calls track with event name", () => {
+    it("calls capture with event name", () => {
       trackFunnel("signup_started");
-      expect(mockTrack).toHaveBeenCalledWith("signup_started", undefined);
+      expect(mockCapture).toHaveBeenCalledWith("signup_started", undefined);
     });
 
-    it("calls track with event name and properties", () => {
+    it("calls capture with event name and properties", () => {
       trackFunnel("signup_started", { source: "hero" });
-      expect(mockTrack).toHaveBeenCalledWith("signup_started", {
+      expect(mockCapture).toHaveBeenCalledWith("signup_started", {
         source: "hero",
       });
     });
   });
 
   describe("trackOnce", () => {
-    it("tracks event on first call", () => {
+    it("captures event on first call", () => {
       trackOnce("first_report_viewed", { reportId: "123" });
-      expect(mockTrack).toHaveBeenCalledWith("first_report_viewed", {
+      expect(mockCapture).toHaveBeenCalledWith("first_report_viewed", {
         reportId: "123",
       });
     });
 
     it("stores tracking key in localStorage", () => {
       trackOnce("first_sync_completed");
-      expect(localStorage.getItem("gitpulse_tracked_first_sync_completed")).not.toBeNull();
+      expect(
+        localStorage.getItem("gitpulse_tracked_first_sync_completed"),
+      ).not.toBeNull();
     });
 
     it("does not track same event twice", () => {
       trackOnce("signup_completed");
       trackOnce("signup_completed");
-      expect(mockTrack).toHaveBeenCalledTimes(1);
+      expect(mockCapture).toHaveBeenCalledTimes(1);
     });
 
     it("tracks different events independently", () => {
       trackOnce("signup_completed");
       trackOnce("github_install_completed");
-      expect(mockTrack).toHaveBeenCalledTimes(2);
+      expect(mockCapture).toHaveBeenCalledTimes(2);
     });
   });
 
