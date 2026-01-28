@@ -18,7 +18,7 @@ providers:
 defaultTest:
   options:
     transform: |
-      // Normalize markdown output
+      // Normalize JSON output
       return output.trim();
   assert:
     # Must contain GitHub citations
@@ -27,9 +27,24 @@ defaultTest:
     # Must not be empty
     - type: javascript
       value: output.length > 100
-    # Must have proper markdown structure
-    - type: icontains
-      value: "##"
+    # Must be valid JSON with expected schema
+    - type: javascript
+      value: |
+        try {
+          const parsed = JSON.parse(output);
+          if (!parsed || typeof parsed !== "object") return false;
+          if (!Array.isArray(parsed.sections) || parsed.sections.length === 0) return false;
+          return parsed.sections.every((section) => {
+            if (!section || typeof section.title !== "string") return false;
+            if (!Array.isArray(section.bullets)) return false;
+            if (!section.bullets.every((bullet) => typeof bullet === "string")) return false;
+            if (!Array.isArray(section.citations)) return false;
+            if (!section.citations.every((citation) => typeof citation === "string")) return false;
+            return true;
+          });
+        } catch (error) {
+          return false;
+        }
 
 # Test cases
 tests:
@@ -39,6 +54,7 @@ tests:
       kind: daily
       username: testuser
       dateRange: "December 10, 2025"
+      eventsCount: 3
       events: |
         - **PR #42** (merged): Add user authentication [https://github.com/org/repo/pull/42]
         - **PR #43** (opened): Fix rate limiting bug [https://github.com/org/repo/pull/43]
@@ -63,6 +79,7 @@ tests:
       kind: daily
       username: quietuser
       dateRange: "December 10, 2025"
+      eventsCount: 1
       events: |
         - **Commit** (def5678): Minor typo fix [https://github.com/org/repo/commit/def5678]
     assert:
@@ -77,6 +94,7 @@ tests:
       kind: weekly
       username: activeuser
       dateRange: "December 2 - December 8, 2025"
+      eventsCount: 5
       events: |
         - **PR #100** (merged): Implement OAuth2 flow (+500/-200, 15 files) [https://github.com/org/repo/pull/100]
         - **PR #101** (merged): Add rate limiting middleware (+150/-30, 4 files) [https://github.com/org/repo/pull/101]
@@ -103,6 +121,7 @@ tests:
       kind: daily
       username: citationtest
       dateRange: "December 10, 2025"
+      eventsCount: 3
       events: |
         - **PR #1** (merged): Feature A [https://github.com/acme/app/pull/1]
         - **PR #2** (merged): Feature B [https://github.com/acme/app/pull/2]
