@@ -19,8 +19,19 @@ defaultTest:
   options:
     maxRetries: 2  # Retry on assertion failure to reduce flakiness
     transform: |
-      // Normalize JSON output
-      return output.trim();
+      // Strip thinking traces and extract JSON from LLM output
+      let text = output.trim();
+      // Gemini 3 Pro may prefix with "Thinking:" reasoning - strip it
+      const jsonStart = text.indexOf('{');
+      if (jsonStart > 0) {
+        text = text.slice(jsonStart);
+      }
+      // Find the last closing brace (in case of trailing text)
+      const jsonEnd = text.lastIndexOf('}');
+      if (jsonEnd > 0 && jsonEnd < text.length - 1) {
+        text = text.slice(0, jsonEnd + 1);
+      }
+      return text;
   assert:
     # Must contain GitHub citations
     - type: contains
