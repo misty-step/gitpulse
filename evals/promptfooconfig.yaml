@@ -3,8 +3,10 @@ description: "GitPulse Report Generation Evaluation"
 
 # Prompts under test - must match production prompts in generateReport.ts
 prompts:
-  - file://prompts/daily-report.txt
-  - file://prompts/weekly-report.txt
+  - id: file://prompts/daily-report.txt
+    label: daily
+  - id: file://prompts/weekly-report.txt
+    label: weekly
 
 # Production model only - test what we ship
 providers:
@@ -62,6 +64,8 @@ defaultTest:
 tests:
   # Daily report test with PR events
   - description: "Daily report with PR activity"
+    prompts:
+      - daily
     vars:
       kind: daily
       username: testuser
@@ -87,6 +91,8 @@ tests:
 
   # Daily report with minimal activity
   - description: "Daily report with minimal activity"
+    prompts:
+      - daily
     vars:
       kind: daily
       username: quietuser
@@ -102,6 +108,8 @@ tests:
 
   # Weekly retrospective test
   - description: "Weekly retro with mixed activity"
+    prompts:
+      - weekly
     vars:
       kind: weekly
       username: activeuser
@@ -129,6 +137,8 @@ tests:
 
   # Citation accuracy test
   - description: "Citation extraction accuracy"
+    prompts:
+      - daily
     vars:
       kind: daily
       username: citationtest
