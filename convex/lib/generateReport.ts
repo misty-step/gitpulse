@@ -549,13 +549,13 @@ function formatEvent(event: Doc<"events">): string {
 // Helpers
 // ============================================================================
 
-type ReportSection = {
+export type ReportSection = {
   title: string;
   bullets: string[];
   citations: string[];
 };
 
-function parseReportSections(
+export function parseReportSections(
   rawContent: string,
   kind: "daily" | "weekly",
 ): { sections: ReportSection[]; parseError?: string } {
@@ -588,7 +588,7 @@ function parseReportSections(
   return { sections };
 }
 
-function stripJsonFence(content: string): string {
+export function stripJsonFence(content: string): string {
   const trimmed = content.trim();
   if (!trimmed.startsWith("```")) {
     return trimmed;
@@ -600,7 +600,7 @@ function stripJsonFence(content: string): string {
     .trim();
 }
 
-function sectionsToMarkdown(sections: ReportSection[]): string {
+export function sectionsToMarkdown(sections: ReportSection[]): string {
   if (sections.length === 0) {
     return "";
   }
