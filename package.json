@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.45",
-    "@clerk/nextjs": "^6.34.1",
+    "@clerk/nextjs": "^6.37.0",
     "@openrouter/ai-sdk-provider": "^1.5.2",
     "@sentry/nextjs": "^10.27.0",
     "ai": "^5.0.108",
