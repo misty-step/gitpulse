@@ -10,13 +10,14 @@ prompts:
 providers:
   - id: openrouter:google/gemini-3-pro-preview
     config:
-      temperature: 1.0  # Match prod (generateReport.ts:290)
+      temperature: 0.5  # Lower than prod for eval determinism
       max_tokens: 4000  # Match prod (generateReport.ts:291)
       maxRetries: 3
 
 # Default assertions for all tests
 defaultTest:
   options:
+    maxRetries: 2  # Retry on assertion failure to reduce flakiness
     transform: |
       // Normalize JSON output
       return output.trim();

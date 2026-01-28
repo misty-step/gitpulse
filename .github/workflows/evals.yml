@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: evals-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # Let evals complete - cancelling wastes LLM tokens
 
 jobs:
   eval:
