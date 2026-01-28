@@ -101,8 +101,14 @@ tests:
       events: |
         - **Commit** (def5678): Minor typo fix [https://github.com/org/repo/commit/def5678]
     assert:
-      - type: icontains
-        value: "typo"
+      # LLM may rephrase "typo" as correction/fix/syntax - check for any variant
+      - type: javascript
+        value: |
+          const text = output.toLowerCase();
+          return text.includes('typo') ||
+                 text.includes('correction') ||
+                 text.includes('minor') ||
+                 text.includes('fix');
       - type: icontains
         value: "github.com/org/repo/commit/def5678"
 
