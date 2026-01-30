@@ -20,6 +20,7 @@ import type * as actions_ingestMultiple from "../actions/ingestMultiple.js";
 import type * as actions_ingestRepo from "../actions/ingestRepo.js";
 import type * as actions_listRepos from "../actions/listRepos.js";
 import type * as actions_reports_backfill from "../actions/reports/backfill.js";
+import type * as actions_reports_generateFirstReport from "../actions/reports/generateFirstReport.js";
 import type * as actions_reports_generate from "../actions/reports/generate.js";
 import type * as actions_reports_regenerateLastWeek from "../actions/reports/regenerateLastWeek.js";
 import type * as actions_runCleanup from "../actions/runCleanup.js";
@@ -88,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "actions/ingestRepo": typeof actions_ingestRepo;
   "actions/listRepos": typeof actions_listRepos;
   "actions/reports/backfill": typeof actions_reports_backfill;
+  "actions/reports/generateFirstReport": typeof actions_reports_generateFirstReport;
   "actions/reports/generate": typeof actions_reports_generate;
   "actions/reports/regenerateLastWeek": typeof actions_reports_regenerateLastWeek;
   "actions/runCleanup": typeof actions_runCleanup;

@@ -61,6 +61,14 @@ export default defineSchema({
 
     // Onboarding
     onboardingCompleted: v.optional(v.boolean()), // Whether user completed onboarding wizard
+    firstReportStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("generating"),
+        v.literal("completed"),
+        v.literal("failed"),
+      ),
+    ),
 
     // Metadata
     createdAt: v.number(), // Unix timestamp
@@ -359,8 +367,8 @@ export default defineSchema({
         v.literal("cron"),
         v.literal("webhook"),
         v.literal("maintenance"),
-        v.literal("recovery")
-      )
+        v.literal("recovery"),
+      ),
     ),
 
     // Job status
@@ -403,12 +411,12 @@ export default defineSchema({
       v.literal("cron"),
       v.literal("webhook"),
       v.literal("maintenance"),
-      v.literal("recovery")
+      v.literal("recovery"),
     ),
     status: v.union(
       v.literal("running"),
       v.literal("completed"),
-      v.literal("failed")
+      v.literal("failed"),
     ),
     totalRepos: v.number(),
     completedRepos: v.number(),
@@ -444,8 +452,8 @@ export default defineSchema({
         v.literal("idle"),
         v.literal("syncing"),
         v.literal("rate_limited"),
-        v.literal("error")
-      )
+        v.literal("error"),
+      ),
     ),
     lastManualSyncAt: v.optional(v.number()),
     nextSyncAt: v.optional(v.number()),

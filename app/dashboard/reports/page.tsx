@@ -11,6 +11,7 @@ import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
 import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { YesterdayWidget } from "@/components/YesterdayWidget";
+import { WelcomeReportCard } from "@/components/WelcomeReportCard";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { trackEvent, trackFunnel } from "@/lib/analytics";
@@ -35,12 +36,16 @@ export default function ReportsPage() {
   const regenerateReports = useAction(
     api.actions.reports.regenerateLastWeek.regenerateLastWeek,
   );
+  const generateFirstReport = useAction(
+    api.actions.reports.generateFirstReport.generateFirstReportManual,
+  );
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const userId = clerkUser?.id;
   const githubUsername = convexUser?.githubUsername;
+  const firstReportStatus = convexUser?.firstReportStatus;
 
   const itemsPerPage = 20;
   const currentLimit = itemsPerPage * loadMoreCount;
@@ -227,6 +232,18 @@ export default function ReportsPage() {
     }
   };
 
+  const handleRetryFirstReport = async () => {
+    try {
+      const result = await generateFirstReport({});
+      if (!result.success) {
+        toast.error(result.error || "Failed to generate first report");
+      }
+    } catch (error) {
+      toast.error("Failed to generate first report");
+      console.error(error);
+    }
+  };
+
   // Show loading state while auth or reports are loading
   if (!userId) {
     return (
@@ -249,6 +266,12 @@ export default function ReportsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <IntegrationStatusBanner />
+      <WelcomeReportCard
+        status={firstReportStatus}
+        onRetry={
+          firstReportStatus === "failed" ? handleRetryFirstReport : undefined
+        }
+      />
       <YesterdayWidget reports={reports} isLoading={reports === undefined} />
 
       {/* Header */}
