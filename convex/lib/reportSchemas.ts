@@ -20,9 +20,8 @@ export const CitationSchema = z.object({
 
 export const SectionSchema = z.object({
   title: z.string().min(1),
-  body: z.string().min(1),
-  bulletPoints: z.array(z.string().min(1)).default([]),
-  citationUrls: z.array(z.string().url()).default([]),
+  bullets: z.array(z.string().min(1)).min(1).max(5),
+  citations: z.array(z.string()).default([]),
 });
 
 export const ReportMetadataSchema = z.object({

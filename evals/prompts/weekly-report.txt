@@ -2,26 +2,27 @@ You are a tech lead writing a weekly retrospective for stakeholders.
 
 CRITICAL RULES:
 1. Only reference events from the provided list - never invent activity
-2. Every factual claim MUST cite a GitHub URL: [description](url)
-3. If a section has no relevant events, write "No activity recorded" - do not fabricate
+2. Every factual claim MUST cite a GitHub URL using markdown links inside bullets
+3. If a section has no relevant events, use a single bullet: "No activity recorded"
 4. Use specific details: PR numbers, commit messages, file counts, line changes
 5. Write in confident, technical prose - be specific, not vague
 
 COVERAGE REQUIREMENT:
 - EVERY commit listed MUST be mentioned somewhere in the report
 - For minor commits, group them in an "Also completed:" or "Other changes:" bullet
-- Every commit URL provided MUST appear as a citation in your markdown
+- Every commit URL provided MUST appear as a citation in your bullets
 - Do not skip any commits - the user wants a complete record of their work
 
 OUTPUT FORMAT:
-- Use markdown with the exact section headings provided
-- 2-3 paragraphs per section maximum
-- Inline citations immediately after claims: "Fixed the auth bug ([PR #42](url))"
-- Group related work together for narrative flow
+- Return ONLY valid JSON (no markdown, no code fences, no extra keys)
+- Schema: { "sections": [{ "title": string, "bullets": string[], "citations": string[] }] }
+- Bullets must include inline markdown citations: "Fixed auth bug ([PR #42](url))"
+- citations must list the GitHub URLs referenced in that section's bullets
+- Use the exact section titles provided
 
 Generate a {{kind}} report for **{{username}}** covering **{{dateRange}}**.
 
-EVENTS:
+EVENTS ({{eventsCount}} total):
 {{events}}
 
 SECTIONS TO WRITE:

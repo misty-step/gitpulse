@@ -26,21 +26,18 @@ describe("report schemas", () => {
     const sections: DailyReportPayload["sections"] = [
       {
         title: DAILY_SECTION_TITLES[0],
-        body: `${DAILY_SECTION_TITLES[0]} body`,
-        bulletPoints: ["Point one"],
-        citationUrls: ["https://github.com/gitpulse"],
+        bullets: ["Point one"],
+        citations: ["https://github.com/gitpulse"],
       },
       {
         title: DAILY_SECTION_TITLES[1],
-        body: `${DAILY_SECTION_TITLES[1]} body`,
-        bulletPoints: [],
-        citationUrls: [],
+        bullets: ["Point two"],
+        citations: [],
       },
       {
         title: DAILY_SECTION_TITLES[2],
-        body: `${DAILY_SECTION_TITLES[2]} body`,
-        bulletPoints: [],
-        citationUrls: [],
+        bullets: ["Point three"],
+        citations: [],
       },
     ];
 
@@ -65,9 +62,8 @@ describe("report schemas", () => {
       metadata,
       sections: WEEKLY_SECTION_TITLES.map((title) => ({
         title,
-        body: `${title} summary`,
-        bulletPoints: [],
-        citationUrls: [],
+        bullets: [`${title} summary`],
+        citations: [],
       })).map((section, index) =>
         index === 0 ? { ...section, title: "Wins" } : section,
       ),
@@ -83,9 +79,8 @@ describe("report schemas", () => {
       metadata,
       sections: DAILY_SECTION_TITLES.map((title) => ({
         title,
-        body: `${title} body`,
-        bulletPoints: [],
-        citationUrls: [],
+        bullets: [`${title} body`],
+        citations: [],
       })),
       citations: [
         {

@@ -11,13 +11,17 @@ on:
 
 concurrency:
   group: evals-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false  # Let evals complete - cancelling wastes LLM tokens
 
 jobs:
   eval:
     name: Run LLM Evals
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout
@@ -51,6 +55,65 @@ jobs:
           # Retry configuration for transient failures
           PROMPTFOO_REQUEST_BACKOFF_MS: "5000"
           PROMPTFOO_RETRY_5XX: "1"
+
+      - name: Comment eval summary
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          results_file="evals/.promptfoo/output/latest.json"
+          pr_number="${{ github.event.pull_request.number }}"
+          if [[ ! -f "$results_file" ]]; then
+            body=$'### LLM evals\n\n❌ Results file not found (`evals/.promptfoo/output/latest.json`). Evals may have failed early.\n'
+            gh pr comment "$pr_number" --body "$body" --edit-last || gh pr comment "$pr_number" --body "$body"
+            exit 0
+          fi
+
+          summary=$(jq -r '"✅ " + ((.results.stats.successes // 0) | tostring) + " passed, ❌ " + ((.results.stats.failures // 0) | tostring) + " failed, ⚠️ " + ((.results.stats.errors // 0) | tostring) + " errors"' "$results_file")
+          rows=$(jq -r '.results.prompts[]
+            | {
+                name: (.label | split(":") | .[0]),
+                pass: (.metrics.testPassCount // 0),
+                fail: (.metrics.testFailCount // 0),
+                error: (.metrics.testErrorCount // 0)
+              }
+            | .status = (if (.fail + .error) > 0 then "❌" else "✅" end)
+            | "| \(.name) | \(.pass) | \(.fail) | \(.error) | \(.status) |"' "$results_file")
+
+          token_total=$(jq -r '.results.stats.tokenUsage.total // 0' "$results_file")
+          token_prompt=$(jq -r '.results.stats.tokenUsage.prompt // 0' "$results_file")
+          token_completion=$(jq -r '.results.stats.tokenUsage.completion // 0' "$results_file")
+          token_cached=$(jq -r '.results.stats.tokenUsage.cached // 0' "$results_file")
+          token_assert_total=$(jq -r '.results.stats.tokenUsage.assertions.total // 0' "$results_file")
+          token_assert_prompt=$(jq -r '.results.stats.tokenUsage.assertions.prompt // 0' "$results_file")
+          token_assert_completion=$(jq -r '.results.stats.tokenUsage.assertions.completion // 0' "$results_file")
+
+          body=$(cat <<EOF
+          ### LLM evals
+
+          ${summary}
+
+          | Prompt | Pass | Fail | Error | Status |
+          | --- | --- | --- | --- | --- |
+          ${rows}
+
+          <details>
+          <summary>Token usage</summary>
+
+          - Total: ${token_total}
+          - Prompt: ${token_prompt}
+          - Completion: ${token_completion}
+          - Cached: ${token_cached}
+          - Assertions total: ${token_assert_total}
+          - Assertions prompt: ${token_assert_prompt}
+          - Assertions completion: ${token_assert_completion}
+
+          </details>
+          EOF
+          )
+
+          gh pr comment "$pr_number" --body "$body" --edit-last || gh pr comment "$pr_number" --body "$body"
 
       - name: Upload eval results
         if: always()
