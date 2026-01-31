@@ -1,18 +1,37 @@
 "use client";
 
-type WelcomeReportStatus =
-  | "pending"
-  | "generating"
-  | "completed"
-  | "failed"
-  | undefined;
+import type { Doc } from "@/convex/_generated/dataModel";
+
+/**
+ * Status of the user's first report generation.
+ * Derived from the users table firstReportStatus field.
+ */
+type WelcomeReportStatus = Doc<"users">["firstReportStatus"];
 
 type WelcomeReportCardProps = {
   status: WelcomeReportStatus;
   onRetry?: () => void;
+  isRetrying?: boolean;
 };
 
-export function WelcomeReportCard({ status, onRetry }: WelcomeReportCardProps) {
+/**
+ * Displays first report generation status on the dashboard.
+ *
+ * Shows a card with status-appropriate messaging during onboarding:
+ * - Pending: "Setting up your reports..."
+ * - Generating: Spinner with "Generating your first report..."
+ * - Failed: Error message with retry button
+ * - Completed/undefined: Returns null (card hidden)
+ *
+ * @param props.status - Current first report generation status
+ * @param props.onRetry - Optional callback to retry failed generation
+ * @returns Status card JSX or null if completed/not applicable
+ */
+export function WelcomeReportCard({
+  status,
+  onRetry,
+  isRetrying = false,
+}: WelcomeReportCardProps) {
   if (!status || status === "completed") {
     return null;
   }
@@ -54,7 +73,8 @@ export function WelcomeReportCard({ status, onRetry }: WelcomeReportCardProps) {
           <button
             type="button"
             onClick={onRetry}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-surface-muted transition-colors"
+            disabled={isRetrying}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-surface-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Retry
           </button>

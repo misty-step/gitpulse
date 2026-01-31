@@ -17,6 +17,17 @@ type FirstReportResult = {
   error?: string;
 };
 
+/**
+ * Generates the user's first report immediately after onboarding completion.
+ *
+ * Sets status to "generating", invokes the daily report generator, then
+ * updates status to "completed" or "failed" based on result. This avoids
+ * making new users wait 24 hours for their first automated report.
+ *
+ * @param ctx - Convex action context
+ * @param args.userId - Clerk user ID for the user
+ * @returns FirstReportResult indicating success or failure with optional error message
+ */
 export const generateFirstReport = internalAction({
   args: {
     userId: v.string(),
@@ -96,6 +107,16 @@ export const generateFirstReport = internalAction({
   },
 });
 
+/**
+ * Public action to manually trigger first report generation.
+ *
+ * Allows authenticated users to retry first report generation if it failed
+ * or was not triggered during onboarding. Validates authentication before
+ * delegating to the internal generateFirstReport action.
+ *
+ * @param ctx - Convex action context with auth
+ * @returns FirstReportResult indicating success or failure with optional error message
+ */
 export const generateFirstReportManual = action({
   args: {},
   handler: async (ctx): Promise<FirstReportResult> => {

@@ -237,9 +237,15 @@ export default function ReportsPage() {
       const result = await generateFirstReport({});
       if (!result.success) {
         toast.error(result.error || "Failed to generate first report");
+      } else {
+        toast.success("Report generation started");
       }
     } catch (error) {
-      toast.error("Failed to generate first report");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate first report",
+      );
       console.error(error);
     }
   };
