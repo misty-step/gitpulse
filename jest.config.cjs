@@ -7,6 +7,7 @@ module.exports = {
     "<rootDir>/lib",
     "<rootDir>/tests",
     "<rootDir>/app",
+    "<rootDir>/components",
   ],
   extensionsToTreatAsEsm: [".ts", ".tsx"],
   moduleNameMapper: {

@@ -3,7 +3,13 @@
  */
 
 import { v } from "convex/values";
-import { query, mutation, internalQuery } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalQuery,
+  internalMutation,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { logger } from "./lib/logger.js";
 import {
   getMidnightUtcHour,
@@ -528,10 +534,51 @@ export const completeOnboarding = mutation({
       midnightUtcHour,
       dailyReportsEnabled: true, // Default: both enabled
       weeklyReportsEnabled: true,
+      firstReportStatus: "pending",
       // DEPRECATED fields - kept for migration
       reportHourUTC,
       weeklyDayUTC: weeklySchedule.dayUTC,
       updatedAt: now,
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.actions.reports.generateFirstReport.generateFirstReport,
+      { userId: args.clerkId },
+    );
+
+    return { success: true };
+  },
+});
+
+/**
+ * Update first report generation status
+ *
+ * Internal mutation used by report generation actions.
+ */
+export const setFirstReportStatus = internalMutation({
+  args: {
+    clerkId: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("generating"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User not found for Clerk ID: ${args.clerkId}`);
+    }
+
+    await ctx.db.patch(user._id, {
+      firstReportStatus: args.status,
+      updatedAt: Date.now(),
     });
 
     return { success: true };

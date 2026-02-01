@@ -17,13 +17,14 @@ pre-commit:
       run: gitleaks protect --staged --verbose --config .gitleaks.toml
 
 pre-push:
+  # Sequential prevents OOM from parallel Next.js build + Jest
+  # Convex typecheck removed (too slow, 36+ min; CI catches it instead)
+  parallel: false
   commands:
     typecheck:
       run: pnpm typecheck
     test:
       run: pnpm test --bail
-    convex:
-      run: npx convex typecheck
     build:
       run: |
         if [ "${SKIP_BUILD_CHECK:-}" = "true" ]; then
