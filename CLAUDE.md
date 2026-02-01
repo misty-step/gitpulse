@@ -152,7 +152,7 @@ const users = await ctx.runQuery(internal.users.getUsersByMidnightHour, {
 
 // Filter to only users where it's actually Sunday in their timezone
 const eligible = users.filter((u) =>
-  isLocalSunday(Date.now(), getTimezoneOrDefault(u.timezone))
+  isLocalSunday(Date.now(), getTimezoneOrDefault(u.timezone)),
 );
 ```
 
@@ -263,6 +263,7 @@ tests/utils/                # Shared test utilities
 ### Test Philosophy
 
 **Test behavior, not implementation**:
+
 ```typescript
 // Good: Test what the code does
 it("generates report with citations when events exist", async () => {
@@ -277,6 +278,7 @@ it("calls buildPrompt with correct arguments", () => {
 ```
 
 **Use AAA pattern** (Arrange-Act-Assert):
+
 ```typescript
 it("computes deterministic hash", () => {
   // Arrange
@@ -292,6 +294,7 @@ it("computes deterministic hash", () => {
 ```
 
 **Minimize mocks** - prefer real implementations:
+
 ```typescript
 // Good: Use real pure functions
 const hash = computeContentHash(data);
@@ -306,8 +309,13 @@ global.fetch = jest.fn(() => createMockResponse({ ... }));
 ### Test Utilities
 
 **Factories** (`tests/utils/factories.ts`) - Create test data with defaults:
+
 ```typescript
-import { createMockUser, createMockEvent, createMockReportContext } from "../../../tests/utils/factories";
+import {
+  createMockUser,
+  createMockEvent,
+  createMockReportContext,
+} from "../../../tests/utils/factories";
 
 const user = createMockUser(); // With defaults
 const alice = createMockUser({ ghLogin: "alice" }); // Override fields
@@ -317,8 +325,13 @@ const prEvent = createMockEvent("pr_opened", { metadata: { prNumber: 42 } });
 Available factories: `createMockUser`, `createMockRepo`, `createMockEvent`, `createMockReport`, `createMockInstallation`, `createMockGitHubUser`, `createMockWebhookPayload`, `createMockReportContext`, `createMockPrompt`, `createMockResponse`, `createMockErrorResponse`, `createMockActionCtx`
 
 **Custom Assertions** (`tests/utils/assertions.ts`) - Clear error messages:
+
 ```typescript
-import { expectValidContentHash, expectIdenticalHashes, expectValidCitation } from "../../../tests/utils/assertions";
+import {
+  expectValidContentHash,
+  expectIdenticalHashes,
+  expectValidCitation,
+} from "../../../tests/utils/assertions";
 
 expectValidContentHash(hash); // Checks SHA-256 format
 expectIdenticalHashes(hash1, hash2); // For idempotency tests
@@ -354,6 +367,7 @@ Tests run automatically on every PR:
 ### Key Test Patterns
 
 **Testing Convex Actions**:
+
 ```typescript
 import { createMockActionCtx } from "../../../tests/utils/factories";
 
@@ -369,16 +383,22 @@ it("creates event when payload is valid", async () => {
 ```
 
 **Testing GitHub API calls**:
+
 ```typescript
-import { createMockResponse, createMockErrorResponse } from "../../../tests/utils/factories";
+import {
+  createMockResponse,
+  createMockErrorResponse,
+} from "../../../tests/utils/factories";
 
 it("handles rate limit errors", async () => {
   const resetTime = Math.floor(Date.now() / 1000) + 3600;
   global.fetch = jest.fn(() =>
-    createMockErrorResponse(429, "Too Many Requests",
+    createMockErrorResponse(
+      429,
+      "Too Many Requests",
       { message: "Rate limit exceeded" },
-      { "x-ratelimit-reset": String(resetTime) }
-    )
+      { "x-ratelimit-reset": String(resetTime) },
+    ),
   );
 
   await expect(getRepository("token", "repo")).rejects.toThrow(RateLimitError);
@@ -386,14 +406,15 @@ it("handles rate limit errors", async () => {
 ```
 
 **Testing E2E flows**:
-```typescript
-import { test, expect } from '@playwright/test';
 
-test('user can sign in and access dashboard', async ({ page }) => {
-  await page.goto('/');
+```typescript
+import { test, expect } from "@playwright/test";
+
+test("user can sign in and access dashboard", async ({ page }) => {
+  await page.goto("/");
   await page.click('button:has-text("Sign in")');
-  await page.waitForURL('/dashboard', { timeout: 10000 });
-  await expect(page.locator('h1')).toContainText('Dashboard');
+  await page.waitForURL("/dashboard", { timeout: 10000 });
+  await expect(page.locator("h1")).toContainText("Dashboard");
 });
 ```
 
@@ -469,6 +490,26 @@ interface ActionResult<T> {
   timestamp: number;
 }
 ```
+
+**MANDATORY**: Use the `success()` and `failure()` helpers from `convex/lib/types.ts`:
+
+```typescript
+import {
+  ActionResult,
+  success,
+  failure,
+  createError,
+  ErrorCode,
+} from "../../lib/types";
+
+// Success
+return success(data); // Adds timestamp automatically
+
+// Failure
+return failure(createError(ErrorCode.NOT_AUTHENTICATED, "Auth required"));
+```
+
+Never define custom result types like `{ success: boolean; error?: string }` - use `ActionResult<T>`.
 
 ### Error Categories
 
@@ -655,19 +696,21 @@ The `infrastructure/` directory contains Terraform configurations for Vercel and
 ### Conventions
 
 1. **Always use current provider versions** - Check the Terraform registry for the latest version before adding providers. Outdated versions miss security fixes.
+
    ```hcl
    # Check: https://registry.terraform.io/providers/vercel/vercel/latest
    version = "~> 4.0"  # Not ~> 2.0
    ```
 
 2. **Consolidate identical rules** - Use OR-ed `condition_group` blocks instead of duplicate rules with identical actions.
+
    ```hcl
    # Good: Single rule with OR-ed conditions
    condition_group = [
      { conditions = [{ type = "path", op = "eq", value = "/api/a" }] },
      { conditions = [{ type = "path", op = "eq", value = "/api/b" }] }
    ]
-   
+
    # Bad: Two separate rules with identical actions
    ```
 
