@@ -42,6 +42,7 @@ export default function ReportsPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRetryingFirstReport, setIsRetryingFirstReport] = useState(false);
 
   const userId = clerkUser?.id;
   const githubUsername = convexUser?.githubUsername;
@@ -233,10 +234,12 @@ export default function ReportsPage() {
   };
 
   const handleRetryFirstReport = async () => {
+    if (isRetryingFirstReport) return;
+    setIsRetryingFirstReport(true);
     try {
       const result = await generateFirstReport({});
       if (!result.success) {
-        toast.error(result.error || "Failed to generate first report");
+        toast.error(result.error?.message || "Failed to generate first report");
       } else {
         toast.success("Report generation started");
       }
@@ -247,6 +250,8 @@ export default function ReportsPage() {
           : "Failed to generate first report",
       );
       console.error(error);
+    } finally {
+      setIsRetryingFirstReport(false);
     }
   };
 
@@ -277,6 +282,7 @@ export default function ReportsPage() {
         onRetry={
           firstReportStatus === "failed" ? handleRetryFirstReport : undefined
         }
+        isRetrying={isRetryingFirstReport}
       />
       <YesterdayWidget reports={reports} isLoading={reports === undefined} />
 

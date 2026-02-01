@@ -11,11 +11,13 @@ import { v } from "convex/values";
 import { action, internalAction } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { logger } from "../../lib/logger";
-
-type FirstReportResult = {
-  success: boolean;
-  error?: string;
-};
+import {
+  ActionResult,
+  success,
+  failure,
+  createError,
+  ErrorCode,
+} from "../../lib/types";
 
 /**
  * Generates the user's first report immediately after onboarding completion.
@@ -26,13 +28,13 @@ type FirstReportResult = {
  *
  * @param ctx - Convex action context
  * @param args.userId - Clerk user ID for the user
- * @returns FirstReportResult indicating success or failure with optional error message
+ * @returns ActionResult<null> indicating success or failure with error details
  */
 export const generateFirstReport = internalAction({
   args: {
     userId: v.string(),
   },
-  handler: async (ctx, args): Promise<FirstReportResult> => {
+  handler: async (ctx, args): Promise<ActionResult<null>> => {
     try {
       await ctx.runMutation(internal.users.setFirstReportStatus, {
         clerkId: args.userId,
@@ -46,7 +48,9 @@ export const generateFirstReport = internalAction({
         },
         "Failed to set first report status to generating",
       );
-      return { success: false, error: "Failed to start report generation" };
+      return failure(
+        createError(ErrorCode.UNKNOWN, "Failed to start report generation"),
+      );
     }
 
     try {
@@ -60,18 +64,18 @@ export const generateFirstReport = internalAction({
           clerkId: args.userId,
           status: "completed",
         });
-        return { success: true };
+        return success(null);
       }
 
-      await ctx.runMutation(internal.users.setFirstReportStatus, {
-        clerkId: args.userId,
-        status: "failed",
-      });
+      const errorDetails = result.error as
+        | { message?: string }
+        | string
+        | undefined;
+      const errorMessage =
+        typeof errorDetails === "string" ? errorDetails : errorDetails?.message;
 
-      return {
-        success: false,
-        error: result.error || "Report generation failed",
-      };
+      // Consolidate failure path by throwing - catch block handles status update
+      throw new Error(errorMessage || "Report generation failed");
     } catch (error) {
       logger.error(
         {
@@ -98,11 +102,12 @@ export const generateFirstReport = internalAction({
         );
       }
 
-      return {
-        success: false,
-        error:
+      return failure(
+        createError(
+          ErrorCode.UNKNOWN,
           error instanceof Error ? error.message : "Report generation failed",
-      };
+        ),
+      );
     }
   },
 });
@@ -115,19 +120,31 @@ export const generateFirstReport = internalAction({
  * delegating to the internal generateFirstReport action.
  *
  * @param ctx - Convex action context with auth
- * @returns FirstReportResult indicating success or failure with optional error message
+ * @returns ActionResult<null> indicating success or failure with error details
  */
 export const generateFirstReportManual = action({
   args: {},
-  handler: async (ctx): Promise<FirstReportResult> => {
+  handler: async (ctx): Promise<ActionResult<null>> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      return { success: false, error: "Authentication required" };
+      return failure(
+        createError(ErrorCode.NOT_AUTHENTICATED, "Authentication required"),
+      );
     }
 
-    return await ctx.runAction(
+    const result = await ctx.runAction(
       internal.actions.reports.generateFirstReport.generateFirstReport,
       { userId: identity.subject },
+    );
+    if (result.success) {
+      return success(null);
+    }
+
+    return failure(
+      createError(
+        ErrorCode.UNKNOWN,
+        result.error?.message || "Report generation failed",
+      ),
     );
   },
 });

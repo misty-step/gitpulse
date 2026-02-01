@@ -8,11 +8,11 @@ import type { Doc } from "@/convex/_generated/dataModel";
  */
 type WelcomeReportStatus = Doc<"users">["firstReportStatus"];
 
-type WelcomeReportCardProps = {
+interface WelcomeReportCardProps {
   status: WelcomeReportStatus;
   onRetry?: () => void;
   isRetrying?: boolean;
-};
+}
 
 /**
  * Displays first report generation status on the dashboard.
