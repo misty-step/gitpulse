@@ -1,11 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useAuthenticatedConvexUser } from "@/hooks/useAuthenticatedConvexUser";
+
+const STATUS_STYLES = {
+  trialing: {
+    label: "Trialing",
+    className: "bg-amber-50 border-amber-100 text-amber-700",
+  },
+  active: {
+    label: "Active",
+    className: "bg-emerald-50 border-emerald-100 text-emerald-700",
+  },
+  canceled: {
+    label: "Canceled",
+    className: "bg-zinc-50 border-zinc-200 text-zinc-700",
+  },
+  past_due: {
+    label: "Past Due",
+    className: "bg-rose-50 border-rose-100 text-rose-700",
+  },
+} as const;
+
+function normalizeTimestamp(value: number): number {
+  return value < 10_000_000_000 ? value * 1000 : value;
+}
+
+function formatShortDate(value: number): string {
+  return new Date(normalizeTimestamp(value)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatCardBrand(brand: string): string {
+  return brand
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
 
 export default function SettingsPage() {
   const { clerkUser, convexUser, isLoading } = useAuthenticatedConvexUser();
@@ -14,8 +53,10 @@ export default function SettingsPage() {
   const [dailyEnabled, setDailyEnabled] = useState(true);
   const [weeklyEnabled, setWeeklyEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
 
   const updateSettings = useMutation(api.users.updateSettings);
+  const subscription = useQuery(api.subscriptions.getByUserId, {});
 
   // Initialize form with current user settings
   // setState in render is safe here: first render has timezone="", second render condition is false
@@ -56,6 +97,26 @@ export default function SettingsPage() {
     window.location.href = "/api/auth/github";
   };
 
+  const handleManageSubscription = async () => {
+    setIsPortalLoading(true);
+    try {
+      const response = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || "Failed to open Stripe portal");
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to open Stripe portal",
+      );
+    } finally {
+      setIsPortalLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -77,6 +138,27 @@ export default function SettingsPage() {
   }
 
   const isGitHubConnected = !!convexUser.githubAccessToken;
+  const isSubscriptionLoading = subscription === undefined;
+  const hasSubscription = !!subscription;
+  const statusStyle =
+    subscription &&
+    STATUS_STYLES[subscription.status as keyof typeof STATUS_STYLES];
+  const statusLabel = subscription
+    ? (statusStyle?.label ?? subscription.status.replace(/_/g, " "))
+    : null;
+  const statusClassName =
+    statusStyle?.className ?? "bg-zinc-50 border-zinc-200 text-zinc-700";
+  const planLabel = isSubscriptionLoading
+    ? "Checking subscription..."
+    : hasSubscription
+      ? "GitPulse Pro"
+      : "No active subscription";
+  const showTrialEnds =
+    subscription?.status === "trialing" && subscription.trialEnd;
+  const showNextBilling =
+    subscription?.status === "active" && subscription.currentPeriodEnd;
+  const showPaymentMethod =
+    subscription?.paymentMethodBrand && subscription?.paymentMethodLast4;
 
   return (
     <div className="max-w-2xl mx-auto space-y-12 pb-24">
@@ -244,6 +326,69 @@ export default function SettingsPage() {
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </button>
+        </div>
+      </section>
+
+      {/* Subscription Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+            Subscription
+          </h2>
+          {subscription && statusLabel && (
+            <span
+              className={`inline-flex items-center gap-2 px-2 py-1 rounded-full border text-xs font-medium ${statusClassName}`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+              {statusLabel}
+            </span>
+          )}
+        </div>
+
+        <div className="bg-surface border border-border p-6 space-y-6">
+          <div className="flex items-start justify-between gap-6">
+            <div className="space-y-1">
+              <p className="text-xs font-mono uppercase tracking-widest text-muted">
+                Current plan
+              </p>
+              <p className="text-sm font-medium text-foreground">{planLabel}</p>
+            </div>
+            {hasSubscription ? (
+              <button
+                onClick={handleManageSubscription}
+                disabled={isPortalLoading}
+                className="text-xs font-medium text-foreground border border-border px-4 py-2 hover:bg-surface-muted transition-colors disabled:opacity-50"
+              >
+                {isPortalLoading ? "Opening..." : "Manage Subscription"}
+              </button>
+            ) : (
+              !isSubscriptionLoading && (
+                <Link
+                  href="/pricing"
+                  className="text-xs font-medium text-foreground border border-border px-4 py-2 hover:bg-surface-muted transition-colors"
+                >
+                  Upgrade to Pro
+                </Link>
+              )
+            )}
+          </div>
+
+          {hasSubscription && (
+            <div className="space-y-2 text-xs text-muted">
+              {showTrialEnds && (
+                <p>Trial ends {formatShortDate(showTrialEnds)}</p>
+              )}
+              {showNextBilling && (
+                <p>Next billing {formatShortDate(showNextBilling)}</p>
+              )}
+              {showPaymentMethod && (
+                <p>
+                  {formatCardBrand(subscription.paymentMethodBrand!)} ending in{" "}
+                  {subscription.paymentMethodLast4!}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

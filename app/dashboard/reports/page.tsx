@@ -12,6 +12,7 @@ import { useIntegrationStatus } from "@/hooks/useIntegrationStatus";
 import { IntegrationStatusBanner } from "@/components/IntegrationStatusBanner";
 import { YesterdayWidget } from "@/components/YesterdayWidget";
 import { WelcomeReportCard } from "@/components/WelcomeReportCard";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 import { getGithubInstallUrl, formatTimestamp } from "@/lib/integrationStatus";
 import type { IntegrationStatus } from "@/lib/integrationStatus";
 import { trackEvent, trackFunnel } from "@/lib/analytics";
@@ -275,170 +276,172 @@ export default function ReportsPage() {
   const lastSyncedAt = syncStatuses?.[0]?.lastSyncedAt;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <IntegrationStatusBanner />
-      <WelcomeReportCard
-        status={firstReportStatus}
-        onRetry={
-          firstReportStatus === "failed" ? handleRetryFirstReport : undefined
-        }
-        isRetrying={isRetryingFirstReport}
-      />
-      <YesterdayWidget reports={reports} isLoading={reports === undefined} />
+    <SubscriptionGate>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <IntegrationStatusBanner />
+        <WelcomeReportCard
+          status={firstReportStatus}
+          onRetry={
+            firstReportStatus === "failed" ? handleRetryFirstReport : undefined
+          }
+          isRetrying={isRetryingFirstReport}
+        />
+        <YesterdayWidget reports={reports} isLoading={reports === undefined} />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-        <div className="flex items-center gap-4">
-          {lastSyncedAt && (
-            <span className="text-xs text-muted">
-              Last sync: {formatTimestamp(lastSyncedAt)}
-            </span>
-          )}
-          {hasInstallation && (
-            <button
-              onClick={handleSyncClick}
-              disabled={isSyncing || isActivelySyncing}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSyncing || isActivelySyncing ? "Syncing..." : "Sync Now"}
-            </button>
-          )}
-          {hasInstallation && (
-            <button
-              onClick={handleBackfillClick}
-              disabled={isBackfilling || isSyncing || isActivelySyncing}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isBackfilling ? "Backfilling..." : "Backfill 7 Days"}
-            </button>
-          )}
-          {hasInstallation && process.env.NODE_ENV !== "production" && (
-            <button
-              onClick={handleRegenerateClick}
-              disabled={
-                isRegenerating ||
-                isSyncing ||
-                isActivelySyncing ||
-                isBackfilling
-              }
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isRegenerating ? "Regenerating..." : "Regenerate 7 Days"}
-            </button>
-          )}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+          <div className="flex items-center gap-4">
+            {lastSyncedAt && (
+              <span className="text-xs text-muted">
+                Last sync: {formatTimestamp(lastSyncedAt)}
+              </span>
+            )}
+            {hasInstallation && (
+              <button
+                onClick={handleSyncClick}
+                disabled={isSyncing || isActivelySyncing}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSyncing || isActivelySyncing ? "Syncing..." : "Sync Now"}
+              </button>
+            )}
+            {hasInstallation && (
+              <button
+                onClick={handleBackfillClick}
+                disabled={isBackfilling || isSyncing || isActivelySyncing}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-surface-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isBackfilling ? "Backfilling..." : "Backfill 7 Days"}
+              </button>
+            )}
+            {hasInstallation && process.env.NODE_ENV !== "production" && (
+              <button
+                onClick={handleRegenerateClick}
+                disabled={
+                  isRegenerating ||
+                  isSyncing ||
+                  isActivelySyncing ||
+                  isBackfilling
+                }
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isRegenerating ? "Regenerating..." : "Regenerate 7 Days"}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Loading State */}
-      {reports === undefined ? (
-        <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="animate-pulse rounded-xl border border-border bg-surface p-6"
-            >
-              <div className="mb-3 h-6 w-3/4 rounded bg-surface-muted" />
-              <div className="mb-2 h-4 w-1/2 rounded bg-surface-muted" />
-              <div className="h-4 w-1/4 rounded bg-surface-muted" />
-            </div>
-          ))}
-        </div>
-      ) : reports.length === 0 ? (
-        <ReportsEmptyState status={integrationStatus} />
-      ) : (
-        // Report Cards
-        <>
+        {/* Loading State */}
+        {reports === undefined ? (
           <div className="space-y-4">
-            {reports.map((report) => {
-              const isWeekly = report.scheduleType === "weekly";
-              const citationCount = report.citations?.length ?? 0;
-              const diagnostic = getReportDiagnostic(report);
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="animate-pulse rounded-xl border border-border bg-surface p-6"
+              >
+                <div className="mb-3 h-6 w-3/4 rounded bg-surface-muted" />
+                <div className="mb-2 h-4 w-1/2 rounded bg-surface-muted" />
+                <div className="h-4 w-1/4 rounded bg-surface-muted" />
+              </div>
+            ))}
+          </div>
+        ) : reports.length === 0 ? (
+          <ReportsEmptyState status={integrationStatus} />
+        ) : (
+          // Report Cards
+          <>
+            <div className="space-y-4">
+              {reports.map((report) => {
+                const isWeekly = report.scheduleType === "weekly";
+                const citationCount = report.citations?.length ?? 0;
+                const diagnostic = getReportDiagnostic(report);
 
-              return (
-                <div
-                  key={report._id}
-                  className="group rounded-xl border border-border bg-surface p-6 hover:bg-surface-muted/30 transition-colors"
-                >
-                  <Link
-                    href={`/dashboard/reports/${report._id}`}
-                    prefetch={true}
-                    className="block"
+                return (
+                  <div
+                    key={report._id}
+                    className="group rounded-xl border border-border bg-surface p-6 hover:bg-surface-muted/30 transition-colors"
                   >
-                    {/* Badge + Date */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <span
-                        className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ${
-                          isWeekly
-                            ? "bg-foreground/10 text-foreground"
-                            : "bg-surface-muted text-muted"
-                        }`}
-                      >
-                        {isWeekly ? "Weekly" : "Daily"}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {formatReportDate(report.startDate, report.endDate)}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">
-                      {report.title}
-                    </h2>
-
-                    {/* Description */}
-                    {report.description && (
-                      <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed mb-4">
-                        {report.description}
-                      </p>
-                    )}
-
-                    {/* Footer: Citations + Diagnostic */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-semibold tracking-tight">
-                          {citationCount}
+                    <Link
+                      href={`/dashboard/reports/${report._id}`}
+                      prefetch={true}
+                      className="block"
+                    >
+                      {/* Badge + Date */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider rounded ${
+                            isWeekly
+                              ? "bg-foreground/10 text-foreground"
+                              : "bg-surface-muted text-muted"
+                          }`}
+                        >
+                          {isWeekly ? "Weekly" : "Daily"}
                         </span>
-                        <span className="text-[10px] font-mono text-muted uppercase tracking-widest">
-                          Citations
+                        <span className="text-xs text-muted">
+                          {formatReportDate(report.startDate, report.endDate)}
                         </span>
                       </div>
 
-                      {diagnostic && (
-                        <span
-                          className={`text-xs font-medium ${diagnostic.className}`}
-                        >
-                          {diagnostic.label}
-                        </span>
+                      {/* Title */}
+                      <h2 className="text-lg font-semibold tracking-tight text-foreground mb-2">
+                        {report.title}
+                      </h2>
+
+                      {/* Description */}
+                      {report.description && (
+                        <p className="text-sm text-foreground-muted line-clamp-2 leading-relaxed mb-4">
+                          {report.description}
+                        </p>
                       )}
-                    </div>
-                  </Link>
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleDelete(report._id);
-                    }}
-                    disabled={deletingId === report._id}
-                    className="mt-4 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
-                  >
-                    {deletingId === report._id ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+                      {/* Footer: Citations + Diagnostic */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-semibold tracking-tight">
+                            {citationCount}
+                          </span>
+                          <span className="text-[10px] font-mono text-muted uppercase tracking-widest">
+                            Citations
+                          </span>
+                        </div>
 
-          {/* Infinite scroll trigger */}
-          {reports.length >= currentLimit && (
-            <div ref={loadMoreRef} className="mt-8 flex justify-center py-4">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                        {diagnostic && (
+                          <span
+                            className={`text-xs font-medium ${diagnostic.className}`}
+                          >
+                            {diagnostic.label}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+
+                    {/* Delete Button */}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDelete(report._id);
+                      }}
+                      disabled={deletingId === report._id}
+                      className="mt-4 text-xs font-medium text-muted hover:text-rose-600 transition-colors disabled:opacity-50"
+                    >
+                      {deletingId === report._id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </>
-      )}
-    </div>
+
+            {/* Infinite scroll trigger */}
+            {reports.length >= currentLimit && (
+              <div ref={loadMoreRef} className="mt-8 flex justify-center py-4">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </SubscriptionGate>
   );
 }
 

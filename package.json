@@ -31,6 +31,7 @@
     "@clerk/nextjs": "^6.37.0",
     "@openrouter/ai-sdk-provider": "^1.5.2",
     "@sentry/nextjs": "^10.27.0",
+    "@stripe/stripe-js": "^8.7.0",
     "ai": "^5.0.108",
     "convex": "^1.29.3",
     "isomorphic-dompurify": "^2.32.0",
@@ -46,6 +47,7 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "sonner": "^2.0.7",
+    "stripe": "^20.3.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.6"
   },
