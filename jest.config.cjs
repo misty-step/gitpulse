@@ -9,6 +9,7 @@ module.exports = {
     "<rootDir>/app",
   ],
   extensionsToTreatAsEsm: [".ts", ".tsx"],
+  transformIgnorePatterns: ["/node_modules/(?!marked/)"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^.+/_generated/server$": "<rootDir>/tests/mocks/convexServer.ts",
