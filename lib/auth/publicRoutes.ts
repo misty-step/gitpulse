@@ -3,6 +3,7 @@ import { createRouteMatcher } from "@clerk/nextjs/server";
 // Immutable source of truth for public paths (keep data readonly to avoid drift).
 export const PUBLIC_ROUTES = [
   "/",
+  "/pricing(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",

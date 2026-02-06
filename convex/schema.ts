@@ -582,4 +582,63 @@ export default defineSchema({
     completedAt: v.number(),
     createdAt: v.number(),
   }).index("by_type_and_createdAt", ["type", "createdAt"]),
+
+  /**
+   * Customers table - links Clerk users to Stripe customer records
+   */
+  customers: defineTable({
+    userId: v.string(),
+    stripeCustomerId: v.string(),
+    email: v.optional(v.string()),
+    name: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_stripeCustomerId", ["stripeCustomerId"]),
+
+  /**
+   * Subscriptions table - Stripe subscription state for a user
+   */
+  subscriptions: defineTable({
+    userId: v.string(),
+    customerId: v.id("customers"),
+    stripeSubscriptionId: v.string(),
+    stripePriceId: v.string(),
+    stripeProductId: v.optional(v.string()),
+    status: v.union(
+      v.literal("trialing"),
+      v.literal("active"),
+      v.literal("canceled"),
+      v.literal("incomplete"),
+      v.literal("incomplete_expired"),
+      v.literal("past_due"),
+      v.literal("unpaid"),
+      v.literal("paused"),
+    ),
+    currentPeriodStart: v.number(),
+    currentPeriodEnd: v.number(),
+    trialStart: v.optional(v.number()),
+    trialEnd: v.optional(v.number()),
+    cancelAtPeriodEnd: v.boolean(),
+    canceledAt: v.optional(v.number()),
+    paymentMethodBrand: v.optional(v.string()),
+    paymentMethodLast4: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"])
+    .index("by_status", ["status"])
+    .index("by_userId_and_status", ["userId", "status"]),
+
+  /**
+   * StripeEvents table - idempotency tracking for Stripe webhooks
+   */
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    eventType: v.string(),
+    processedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_eventId", ["eventId"]),
 });
