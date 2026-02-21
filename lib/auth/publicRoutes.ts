@@ -4,6 +4,7 @@ import { createRouteMatcher } from "@clerk/nextjs/server";
 export const PUBLIC_ROUTES = [
   "/",
   "/pricing(.*)",
+  "/ingest(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
