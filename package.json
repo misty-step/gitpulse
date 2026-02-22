@@ -32,7 +32,7 @@
     "@openrouter/ai-sdk-provider": "^1.5.2",
     "@sentry/nextjs": "^10.27.0",
     "@stripe/stripe-js": "^8.7.0",
-    "ai": "^5.0.108",
+    "ai": "^5.0.137",
     "convex": "^1.29.3",
     "isomorphic-dompurify": "^2.32.0",
     "jsonwebtoken": "^9.0.3",
