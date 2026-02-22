@@ -76,7 +76,7 @@
     "jsdom": "^27.2.0",
     "lefthook": "^2.0.4",
     "prettier": "^3.3.3",
-    "promptfoo": "^0.120.23",
+    "promptfoo": "^0.120.25",
     "require-in-the-middle": "^8.0.1",
     "tailwindcss": "^4",
     "ts-jest": "29",
