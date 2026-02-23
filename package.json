@@ -27,7 +27,7 @@
     "prepare": "if [ -d .git ]; then lefthook install; else echo \"Skipping lefthook (no .git)\"; fi"
   },
   "dependencies": {
-    "@ai-sdk/google": "^2.0.45",
+    "@ai-sdk/google": "^3.0.30",
     "@clerk/nextjs": "^6.37.3",
     "@openrouter/ai-sdk-provider": "^1.5.2",
     "@sentry/nextjs": "^10.27.0",
