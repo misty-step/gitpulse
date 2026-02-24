@@ -58,5 +58,7 @@ module.exports = {
       statements: 60,
     },
   },
+  // Use V8 coverage instrumentation to avoid Babel-plugin dependency issues.
+  coverageProvider: "v8",
   coverageReporters: ["text", "lcov", "html", "json-summary"],
 };
