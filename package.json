@@ -34,7 +34,7 @@
     "@stripe/stripe-js": "^8.7.0",
     "ai": "^5.0.108",
     "convex": "^1.29.3",
-    "isomorphic-dompurify": "^2.32.0",
+    "isomorphic-dompurify": "^3.0.0",
     "jsonwebtoken": "^9.0.3",
     "langfuse": "^3.38.6",
     "lucide-react": "^0.561.0",
