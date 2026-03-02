@@ -54,7 +54,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.29.8",
     "@clerk/testing": "^1.13.35",
-    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/eslintrc": "^3.3.4",
     "@jest/globals": "^30.2.0",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
@@ -76,7 +76,7 @@
     "jsdom": "^27.2.0",
     "lefthook": "^2.0.4",
     "prettier": "^3.3.3",
-    "promptfoo": "^0.120.23",
+    "promptfoo": "^0.120.25",
     "require-in-the-middle": "^8.0.1",
     "tailwindcss": "^4",
     "ts-jest": "29",
