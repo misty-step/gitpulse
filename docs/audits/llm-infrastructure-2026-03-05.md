@@ -65,7 +65,7 @@ Scope: `apps/*`, `packages/*`, CI workflows, LLM prompt/model/runtime contracts.
 ### 5) Bun Policy Alignment
 
 - Converted `ci.yml` install/audit/check steps from pnpm to Bun.
-- Reworked `enforce-pnpm.yml` semantics to enforce Bun lockfile usage.
+- Reworked package-manager policy to enforce Bun lockfile usage (`enforce-bun.yml`).
 
 ## Research Notes (Web-Grounded)
 
