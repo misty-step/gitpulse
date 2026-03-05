@@ -1,0 +1,51 @@
+:root {
+  --bg: #0a0d10;
+  --surface: #12181f;
+  --surface-muted: #1a222c;
+  --text: #f4f7fb;
+  --text-muted: #91a0b3;
+  --accent: #4dd4ac;
+  --danger: #ff6e6e;
+  --border: #283545;
+  --mono: "Berkeley Mono", "SF Mono", "JetBrains Mono", monospace;
+  --sans: "Söhne", "Inter", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at 0% 0%, #182331 0%, var(--bg) 40%);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+a {
+  color: var(--accent);
+}
+
+main {
+  margin: 0 auto;
+  max-width: 1200px;
+  padding: 24px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

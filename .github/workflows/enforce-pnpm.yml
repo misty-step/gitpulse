@@ -1,4 +1,4 @@
-name: Enforce pnpm Package Manager
+name: Enforce Bun Package Manager
 
 on:
   pull_request:
@@ -8,60 +8,64 @@ on:
 
 jobs:
   check-package-manager:
-    name: Verify pnpm Usage
+    name: Verify Bun Usage
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for npm lockfile
+      - name: Reject npm lockfile
         run: |
           if [ -f "package-lock.json" ]; then
             echo "❌ Error: package-lock.json found!"
-            echo "This project uses pnpm. Please remove package-lock.json and use pnpm instead."
+            echo "This project uses Bun. Remove package-lock.json and run bun install."
             echo ""
             echo "To fix this:"
             echo "1. Delete package-lock.json"
-            echo "2. Run 'pnpm install' to generate pnpm-lock.yaml"
-            echo "3. Commit pnpm-lock.yaml instead"
+            echo "2. Run 'bun install' to generate bun.lock"
+            echo "3. Commit bun.lock"
             exit 1
           fi
 
-      - name: Check for yarn lockfile
+      - name: Reject yarn lockfile
         run: |
           if [ -f "yarn.lock" ]; then
             echo "❌ Error: yarn.lock found!"
-            echo "This project uses pnpm. Please remove yarn.lock and use pnpm instead."
+            echo "This project uses Bun. Remove yarn.lock and run bun install."
             echo ""
             echo "To fix this:"
             echo "1. Delete yarn.lock"
-            echo "2. Run 'pnpm install' to generate pnpm-lock.yaml"
-            echo "3. Commit pnpm-lock.yaml instead"
+            echo "2. Run 'bun install' to generate bun.lock"
+            echo "3. Commit bun.lock"
             exit 1
           fi
 
-      - name: Verify pnpm lockfile exists
+      - name: Reject pnpm lockfile
         run: |
-          if [ ! -f "pnpm-lock.yaml" ]; then
-            echo "⚠️ Warning: pnpm-lock.yaml not found!"
-            echo "Please run 'pnpm install' to generate the lockfile."
+          if [ -f "pnpm-lock.yaml" ]; then
+            echo "❌ Error: pnpm-lock.yaml found!"
+            echo "Use Bun lockfile only."
             exit 1
           fi
-          echo "✅ pnpm-lock.yaml found - package manager check passed!"
+          echo "✅ pnpm-lock.yaml not present"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        # Version is automatically detected from package.json's packageManager field
+      - name: Verify bun.lock exists
+        run: |
+          if [ ! -f "bun.lock" ]; then
+            echo "❌ Error: bun.lock missing"
+            echo "Run bun install and commit bun.lock."
+            exit 1
+          fi
+          echo "✅ bun.lock found"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '22.22.0'
-          cache: 'pnpm'
+          bun-version: "1.3.9"
 
-      - name: Validate pnpm installation works
+      - name: Validate bun install works
         run: |
-          echo "Testing pnpm installation..."
-          pnpm install --frozen-lockfile
-          echo "✅ pnpm installation successful!"
+          echo "Testing bun installation..."
+          bun install --frozen-lockfile
+          echo "✅ bun installation successful!"
