@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "packages/agent-core/src/**"
+      - "packages/schemas/src/**"
       - "apps/cli/src/**"
       - "apps/web/app/api/agent/**"
       - "scripts/audit-llm-models.sh"

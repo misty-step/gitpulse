@@ -9,6 +9,8 @@ export type LlmRuntimeConfig = {
   primaryModel: string;
   fallbackModels: string[];
   maxSteps: number;
+  maxTotalMs: number;
+  retryDelayMs: number;
   telemetryEnabled: boolean;
   appName: string;
   referer: string;
@@ -31,7 +33,9 @@ export function readLlmRuntimeConfig(
     primaryModel,
     fallbackModels,
     maxSteps: parsePositiveInt(env.GITPULSE_LLM_MAX_STEPS, 6),
-    telemetryEnabled: parseBoolean(env.GITPULSE_LLM_TELEMETRY, true),
+    maxTotalMs: parsePositiveInt(env.GITPULSE_LLM_MAX_TOTAL_MS, 15_000),
+    retryDelayMs: parsePositiveInt(env.GITPULSE_LLM_RETRY_DELAY_MS, 750),
+    telemetryEnabled: parseBoolean(env.GITPULSE_LLM_TELEMETRY, false),
     appName: env.GITPULSE_OPENROUTER_APP_NAME ?? "GitPulse",
     referer: env.GITPULSE_OPENROUTER_REFERER ?? "https://gitpulse.local",
     promptVersion: env.GITPULSE_PROMPT_VERSION ?? "2026-03-05.v1",
@@ -43,8 +47,9 @@ export function buildModelChain(input: {
   overrideModel?: string;
 }): string[] {
   const override = cleanModelId(input.overrideModel);
-  const primary = override ?? input.config.primaryModel;
-  const chain = [primary, ...input.config.fallbackModels];
+  const chain = override
+    ? [override, input.config.primaryModel, ...input.config.fallbackModels]
+    : [input.config.primaryModel, ...input.config.fallbackModels];
   return dedupe(chain);
 }
 
@@ -82,8 +87,13 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
     return fallback;
   }
 
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  const normalized = value.trim();
+  if (!/^[1-9]\d*$/.test(normalized)) {
+    return fallback;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : fallback;
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {

@@ -39,6 +39,7 @@ export function AgentShell() {
 
     setLoading(true);
     setError(null);
+    setAnswer(null);
 
     try {
       const response = await fetch("/api/agent", {

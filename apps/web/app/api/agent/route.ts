@@ -29,13 +29,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json(answer);
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
+    }
+
     if (error instanceof z.ZodError) {
       const message = error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join(", ");
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
 

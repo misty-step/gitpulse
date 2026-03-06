@@ -97,4 +97,35 @@ describe("runGitPulseAgent", () => {
       })
     ).rejects.toThrow("GitHub exploded");
   });
+
+  test("falls back deterministically when the narrative generator reports empty output", async () => {
+    const answer = await runGitPulseAgent({
+      question: "What happened this week?",
+      window: WINDOW,
+      scope: SCOPE,
+      activitySource,
+      narrativeGenerator: async () => ({
+        text: null,
+        warnings: ["LLM returned empty narrative output; using deterministic fallback."],
+      }),
+    });
+
+    expect(answer.answer).toContain("Observed 4 total events");
+    expect(answer.answer).toContain("LLM returned empty narrative output; using deterministic fallback.");
+  });
+
+  test("uses narrative output when the narrative generator succeeds", async () => {
+    const answer = await runGitPulseAgent({
+      question: "What happened this week?",
+      window: WINDOW,
+      scope: SCOPE,
+      activitySource,
+      narrativeGenerator: async () => ({
+        text: "Narrative response from LLM.",
+        warnings: [],
+      }),
+    });
+
+    expect(answer.answer).toBe("Narrative response from LLM.");
+  });
 });

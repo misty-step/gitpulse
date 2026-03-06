@@ -36,11 +36,22 @@ export type RunGitPulseAgentInput = {
   githubToken?: string;
   modelId?: string;
   activitySource?: ActivitySource;
+  narrativeGenerator?: NarrativeGenerator;
 };
+
+type LlmNarrativeResult = {
+  text: string | null;
+  warnings: string[];
+};
+
+type NarrativeGenerator = (
+  input: MaybeGenerateAnswerInput
+) => Promise<LlmNarrativeResult>;
 
 export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<AgentAnswer> {
   const window = TimeWindowSchema.parse(input.window);
   const scope = normalizeScope(input.scope);
+  // Production defaults to the live GitHub collector unless tests inject a stub source.
   const activitySource = input.activitySource ?? fetchActivityWindow;
 
   const baseData = await activitySource({
@@ -53,27 +64,24 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
   const citations = buildCitations(baseData.events);
   const fallbackInsights = deterministicInsights(metrics);
 
-  let answer = buildFallbackAnswer({
-    question: input.question,
-    scope,
-    window,
-    metrics,
-    warnings: baseData.warnings,
-  });
-
-  const llmAnswer = await maybeGenerateLlmAnswer({
+  const llmResult = await (input.narrativeGenerator ?? maybeGenerateLlmAnswer)({
     question: input.question,
     scope,
     window,
     githubToken: input.githubToken,
-    fallbackAnswer: answer,
     modelId: input.modelId,
     activitySource,
   });
 
-  if (llmAnswer) {
-    answer = llmAnswer;
-  }
+  const answer =
+    llmResult.text ??
+    buildFallbackAnswer({
+      question: input.question,
+      scope,
+      window,
+      metrics,
+      warnings: [...baseData.warnings, ...llmResult.warnings],
+    });
 
   const blocks = buildBlocks(metrics, baseData.events, fallbackInsights);
 
@@ -91,15 +99,14 @@ type MaybeGenerateAnswerInput = {
   scope: Scope;
   window: TimeWindow;
   githubToken?: string;
-  fallbackAnswer: string;
   modelId?: string;
   activitySource: ActivitySource;
 };
 
-async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<string | null> {
+async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<LlmNarrativeResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return null;
+    return { text: null, warnings: [] };
   }
 
   const llmConfig = readLlmRuntimeConfig();
@@ -114,15 +121,26 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
       "X-Title": llmConfig.appName,
     },
   });
+  const startedAt = Date.now();
+  let sawEmptyResponse = false;
+  let sawError = false;
 
-  for (const modelId of modelChain) {
+  for (const [index, modelId] of modelChain.entries()) {
+    if (Date.now() - startedAt >= llmConfig.maxTotalMs) {
+      return {
+        text: null,
+        warnings: ["LLM narrative budget exhausted; using deterministic fallback."],
+      };
+    }
+
     const agent = new Agent({
       model: openrouter.chat(modelId),
       stopWhen: stepCountIs(llmConfig.maxSteps),
       system: buildAgentSystemPrompt(llmConfig.promptVersion),
       tools: {
         get_activity_window: tool({
-          description: "Fetch git activity for a time window, repos/orgs/contributors scope.",
+          description:
+            "Fetch git activity for a time window, repos/orgs/contributors scope. Returns top 60 most recent events sorted descending by timestamp plus deterministic metrics.",
           inputSchema: z.object({
             window: TimeWindowSchema.optional(),
             scope: ScopeSchema.optional(),
@@ -185,7 +203,7 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
       },
     });
 
-    const startedAt = Date.now();
+    const attemptStartedAt = Date.now();
     try {
       const result = await agent.generate({
         prompt: buildAgentUserPrompt({
@@ -200,25 +218,46 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
         enabled: llmConfig.telemetryEnabled,
         modelId,
         status: trimmed.length > 0 ? "success" : "empty",
-        latencyMs: Date.now() - startedAt,
+        latencyMs: Date.now() - attemptStartedAt,
         usage: extractUsage(result),
       });
 
       if (trimmed.length > 0) {
-        return trimmed;
+        return { text: trimmed, warnings: [] };
       }
+
+      sawEmptyResponse = true;
     } catch (error) {
+      sawError = true;
       recordLlmAttempt({
         enabled: llmConfig.telemetryEnabled,
         modelId,
         status: "error",
-        latencyMs: Date.now() - startedAt,
+        latencyMs: Date.now() - attemptStartedAt,
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    if (index < modelChain.length - 1) {
+      await sleep(backoffWithJitter(llmConfig.retryDelayMs));
+    }
   }
 
-  return null;
+  if (sawEmptyResponse) {
+    return {
+      text: null,
+      warnings: ["LLM returned empty narrative output; using deterministic fallback."],
+    };
+  }
+
+  if (sawError) {
+    return {
+      text: null,
+      warnings: ["LLM narrative unavailable after fallback attempts; using deterministic fallback."],
+    };
+  }
+
+  return { text: null, warnings: [] };
 }
 
 function extractUsage(result: unknown): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
@@ -244,6 +283,15 @@ function toNumber(value: unknown): number | undefined {
   }
 
   return value;
+}
+
+function backoffWithJitter(delayMs: number): number {
+  const jitter = Math.floor(Math.random() * Math.max(100, Math.floor(delayMs / 3)));
+  return delayMs + jitter;
+}
+
+async function sleep(delayMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function buildFallbackAnswer(input: {

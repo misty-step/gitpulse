@@ -104,8 +104,8 @@ export function BlockRenderer({ block }: { block: UiBlock }) {
       <section className="card" style={{ padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>{block.title}</h3>
         <ul style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 8 }}>
-          {block.insights.map((insight) => (
-            <li key={insight}>{insight}</li>
+          {block.insights.map((insight, index) => (
+            <li key={`${index}-${insight}`}>{insight}</li>
           ))}
         </ul>
       </section>

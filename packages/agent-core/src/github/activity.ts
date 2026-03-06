@@ -207,7 +207,7 @@ async function fetchRepoEvents(
     }
   }
 
-  for (const pull of candidatePulls.slice(0, 20)) {
+  for (const pull of candidatePulls) {
     try {
       const reviews = await client.getPagedJson<GitHubReview>(
         `${repoPath}/pulls/${pull.number}/reviews?per_page=100`,

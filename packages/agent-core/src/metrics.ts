@@ -56,7 +56,7 @@ export function computeMetrics(events: ActivityEvent[]): ActivityMetrics {
     reviewCount,
     contributors: [...contributorMap.entries()]
       .map(([login, eventCount]) => ({ login, eventCount }))
-      .sort((a, b) => b.eventCount - a.eventCount),
+      .sort((a, b) => b.eventCount - a.eventCount || a.login.localeCompare(b.login)),
     repos: [...repoMap.entries()]
       .map(([repo, value]) => ({
         repo,
@@ -66,11 +66,15 @@ export function computeMetrics(events: ActivityEvent[]): ActivityMetrics {
         reviewCount: value.reviewCount,
         totalEvents: value.totalEvents,
       }))
-      .sort((a, b) => b.totalEvents - a.totalEvents),
+      .sort((a, b) => b.totalEvents - a.totalEvents || a.repo.localeCompare(b.repo)),
   };
 }
 
 export function buildCitations(events: ActivityEvent[], max = 25): Citation[] {
+  if (max <= 0) {
+    return [];
+  }
+
   const seen = new Set<string>();
   const citations: Citation[] = [];
 
@@ -79,15 +83,15 @@ export function buildCitations(events: ActivityEvent[], max = 25): Citation[] {
       continue;
     }
 
+    if (citations.length >= max) {
+      break;
+    }
+
     seen.add(event.url);
     citations.push({
       label: `[${event.repo}] ${event.title}`,
       url: event.url,
     });
-
-    if (citations.length >= max) {
-      break;
-    }
   }
 
   return citations;

@@ -1,5 +1,3 @@
-const GITHUB_API_BASE = process.env.GITPULSE_GITHUB_API_BASE ?? "https://api.github.com";
-
 export class GitHubError extends Error {
   readonly status: number;
   readonly path: string;
@@ -15,6 +13,8 @@ export class GitHubError extends Error {
 export type GitHubClientOptions = {
   token?: string;
   userAgent?: string;
+  baseUrl?: string;
+  timeoutMs?: number;
 };
 
 type GitHubHeaders = Record<string, string>;
@@ -22,16 +22,18 @@ type GitHubHeaders = Record<string, string>;
 export class GitHubClient {
   private readonly token?: string;
   private readonly userAgent: string;
+  private readonly baseUrl: string;
+  private readonly timeoutMs: number;
 
   constructor(options: GitHubClientOptions = {}) {
     this.token = options.token;
     this.userAgent = options.userAgent ?? "gitpulse-agentic/0.2";
+    this.baseUrl = options.baseUrl ?? process.env.GITPULSE_GITHUB_API_BASE ?? "https://api.github.com";
+    this.timeoutMs = options.timeoutMs ?? 15_000;
   }
 
   async getJson<T>(path: string): Promise<T> {
-    const response = await fetch(`${GITHUB_API_BASE}${path}`, {
-      headers: this.headers(),
-    });
+    const response = await this.request(path);
 
     if (!response.ok) {
       const body = summarizeErrorBody(await response.text());
@@ -52,9 +54,7 @@ export class GitHubClient {
     let nextPath: string | null = path;
 
     while (nextPath && pageCount < maxPages) {
-      const response = await fetch(`${GITHUB_API_BASE}${nextPath}`, {
-        headers: this.headers(),
-      });
+      const response = await this.request(nextPath);
 
       if (!response.ok) {
         const body = summarizeErrorBody(await response.text());
@@ -80,6 +80,25 @@ export class GitHubClient {
       "User-Agent": this.userAgent,
       ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
     };
+  }
+
+  private async request(path: string): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      return await fetch(`${this.baseUrl}${path}`, {
+        headers: this.headers(),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw new GitHubError(408, path, `GitHub request timed out after ${this.timeoutMs}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 }
 
@@ -113,4 +132,8 @@ function summarizeErrorBody(body: string): string {
   }
 
   return `${normalized.slice(0, 197)}...`;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
