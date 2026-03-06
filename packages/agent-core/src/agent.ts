@@ -66,7 +66,6 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
 
   const metrics = computeMetrics(baseData.events);
   const citations = buildCitations(baseData.events);
-  const fallbackInsights = deterministicInsights(metrics);
 
   const llmResult = await (input.narrativeGenerator ?? maybeGenerateLlmAnswer)({
     question: input.question,
@@ -87,6 +86,7 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
       warnings: [...baseData.warnings, ...llmResult.warnings],
     });
 
+  const fallbackInsights = llmResult.text === null ? deterministicInsights(metrics) : [];
   const blocks = buildBlocks(metrics, baseData.events, fallbackInsights);
 
   return AgentAnswerSchema.parse({
@@ -215,14 +215,17 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
     try {
       // ai@5.0.144 forwards generate() options to generateText() at runtime,
       // including abortSignal, even though the public Agent.generate typing omits it.
-      const result = await agent.generate({
+      const generateInput: Parameters<typeof agent.generate>[0] & {
+        abortSignal: AbortSignal;
+      } = {
         prompt: buildAgentUserPrompt({
           question: input.question,
           scope: input.scope,
           window: input.window,
         }),
         abortSignal: attemptController.signal,
-      } as never);
+      };
+      const result = await agent.generate(generateInput as Parameters<typeof agent.generate>[0]);
 
       const trimmed = result.text.trim();
       recordLlmAttempt({

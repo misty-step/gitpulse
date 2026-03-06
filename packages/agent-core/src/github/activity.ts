@@ -106,7 +106,7 @@ async function resolveRepos(
         }
       }
     } catch (error) {
-      warnings.push(`Could not resolve org ${org}: ${(error as Error).message}`);
+      warnings.push(`Could not resolve org ${org}: ${errorMessage(error)}`);
     }
 
     if (repos.size >= maxRepos) {
@@ -128,7 +128,7 @@ async function resolveRepos(
           }
         }
       } catch (error) {
-        warnings.push(`Could not resolve repos for ${contributor}: ${(error as Error).message}`);
+        warnings.push(`Could not resolve repos for ${contributor}: ${errorMessage(error)}`);
       }
 
       if (repos.size >= maxRepos) {
@@ -245,7 +245,7 @@ async function fetchRepoEvents(
         });
       }
     } catch (error) {
-      warnings.push(`Could not fetch reviews for ${repo}#${pull.number}: ${(error as Error).message}`);
+      warnings.push(`Could not fetch reviews for ${repo}#${pull.number}: ${errorMessage(error)}`);
     }
   }
 
@@ -271,4 +271,8 @@ function toIso(value: string): string {
 
 function firstLine(value: string): string {
   return value.split("\n")[0]?.trim() ?? "";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

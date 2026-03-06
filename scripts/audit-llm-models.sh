@@ -50,7 +50,7 @@ search_active "(gpt-|claude-|gemini-|o[34]-|openrouter|OPENROUTER_API_KEY|GITPUL
 
 echo
 echo "-- Hardcoded primary-model anti-pattern check --"
-if search_active "openrouter\\.chat\\(\\s*[\"']" | grep -q .; then
+if search_active "openrouter\\.chat\\(\\s*[\"'\`]" | grep -q .; then
   echo "FAIL: direct hardcoded model in runtime. Use llm/config.ts."
   exit 1
 fi

@@ -10,7 +10,6 @@ const RequestSchema = z.object({
   window: TimeWindowSchema,
   scope: ScopeSchema.optional(),
 });
-let warnedMissingGithubToken = false;
 
 export async function POST(request: Request) {
   const disabledResponse = productionGuard(request);
@@ -62,10 +61,9 @@ function productionGuard(request: Request) {
 }
 
 function warnIfGithubTokenMissing() {
-  if (process.env.GITHUB_TOKEN || process.env.NODE_ENV !== "production" || warnedMissingGithubToken) {
+  if (process.env.GITHUB_TOKEN || process.env.NODE_ENV !== "production") {
     return;
   }
 
-  warnedMissingGithubToken = true;
   console.warn("[api/agent] no GITHUB_TOKEN configured; requests use GitHub's unauthenticated rate limit.");
 }

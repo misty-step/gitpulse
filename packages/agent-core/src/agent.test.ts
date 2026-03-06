@@ -127,6 +127,7 @@ describe("runGitPulseAgent", () => {
     });
 
     expect(answer.answer).toBe("Narrative response from LLM.");
+    expect(answer.blocks.some((block) => block.type === "insight_list")).toBe(false);
   });
 
   test("describes empty repo and org scope truthfully in fallback output", async () => {
