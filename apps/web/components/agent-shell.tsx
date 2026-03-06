@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { AgentAnswer, UiBlock } from "@gitpulse/schemas";
 
@@ -14,22 +14,20 @@ type ScopeFields = {
   contributors: string;
 };
 
-const DEFAULT_SCOPE: ScopeFields = {
-  from: isoDaysAgo(7),
-  to: new Date().toISOString(),
-  repos: "",
-  orgs: "",
-  contributors: "",
-};
-
 export function AgentShell() {
   const [question, setQuestion] = useState("What did we ship this week and where are we blocked?");
-  const [scope, setScope] = useState<ScopeFields>(DEFAULT_SCOPE);
+  const [scope, setScope] = useState<ScopeFields>(() => ({
+    from: isoDaysAgo(7),
+    to: new Date().toISOString(),
+    repos: "",
+    orgs: "",
+    contributors: "",
+  }));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<AgentAnswer | null>(null);
 
-  const canSubmit = useMemo(() => question.trim().length > 0 && !loading, [question, loading]);
+  const canSubmit = question.trim().length > 0 && !loading;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();

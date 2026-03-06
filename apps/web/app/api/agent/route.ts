@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
+    console.error("[api/agent] unhandled error", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }

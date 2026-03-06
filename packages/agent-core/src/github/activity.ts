@@ -23,7 +23,7 @@ type GitHubPullRequest = {
   html_url: string;
   created_at: string;
   merged_at: string | null;
-  user: { login: string };
+  user: { login: string } | null;
 };
 
 type GitHubReview = {
@@ -185,7 +185,8 @@ async function fetchRepoEvents(
   );
 
   const candidatePulls = pulls.filter((pull) => {
-    if (!includeContributor(pull.user.login, contributorFilter)) {
+    const actor = pull.user?.login ?? "ghost";
+    if (!includeContributor(actor, contributorFilter)) {
       return false;
     }
 
@@ -193,11 +194,13 @@ async function fetchRepoEvents(
   });
 
   for (const pull of candidatePulls) {
+    const actor = pull.user?.login ?? "ghost";
+
     if (inWindow(pull.created_at, window)) {
       events.push({
         type: "pull_request_opened",
         repo,
-        actor: pull.user.login,
+        actor,
         title: pull.title,
         url: pull.html_url,
         timestamp: toIso(pull.created_at),
@@ -208,7 +211,7 @@ async function fetchRepoEvents(
       events.push({
         type: "pull_request_merged",
         repo,
-        actor: pull.user.login,
+        actor,
         title: pull.title,
         url: pull.html_url,
         timestamp: toIso(pull.merged_at),
