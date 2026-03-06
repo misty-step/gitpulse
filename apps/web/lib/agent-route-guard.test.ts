@@ -49,6 +49,17 @@ describe("guardAgentRoute", () => {
     ).toBeNull();
   });
 
+  test("allows production requests authenticated by the shared secret without explicit opt-in", () => {
+    expect(
+      guardAgentRoute({
+        allowUnauthenticated: false,
+        nodeEnv: "production",
+        sharedSecret: "top-secret",
+        requestSecret: "top-secret",
+      }),
+    ).toBeNull();
+  });
+
   test("still requires the shared secret when one is configured", () => {
     expect(
       guardAgentRoute({

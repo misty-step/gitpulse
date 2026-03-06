@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { z } from "zod";
 
 const runGitPulseAgent = mock(async () => ({
   answer: "ok",
@@ -173,6 +174,36 @@ describe("POST /api/agent", () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     runGitPulseAgent.mockImplementationOnce(async () => {
       throw new Error("boom");
+    });
+
+    const response = await POST(
+      createRequest(
+        JSON.stringify({
+          question: "What happened this week?",
+          window: {
+            from: "2026-03-01T00:00:00Z",
+            to: "2026-03-05T00:00:00Z",
+          },
+        }),
+      ),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Internal server error." });
+    expect(errorSpy).toHaveBeenCalled();
+  });
+
+  test("returns 500 when the agent raises an internal zod validation error", async () => {
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    runGitPulseAgent.mockImplementationOnce(async () => {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.invalid_string,
+          validation: "url",
+          path: ["events", 0, "url"],
+          message: "Invalid url",
+        },
+      ]);
     });
 
     const response = await POST(

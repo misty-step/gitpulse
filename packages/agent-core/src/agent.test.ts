@@ -163,4 +163,33 @@ describe("runGitPulseAgent", () => {
       "Scope: repos=misty-step/gitpulse, misty-step/overmind, orgs=misty-step, contributors=phaedrus, reviewer",
     );
   });
+
+  test("caps exported events without changing computed metrics", async () => {
+    const oversizedEvents = Array.from({ length: 120 }, (_, index) => ({
+      type: "commit" as const,
+      repo: "misty-step/gitpulse",
+      actor: "phaedrus",
+      title: `commit-${index}`,
+      url: `https://github.com/misty-step/gitpulse/commit/${index}`,
+      timestamp: new Date(Date.parse(WINDOW.from) + index * 60_000).toISOString(),
+    }));
+
+    const answer = await runGitPulseAgent({
+      question: "What happened this week?",
+      window: WINDOW,
+      scope: SCOPE,
+      activitySource: async () => ({
+        scope: SCOPE,
+        repos: SCOPE.repos,
+        window: WINDOW,
+        events: oversizedEvents,
+        warnings: [],
+      }),
+    });
+
+    expect(answer.metrics.totalEvents).toBe(120);
+    expect(answer.events).toHaveLength(100);
+    expect(answer.events[0]?.title).toBe("commit-0");
+    expect(answer.events[99]?.title).toBe("commit-99");
+  });
 });

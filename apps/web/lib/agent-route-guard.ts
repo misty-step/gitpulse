@@ -15,11 +15,15 @@ export type AgentRouteGuardResult =
   | null;
 
 export function guardAgentRoute(input: AgentRouteGuardInput): AgentRouteGuardResult {
-  if (input.sharedSecret && !matchesSharedSecret(input.requestSecret, input.sharedSecret)) {
-    return {
-      error: "Unauthorized agent route request.",
-      status: 401,
-    };
+  if (input.sharedSecret) {
+    if (!matchesSharedSecret(input.requestSecret, input.sharedSecret)) {
+      return {
+        error: "Unauthorized agent route request.",
+        status: 401,
+      };
+    }
+
+    return null;
   }
 
   if (input.nodeEnv !== "production") {

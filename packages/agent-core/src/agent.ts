@@ -29,6 +29,8 @@ import { buildAgentSystemPrompt, buildAgentUserPrompt } from "./llm/prompt";
 import { recordLlmAttempt } from "./llm/telemetry";
 import { buildBlocks, buildCitations, computeMetrics } from "./metrics";
 
+const MAX_EXPORTED_EVENTS = 100;
+
 export type ActivitySource = (
   input: FetchActivityInput
 ) => Promise<ActivityWindowData>;
@@ -94,7 +96,7 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
     citations,
     blocks,
     metrics,
-    events: baseData.events,
+    events: baseData.events.slice(0, MAX_EXPORTED_EVENTS),
   });
 }
 

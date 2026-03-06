@@ -18,8 +18,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
-    const payload = RequestSchema.parse(body);
+    const payload = await parseRequest(request);
     warnIfGithubTokenMissing();
 
     const answer = await runGitPulseAgent({
@@ -31,13 +30,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(answer);
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: "Invalid JSON payload." }, { status: 400 });
-    }
-
-    if (error instanceof z.ZodError) {
-      const message = error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join(", ");
-      return NextResponse.json({ error: message }, { status: 400 });
+    if (error instanceof RequestValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     console.error("[api/agent] unhandled error", error);
@@ -66,4 +60,29 @@ function warnIfGithubTokenMissing() {
   }
 
   console.warn("[api/agent] no GITHUB_TOKEN configured; requests use GitHub's unauthenticated rate limit.");
+}
+
+async function parseRequest(request: Request) {
+  try {
+    const body = await request.json();
+    return RequestSchema.parse(body);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new RequestValidationError("Invalid JSON payload.");
+    }
+
+    if (error instanceof z.ZodError) {
+      const message = error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join(", ");
+      throw new RequestValidationError(message);
+    }
+
+    throw error;
+  }
+}
+
+class RequestValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RequestValidationError";
+  }
 }

@@ -43,4 +43,16 @@ describe("parseArgs", () => {
       "Invalid date value: not-a-date",
     );
   });
+
+  test("treats --json=false as false", () => {
+    const parsed = parseArgs(["ask", "what", "changed", "--json=false"]);
+
+    expect(parsed.json).toBe(false);
+  });
+
+  test("accepts explicit boolean strings for --json", () => {
+    const parsed = parseArgs(["ask", "what", "changed", "--json=true"]);
+
+    expect(parsed.json).toBe(true);
+  });
 });

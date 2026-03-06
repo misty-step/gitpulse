@@ -119,7 +119,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     repos: csv(flags.repos),
     orgs: csv(flags.orgs),
     contributors: csv(flags.contributors),
-    json: Boolean(flags.json),
+    json: parseBooleanFlag(flags.json, "json"),
     modelId: asString(flags.model),
   };
 }
@@ -195,6 +195,27 @@ function csv(value: string | boolean | undefined): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parseBooleanFlag(value: string | boolean | undefined, flagName: string): boolean {
+  if (value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") {
+    return true;
+  }
+
+  if (normalized === "false") {
+    return false;
+  }
+
+  throw new Error(`Invalid boolean value for --${flagName}: ${value}`);
 }
 
 function asIso(value: string | boolean | undefined): string | undefined {
