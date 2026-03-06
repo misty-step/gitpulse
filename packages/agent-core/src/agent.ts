@@ -266,7 +266,20 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
     }
 
     if (index < modelChain.length - 1) {
-      await sleep(backoffWithJitter(llmConfig.retryDelayMs));
+      const retryDelayMs = nextRetryDelayMs({
+        startedAt,
+        maxTotalMs: llmConfig.maxTotalMs,
+        retryDelayMs: llmConfig.retryDelayMs,
+      });
+
+      if (retryDelayMs === null) {
+        return {
+          text: null,
+          warnings: ["LLM narrative budget exhausted; using deterministic fallback."],
+        };
+      }
+
+      await sleep(retryDelayMs);
     }
   }
 
@@ -315,6 +328,19 @@ function toNumber(value: unknown): number | undefined {
 function backoffWithJitter(delayMs: number): number {
   const jitter = Math.floor(Math.random() * Math.max(100, Math.floor(delayMs / 3)));
   return delayMs + jitter;
+}
+
+function nextRetryDelayMs(input: {
+  startedAt: number;
+  maxTotalMs: number;
+  retryDelayMs: number;
+}): number | null {
+  const remainingMs = input.maxTotalMs - (Date.now() - input.startedAt);
+  if (remainingMs <= 0) {
+    return null;
+  }
+
+  return Math.min(backoffWithJitter(input.retryDelayMs), remainingMs);
 }
 
 async function sleep(delayMs: number): Promise<void> {

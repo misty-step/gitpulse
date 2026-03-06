@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { AgentAnswer, UiBlock } from "@gitpulse/schemas";
 
 import { BlockRenderer } from "./block-renderer";
+import { parseWindowInput } from "@/lib/window-input";
 
 type ScopeFields = {
   from: string;
@@ -40,6 +41,12 @@ export function AgentShell() {
     setAnswer(null);
 
     try {
+      const parsedWindow = parseWindowInput(scope.from, scope.to);
+      if ("error" in parsedWindow) {
+        setError(parsedWindow.error);
+        return;
+      }
+
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: {
@@ -47,10 +54,7 @@ export function AgentShell() {
         },
         body: JSON.stringify({
           question,
-          window: {
-            from: new Date(scope.from).toISOString(),
-            to: new Date(scope.to).toISOString(),
-          },
+          window: parsedWindow,
           scope: {
             repos: csv(scope.repos),
             orgs: csv(scope.orgs),

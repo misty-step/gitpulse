@@ -48,4 +48,18 @@ describe("guardAgentRoute", () => {
       }),
     ).toBeNull();
   });
+
+  test("still requires the shared secret when one is configured", () => {
+    expect(
+      guardAgentRoute({
+        allowUnauthenticated: true,
+        nodeEnv: "production",
+        sharedSecret: "top-secret",
+        requestSecret: null,
+      }),
+    ).toEqual({
+      error: "Unauthorized agent route request.",
+      status: 401,
+    });
+  });
 });

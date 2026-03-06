@@ -49,7 +49,7 @@ async function main(): Promise<void> {
   printCitations(answer.citations);
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0 || argv[0] === "-h" || argv[0] === "--help" || argv[0] === "help") {
     return {
       command: "help",
@@ -214,8 +214,10 @@ function asString(value: string | boolean | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : "Unknown error";
-  process.stderr.write(`${message}\n`);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    process.stderr.write(`${message}\n`);
+    process.exit(1);
+  });
+}

@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun src/index.ts",
     "build": "bun build src/index.ts --outfile dist/gitpulse --target bun",
+    "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
