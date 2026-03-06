@@ -34,7 +34,7 @@ export function readLlmRuntimeConfig(
     fallbackModels,
     maxSteps: parsePositiveInt(env.GITPULSE_LLM_MAX_STEPS, 6),
     maxTotalMs: parsePositiveInt(env.GITPULSE_LLM_MAX_TOTAL_MS, 15_000),
-    retryDelayMs: parsePositiveInt(env.GITPULSE_LLM_RETRY_DELAY_MS, 750),
+    retryDelayMs: parseNonNegativeInt(env.GITPULSE_LLM_RETRY_DELAY_MS, 750),
     telemetryEnabled: parseBoolean(env.GITPULSE_LLM_TELEMETRY, false),
     appName: env.GITPULSE_OPENROUTER_APP_NAME ?? "GitPulse",
     referer: env.GITPULSE_OPENROUTER_REFERER ?? "https://gitpulse.local",
@@ -89,6 +89,20 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 
   const normalized = value.trim();
   if (!/^[1-9]\d*$/.test(normalized)) {
+    return fallback;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : fallback;
+}
+
+function parseNonNegativeInt(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) {
     return fallback;
   }
 

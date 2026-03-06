@@ -62,7 +62,7 @@ describe("buildModelChain", () => {
     ]);
   });
 
-  test("rejects malformed positive integer env values", () => {
+  test("rejects malformed positive integer env values and allows zero retry delay", () => {
     const config = readLlmRuntimeConfig({
       GITPULSE_LLM_MAX_STEPS: "9abc",
       GITPULSE_LLM_MAX_TOTAL_MS: "02000",
@@ -71,6 +71,6 @@ describe("buildModelChain", () => {
 
     expect(config.maxSteps).toBe(6);
     expect(config.maxTotalMs).toBe(15_000);
-    expect(config.retryDelayMs).toBe(750);
+    expect(config.retryDelayMs).toBe(0);
   });
 });

@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export type AgentRouteGuardInput = {
   allowUnauthenticated: boolean;
@@ -41,11 +41,12 @@ function matchesSharedSecret(requestSecret: string | null | undefined, sharedSec
     return false;
   }
 
-  const actual = Buffer.from(requestSecret);
-  const expected = Buffer.from(sharedSecret);
-  if (actual.length !== expected.length) {
-    return false;
-  }
+  const actual = stableDigest(requestSecret);
+  const expected = stableDigest(sharedSecret);
 
   return timingSafeEqual(actual, expected);
+}
+
+function stableDigest(value: string): Buffer {
+  return createHash("sha256").update(value).digest();
 }

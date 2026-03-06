@@ -10,6 +10,7 @@ const RequestSchema = z.object({
   window: TimeWindowSchema,
   scope: ScopeSchema.optional(),
 });
+let warnedMissingGithubToken = false;
 
 export async function POST(request: Request) {
   const disabledResponse = productionGuard(request);
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const payload = RequestSchema.parse(body);
+    warnIfGithubTokenMissing();
 
     const answer = await runGitPulseAgent({
       question: payload.question,
@@ -57,4 +59,13 @@ function productionGuard(request: Request) {
   }
 
   return NextResponse.json({ error: result.error }, { status: result.status });
+}
+
+function warnIfGithubTokenMissing() {
+  if (process.env.GITHUB_TOKEN || process.env.NODE_ENV !== "production" || warnedMissingGithubToken) {
+    return;
+  }
+
+  warnedMissingGithubToken = true;
+  console.warn("[api/agent] no GITHUB_TOKEN configured; requests use GitHub's unauthenticated rate limit.");
 }
