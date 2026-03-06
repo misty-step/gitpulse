@@ -15,4 +15,10 @@ describe("parseWindowInput", () => {
       error: "Please enter valid ISO date values for From and To.",
     });
   });
+
+  test("returns a friendly error for reversed windows", () => {
+    expect(parseWindowInput("2026-03-10T00:00:00Z", "2026-03-05T00:00:00Z")).toEqual({
+      error: '"From" date must be before or equal to "To" date.',
+    });
+  });
 });

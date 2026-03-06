@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 export type AgentRouteGuardInput = {
   allowUnauthenticated: boolean;
   nodeEnv?: string;
@@ -13,7 +15,7 @@ export type AgentRouteGuardResult =
   | null;
 
 export function guardAgentRoute(input: AgentRouteGuardInput): AgentRouteGuardResult {
-  if (input.sharedSecret && input.requestSecret !== input.sharedSecret) {
+  if (input.sharedSecret && !matchesSharedSecret(input.requestSecret, input.sharedSecret)) {
     return {
       error: "Unauthorized agent route request.",
       status: 401,
@@ -32,4 +34,18 @@ export function guardAgentRoute(input: AgentRouteGuardInput): AgentRouteGuardRes
     error: "Agent route is disabled in production until auth is configured.",
     status: 503,
   };
+}
+
+function matchesSharedSecret(requestSecret: string | null | undefined, sharedSecret: string): boolean {
+  if (typeof requestSecret !== "string") {
+    return false;
+  }
+
+  const actual = Buffer.from(requestSecret);
+  const expected = Buffer.from(sharedSecret);
+  if (actual.length !== expected.length) {
+    return false;
+  }
+
+  return timingSafeEqual(actual, expected);
 }

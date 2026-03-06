@@ -28,7 +28,7 @@ export function AgentShell() {
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState<AgentAnswer | null>(null);
 
-  const canSubmit = question.trim().length > 0 && !loading;
+  const canSubmit = question.trim().length >= 3 && !loading;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -241,10 +241,6 @@ function blockKey(block: UiBlock, index: number): string {
     case "insight_list":
       return `${block.type}:${block.title}:${index}`;
     default:
-      return exhaustiveBlockType(block);
+      return `unknown:${index}`;
   }
-}
-
-function exhaustiveBlockType(block: never): never {
-  throw new Error(`Unhandled UI block: ${JSON.stringify(block)}`);
 }

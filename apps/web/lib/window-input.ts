@@ -17,6 +17,12 @@ export function parseWindowInput(from: string, to: string): ParsedWindowInput {
     };
   }
 
+  if (fromDate.getTime() > toDate.getTime()) {
+    return {
+      error: '"From" date must be before or equal to "To" date.',
+    };
+  }
+
   return {
     from: fromDate.toISOString(),
     to: toDate.toISOString(),
