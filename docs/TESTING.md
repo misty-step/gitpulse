@@ -523,7 +523,7 @@ Tests run automatically on every PR via GitHub Actions:
 
 1. **Unit/Integration Tests** (`.github/workflows/ci.yml`)
    - Runs on pull requests
-   - Executes Bun `typecheck`, `lint`, and `test`
+   - Executes Bun `typecheck`, `test`, and `build`
    - Fails if any test fails
 
 2. **LLM Infrastructure Gates** (`.github/workflows/evals.yml`)

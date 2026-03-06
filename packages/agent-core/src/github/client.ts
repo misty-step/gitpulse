@@ -121,8 +121,12 @@ function parseNextPath(linkHeader: string | null): string | null {
     return null;
   }
 
-  const url = new URL(match[1]);
-  return `${url.pathname}${url.search}`;
+  try {
+    const url = new URL(match[1]);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
 }
 
 function summarizeErrorBody(body: string): string {
