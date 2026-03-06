@@ -51,8 +51,9 @@ export async function fetchActivityWindow(input: FetchActivityInput): Promise<Ac
   const scope = normalizeScope(input.scope);
   const client = new GitHubClient({ token: input.githubToken });
   const warnings: string[] = [];
+  const maxRepos = normalizeMaxRepos(input.maxRepos);
 
-  const repos = await resolveRepos(client, scope, input.maxRepos ?? 20, warnings);
+  const repos = await resolveRepos(client, scope, maxRepos, warnings);
   if (repos.length === 0) {
     warnings.push("No repositories resolved from scope. Provide repos, orgs, or contributors with visible repositories.");
   }
@@ -137,6 +138,14 @@ async function resolveRepos(
   }
 
   return [...repos].slice(0, maxRepos);
+}
+
+function normalizeMaxRepos(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return 20;
+  }
+
+  return Math.min(100, Math.max(1, value));
 }
 
 async function fetchRepoEvents(

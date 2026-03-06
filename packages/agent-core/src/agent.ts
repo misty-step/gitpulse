@@ -312,7 +312,7 @@ function buildFallbackAnswer(input: {
   return [
     `Question: ${input.question}`,
     `Window: ${input.window.from} -> ${input.window.to}`,
-    `Scope: repos=${input.scope.repos.length || "all"}, orgs=${input.scope.orgs.length || "none"}, contributors=${input.scope.contributors.length || "all"}`,
+    `Scope: repos=${input.scope.repos.length === 0 ? "none" : input.scope.repos.length}, orgs=${input.scope.orgs.length === 0 ? "none" : input.scope.orgs.length}, contributors=${input.scope.contributors.length === 0 ? "all" : input.scope.contributors.length}`,
     "",
     `Observed ${input.metrics.totalEvents} total events: ${input.metrics.commitCount} commits, ${input.metrics.pullRequestOpenedCount} PRs opened, ${input.metrics.pullRequestMergedCount} PRs merged, ${input.metrics.reviewCount} reviews.`,
     topContributor

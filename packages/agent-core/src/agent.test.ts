@@ -128,4 +128,21 @@ describe("runGitPulseAgent", () => {
 
     expect(answer.answer).toBe("Narrative response from LLM.");
   });
+
+  test("describes empty repo and org scope truthfully in fallback output", async () => {
+    const answer = await runGitPulseAgent({
+      question: "What happened this week?",
+      window: WINDOW,
+      scope: {},
+      activitySource: async () => ({
+        scope: { repos: [], orgs: [], contributors: [] },
+        repos: [],
+        window: WINDOW,
+        events: [],
+        warnings: ["No repositories resolved from scope."],
+      }),
+    });
+
+    expect(answer.answer).toContain("Scope: repos=none, orgs=none, contributors=all");
+  });
 });
