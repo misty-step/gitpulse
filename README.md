@@ -104,6 +104,10 @@ Production web safety default:
 ```bash
 # Production route stays disabled unless you opt in intentionally.
 GITPULSE_ALLOW_UNAUTHENTICATED_AGENT_ROUTE=true
+
+# Optional extra guard for preview/staging/dev or any exposed route.
+# Callers must send x-gitpulse-agent-secret with the same value.
+GITPULSE_AGENT_ROUTE_SHARED_SECRET=...
 ```
 
 ## Architecture Summary

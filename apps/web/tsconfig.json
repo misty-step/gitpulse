@@ -4,7 +4,7 @@
     "noEmit": true,
     "jsx": "preserve",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["node"],
+    "types": ["node", "bun-types"],
     "allowJs": false,
     "incremental": true,
     "plugins": [

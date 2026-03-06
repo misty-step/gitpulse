@@ -58,4 +58,6 @@ echo "PASS: no hardcoded openrouter.chat(\"...\") model literals in agent runtim
 
 echo
 echo "-- Legacy model refs outside active surface (for cleanup backlog) --"
+# TODO: legacy/pre-agentic-root and other archived paths are expected noise here
+# until the old tree is deleted entirely. Keep surfacing them so cleanup stays visible.
 search_repo "(gpt-|claude-|gemini-)" || true

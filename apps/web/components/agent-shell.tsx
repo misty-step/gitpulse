@@ -236,5 +236,11 @@ function blockKey(block: UiBlock, index: number): string {
     case "repo_breakdown":
     case "insight_list":
       return `${block.type}:${block.title}:${index}`;
+    default:
+      return exhaustiveBlockType(block);
   }
+}
+
+function exhaustiveBlockType(block: never): never {
+  throw new Error(`Unhandled UI block: ${JSON.stringify(block)}`);
 }

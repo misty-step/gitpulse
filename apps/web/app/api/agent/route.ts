@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { runGitPulseAgent } from "@gitpulse/agent-core";
 import { ScopeSchema, TimeWindowSchema } from "@gitpulse/schemas";
+import { guardAgentRoute } from "@/lib/agent-route-guard";
 
 const RequestSchema = z.object({
   question: z.string().min(3),
@@ -11,7 +12,7 @@ const RequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const disabledResponse = productionGuard();
+  const disabledResponse = productionGuard(request);
   if (disabledResponse) {
     return disabledResponse;
   }
@@ -43,17 +44,17 @@ export async function POST(request: Request) {
   }
 }
 
-function productionGuard() {
-  if (process.env.NODE_ENV !== "production") {
+function productionGuard(request: Request) {
+  const result = guardAgentRoute({
+    allowUnauthenticated: process.env.GITPULSE_ALLOW_UNAUTHENTICATED_AGENT_ROUTE === "true",
+    nodeEnv: process.env.NODE_ENV,
+    requestSecret: request.headers.get("x-gitpulse-agent-secret"),
+    sharedSecret: process.env.GITPULSE_AGENT_ROUTE_SHARED_SECRET,
+  });
+
+  if (!result) {
     return null;
   }
 
-  if (process.env.GITPULSE_ALLOW_UNAUTHENTICATED_AGENT_ROUTE === "true") {
-    return null;
-  }
-
-  return NextResponse.json(
-    { error: "Agent route is disabled in production until auth is configured." },
-    { status: 503 },
-  );
+  return NextResponse.json({ error: result.error }, { status: result.status });
 }

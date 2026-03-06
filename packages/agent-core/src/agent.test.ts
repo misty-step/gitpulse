@@ -145,4 +145,21 @@ describe("runGitPulseAgent", () => {
 
     expect(answer.answer).toContain("Scope: repos=none, orgs=none, contributors=all");
   });
+
+  test("renders concrete scope values instead of ambiguous counts in fallback output", async () => {
+    const answer = await runGitPulseAgent({
+      question: "What happened this week?",
+      window: WINDOW,
+      scope: {
+        repos: ["misty-step/gitpulse", "misty-step/overmind"],
+        orgs: ["misty-step"],
+        contributors: ["phaedrus", "reviewer"],
+      },
+      activitySource,
+    });
+
+    expect(answer.answer).toContain(
+      "Scope: repos=misty-step/gitpulse, misty-step/overmind, orgs=misty-step, contributors=phaedrus, reviewer",
+    );
+  });
 });

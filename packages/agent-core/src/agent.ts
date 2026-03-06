@@ -339,7 +339,7 @@ function buildFallbackAnswer(input: {
   return [
     `Question: ${input.question}`,
     `Window: ${input.window.from} -> ${input.window.to}`,
-    `Scope: repos=${input.scope.repos.length === 0 ? "none" : input.scope.repos.length}, orgs=${input.scope.orgs.length === 0 ? "none" : input.scope.orgs.length}, contributors=${input.scope.contributors.length === 0 ? "all" : input.scope.contributors.length}`,
+    `Scope: repos=${formatScopeValues(input.scope.repos, "none")}, orgs=${formatScopeValues(input.scope.orgs, "none")}, contributors=${formatScopeValues(input.scope.contributors, "all")}`,
     "",
     `Observed ${input.metrics.totalEvents} total events: ${input.metrics.commitCount} commits, ${input.metrics.pullRequestOpenedCount} PRs opened, ${input.metrics.pullRequestMergedCount} PRs merged, ${input.metrics.reviewCount} reviews.`,
     topContributor
@@ -350,6 +350,10 @@ function buildFallbackAnswer(input: {
       : "No repository activity found in this window.",
     ...warningLines,
   ].join("\n");
+}
+
+function formatScopeValues(values: string[], emptyLabel: string): string {
+  return values.length === 0 ? emptyLabel : values.join(", ");
 }
 
 function deterministicInsights(metrics: ReturnType<typeof computeMetrics>): string[] {
