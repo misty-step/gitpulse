@@ -24,7 +24,7 @@ export function buildAgentUserPrompt(input: {
 }): string {
   return [
     `User question: ${input.question}`,
-    `Scope: repos=${input.scope.repos.join(",") || "(all)"}, orgs=${input.scope.orgs.join(",") || "(none)"}, contributors=${input.scope.contributors.join(",") || "(all)"}`,
+    `Scope: repos=${input.scope.repos.join(",") || "(none)"}, orgs=${input.scope.orgs.join(",") || "(none)"}, contributors=${input.scope.contributors.join(",") || "(all)"}`,
     `Window: ${input.window.from} to ${input.window.to}`,
     "Start by calling get_activity_window unless the user explicitly asks for a direct window comparison.",
   ].join("\n");

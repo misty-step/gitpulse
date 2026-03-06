@@ -1,6 +1,10 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
+  // Pinned in package.json because this agent relies on the current runtime
+  // forwarding behavior from Agent.generate() to generateText().
   Experimental_Agent as Agent,
+  type GenerateTextResult,
+  type ToolSet,
   stepCountIs,
   tool,
 } from "ai";
@@ -126,7 +130,8 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
   let sawError = false;
 
   for (const [index, modelId] of modelChain.entries()) {
-    if (Date.now() - startedAt >= llmConfig.maxTotalMs) {
+    const remainingBudgetMs = llmConfig.maxTotalMs - (Date.now() - startedAt);
+    if (remainingBudgetMs <= 0) {
       return {
         text: null,
         warnings: ["LLM narrative budget exhausted; using deterministic fallback."],
@@ -204,14 +209,20 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
     });
 
     const attemptStartedAt = Date.now();
+    const attemptController = new AbortController();
+    const timeoutId = setTimeout(() => attemptController.abort(), remainingBudgetMs);
+
     try {
+      // ai@5.0.144 forwards generate() options to generateText() at runtime,
+      // including abortSignal, even though the public Agent.generate typing omits it.
       const result = await agent.generate({
         prompt: buildAgentUserPrompt({
           question: input.question,
           scope: input.scope,
           window: input.window,
         }),
-      });
+        abortSignal: attemptController.signal,
+      } as never);
 
       const trimmed = result.text.trim();
       recordLlmAttempt({
@@ -229,18 +240,44 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
       sawEmptyResponse = true;
     } catch (error) {
       sawError = true;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      console.error("[gitpulse.llm] attempt failed", {
+        modelId,
+        error: errorMessage,
+      });
+
       recordLlmAttempt({
         enabled: llmConfig.telemetryEnabled,
         modelId,
         status: "error",
         latencyMs: Date.now() - attemptStartedAt,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
+
+      if (attemptController.signal.aborted) {
+        return {
+          text: null,
+          warnings: ["LLM narrative budget exhausted; using deterministic fallback."],
+        };
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (index < modelChain.length - 1) {
       await sleep(backoffWithJitter(llmConfig.retryDelayMs));
     }
+  }
+
+  if (sawError) {
+    return {
+      text: null,
+      warnings: [
+        ...(sawEmptyResponse ? ["LLM returned empty narrative output for one or more models."] : []),
+        "LLM narrative unavailable after fallback attempts; using deterministic fallback.",
+      ],
+    };
   }
 
   if (sawEmptyResponse) {
@@ -250,25 +287,15 @@ async function maybeGenerateLlmAnswer(input: MaybeGenerateAnswerInput): Promise<
     };
   }
 
-  if (sawError) {
-    return {
-      text: null,
-      warnings: ["LLM narrative unavailable after fallback attempts; using deterministic fallback."],
-    };
-  }
-
   return { text: null, warnings: [] };
 }
 
-function extractUsage(result: unknown): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
-  const usage = (result as { usage?: Record<string, unknown> }).usage;
-  if (!usage) {
-    return {};
-  }
-
-  const promptTokens = toNumber(usage.inputTokens ?? usage.promptTokens);
-  const completionTokens = toNumber(usage.outputTokens ?? usage.completionTokens);
-  const totalTokens = toNumber(usage.totalTokens);
+function extractUsage<TOOLS extends ToolSet, OUTPUT>(
+  result: GenerateTextResult<TOOLS, OUTPUT>
+): { promptTokens?: number; completionTokens?: number; totalTokens?: number } {
+  const promptTokens = toNumber(result.usage.inputTokens);
+  const completionTokens = toNumber(result.usage.outputTokens);
+  const totalTokens = toNumber(result.usage.totalTokens);
 
   return {
     promptTokens,
@@ -304,10 +331,10 @@ function buildFallbackAnswer(input: {
   const topContributor = input.metrics.contributors[0];
   const topRepo = input.metrics.repos[0];
 
-  const warnings =
+  const warningLines =
     input.warnings.length > 0
-      ? `\n\nWarnings:\n${input.warnings.map((warning) => `- ${warning}`).join("\n")}`
-      : "";
+      ? ["", "Warnings:", ...input.warnings.map((warning) => `- ${warning}`)]
+      : [];
 
   return [
     `Question: ${input.question}`,
@@ -321,7 +348,7 @@ function buildFallbackAnswer(input: {
     topRepo
       ? `Highest-activity repository: ${topRepo.repo} (${topRepo.totalEvents} events).`
       : "No repository activity found in this window.",
-    warnings,
+    ...warningLines,
   ].join("\n");
 }
 

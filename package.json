@@ -26,7 +26,7 @@
     "test:agent-core": "cd packages/agent-core && bun test",
     "test:llm": "cd packages/agent-core && bun test src/agent.test.ts src/llm/config.test.ts",
     "audit:llm": "bash scripts/audit-llm-models.sh",
-    "lint": "bun run typecheck:web",
+    "lint": "bun run typecheck",
     "start:web": "cd apps/web && bun x next start"
   },
   "devDependencies": {
