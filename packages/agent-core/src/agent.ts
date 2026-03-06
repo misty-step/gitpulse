@@ -43,12 +43,12 @@ export type RunGitPulseAgentInput = {
   narrativeGenerator?: NarrativeGenerator;
 };
 
-type LlmNarrativeResult = {
+export type LlmNarrativeResult = {
   text: string | null;
   warnings: string[];
 };
 
-type NarrativeGenerator = (
+export type NarrativeGenerator = (
   input: MaybeGenerateAnswerInput
 ) => Promise<LlmNarrativeResult>;
 
@@ -98,7 +98,7 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
   });
 }
 
-type MaybeGenerateAnswerInput = {
+export type MaybeGenerateAnswerInput = {
   question: string;
   scope: Scope;
   window: TimeWindow;
