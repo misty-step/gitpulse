@@ -63,3 +63,19 @@ jobs:
 
       - name: Run ${{ matrix.check }}
         run: bun run ${{ matrix.check }}
+
+  merge-gate:
+    name: merge-gate
+    needs: [trufflehog, security-audit, quality-gates]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: |
+          if [[ "${{ needs.trufflehog.result }}" == "success" && \
+                "${{ needs.security-audit.result }}" == "success" && \
+                "${{ needs.quality-gates.result }}" == "success" ]]; then
+            echo "merge-gate green"
+          else
+            echo "merge-gate red (trufflehog=${{ needs.trufflehog.result }}, security-audit=${{ needs.security-audit.result }}, quality-gates=${{ needs.quality-gates.result }})"
+            exit 1
+          fi
