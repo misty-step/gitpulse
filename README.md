@@ -68,7 +68,6 @@ Flags:
 - `--orgs <org,...>`
 - `--contributors <user,...>`
 - `--model <openrouter-model>`
-- `--githubToken <token>`
 - `--json`
 
 Example:
@@ -99,6 +98,13 @@ GITPULSE_LLM_TELEMETRY=true
 ```
 
 If `OPENROUTER_API_KEY` is missing, GitPulse still runs with deterministic analytics output.
+
+Production web safety default:
+
+```bash
+# Production route stays disabled unless you opt in intentionally.
+GITPULSE_ALLOW_UNAUTHENTICATED_AGENT_ROUTE=true
+```
 
 ## Architecture Summary
 

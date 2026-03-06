@@ -17,6 +17,8 @@ export type GitHubClientOptions = {
   userAgent?: string;
 };
 
+type GitHubHeaders = Record<string, string>;
+
 export class GitHubClient {
   private readonly token?: string;
   private readonly userAgent: string;
@@ -32,7 +34,7 @@ export class GitHubClient {
     });
 
     if (!response.ok) {
-      const body = await response.text();
+      const body = summarizeErrorBody(await response.text());
       throw new GitHubError(
         response.status,
         path,
@@ -55,7 +57,7 @@ export class GitHubClient {
       });
 
       if (!response.ok) {
-        const body = await response.text();
+        const body = summarizeErrorBody(await response.text());
         throw new GitHubError(
           response.status,
           nextPath,
@@ -72,7 +74,7 @@ export class GitHubClient {
     return items;
   }
 
-  private headers(): HeadersInit {
+  private headers(): GitHubHeaders {
     return {
       Accept: "application/vnd.github+json",
       "User-Agent": this.userAgent,
@@ -102,4 +104,13 @@ function parseNextPath(linkHeader: string | null): string | null {
 
   const url = new URL(match[1]);
   return `${url.pathname}${url.search}`;
+}
+
+function summarizeErrorBody(body: string): string {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 200) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 197)}...`;
 }

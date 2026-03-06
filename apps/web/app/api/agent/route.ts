@@ -11,6 +11,11 @@ const RequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const disabledResponse = productionGuard();
+  if (disabledResponse) {
+    return disabledResponse;
+  }
+
   try {
     const body = await request.json();
     const payload = RequestSchema.parse(body);
@@ -24,13 +29,27 @@ export async function POST(request: Request) {
 
     return NextResponse.json(answer);
   } catch (error) {
-    const message =
-      error instanceof z.ZodError
-        ? error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join(", ")
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
+    if (error instanceof z.ZodError) {
+      const message = error.issues.map((issue) => `${issue.path.join(".") || "request"}: ${issue.message}`).join(", ");
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
 
-    return NextResponse.json({ error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function productionGuard() {
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
+  if (process.env.GITPULSE_ALLOW_UNAUTHENTICATED_AGENT_ROUTE === "true") {
+    return null;
+  }
+
+  return NextResponse.json(
+    { error: "Agent route is disabled in production until auth is configured." },
+    { status: 503 },
+  );
 }

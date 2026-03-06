@@ -75,8 +75,7 @@ export async function runGitPulseAgent(input: RunGitPulseAgentInput): Promise<Ag
     answer = llmAnswer;
   }
 
-  const insights = extractInsights(answer, fallbackInsights);
-  const blocks = buildBlocks(metrics, baseData.events, insights);
+  const blocks = buildBlocks(metrics, baseData.events, fallbackInsights);
 
   return AgentAnswerSchema.parse({
     answer,
@@ -307,19 +306,4 @@ function deterministicInsights(metrics: ReturnType<typeof computeMetrics>): stri
   }
 
   return insights.slice(0, 5);
-}
-
-function extractInsights(answer: string, fallbackInsights: string[]): string[] {
-  const bulletInsights = answer
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.slice(2).trim())
-    .filter(Boolean);
-
-  if (bulletInsights.length > 0) {
-    return bulletInsights.slice(0, 6);
-  }
-
-  return fallbackInsights;
 }

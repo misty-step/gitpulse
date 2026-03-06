@@ -82,4 +82,19 @@ describe("runGitPulseAgent", () => {
       true
     );
   });
+
+  test("surfaces activity source failures", async () => {
+    const failingSource: ActivitySource = async () => {
+      throw new Error("GitHub exploded");
+    };
+
+    await expect(
+      runGitPulseAgent({
+        question: "What happened this week?",
+        window: WINDOW,
+        scope: SCOPE,
+        activitySource: failingSource,
+      })
+    ).rejects.toThrow("GitHub exploded");
+  });
 });

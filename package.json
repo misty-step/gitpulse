@@ -15,7 +15,7 @@
     "build:schemas": "cd packages/schemas && tsc -p tsconfig.build.json",
     "build:agent-core": "cd packages/agent-core && tsc -p tsconfig.build.json",
     "build:cli": "cd apps/cli && bun build src/index.ts --outfile dist/gitpulse --target bun",
-    "build:web": "cd apps/web && bun x next build",
+    "build:web": "cd apps/web && bun x next build --webpack",
     "typecheck": "bun run typecheck:schemas && bun run typecheck:agent-core && bun run typecheck:cli && bun run typecheck:web",
     "typecheck:schemas": "cd packages/schemas && tsc -p tsconfig.json --noEmit",
     "typecheck:agent-core": "cd packages/agent-core && tsc -p tsconfig.json --noEmit",
@@ -26,7 +26,7 @@
     "test:agent-core": "cd packages/agent-core && bun test",
     "test:llm": "cd packages/agent-core && bun test src/agent.test.ts src/llm/config.test.ts",
     "audit:llm": "bash scripts/audit-llm-models.sh",
-    "lint": "cd apps/web && bun x next lint",
+    "lint": "bun run typecheck:web",
     "start:web": "cd apps/web && bun x next start"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import type { AgentAnswer } from "@gitpulse/schemas";
+import type { AgentAnswer, UiBlock } from "@gitpulse/schemas";
 
 import { BlockRenderer } from "./block-renderer";
 
@@ -162,8 +162,8 @@ export function AgentShell() {
           </section>
 
           <div style={{ display: "grid", gap: 12 }}>
-            {answer.blocks.map((block) => (
-              <BlockRenderer key={`${block.type}-${JSON.stringify(block).slice(0, 64)}`} block={block} />
+            {answer.blocks.map((block, index) => (
+              <BlockRenderer key={blockKey(block, index)} block={block} />
             ))}
           </div>
 
@@ -228,4 +228,14 @@ function isoDaysAgo(days: number): string {
   const then = new Date(now);
   then.setUTCDate(now.getUTCDate() - days);
   return then.toISOString();
+}
+
+function blockKey(block: UiBlock, index: number): string {
+  switch (block.type) {
+    case "metric_grid":
+    case "event_feed":
+    case "repo_breakdown":
+    case "insight_list":
+      return `${block.type}:${block.title}:${index}`;
+  }
 }

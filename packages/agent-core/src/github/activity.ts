@@ -53,6 +53,9 @@ export async function fetchActivityWindow(input: FetchActivityInput): Promise<Ac
   const warnings: string[] = [];
 
   const repos = await resolveRepos(client, scope, input.maxRepos ?? 20, warnings);
+  if (repos.length === 0) {
+    warnings.push("No repositories resolved from scope. Provide repos, orgs, or contributors with visible repositories.");
+  }
   const contributorFilter = new Set(scope.contributors.map((value) => value.toLowerCase()));
 
   const events: ActivityEvent[] = [];
@@ -110,7 +113,7 @@ async function resolveRepos(
     }
   }
 
-  if (repos.size === 0 && scope.contributors.length > 0) {
+  if (repos.size < maxRepos) {
     for (const contributor of scope.contributors) {
       try {
         const userRepos = await client.getPagedJson<GitHubRepo>(

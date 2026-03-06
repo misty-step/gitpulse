@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { runGitPulseAgent } from "@gitpulse/agent-core";
-import { TimeWindowSchema, normalizeScope } from "@gitpulse/schemas";
+import { TimeWindowSchema, normalizeScope, type ActivityMetrics } from "@gitpulse/schemas";
 
 type ParsedArgs = {
   command: string;
@@ -12,7 +12,6 @@ type ParsedArgs = {
   contributors: string[];
   json: boolean;
   modelId?: string;
-  githubToken?: string;
 };
 
 async function main(): Promise<void> {
@@ -37,7 +36,7 @@ async function main(): Promise<void> {
       contributors: parsed.contributors,
     }),
     modelId: parsed.modelId,
-    githubToken: parsed.githubToken,
+    githubToken: process.env.GITHUB_TOKEN,
   });
 
   if (parsed.json) {
@@ -122,7 +121,6 @@ function parseArgs(argv: string[]): ParsedArgs {
     contributors: csv(flags.contributors),
     json: Boolean(flags.json),
     modelId: asString(flags.model),
-    githubToken: asString(flags.githubToken) ?? process.env.GITHUB_TOKEN,
   };
 }
 
@@ -137,7 +135,6 @@ function printUsage(): void {
     "  --orgs <org,...>             Expand repos from orgs",
     "  --contributors <user,...>    Restrict actors",
     "  --model <openrouter-model>   Override model (default from GITPULSE_MODEL_PRIMARY)",
-    "  --githubToken <token>        Override GITHUB_TOKEN",
     "  --json                       Emit full JSON payload",
     "",
     "Examples:",
@@ -152,15 +149,7 @@ function printAnswer(answer: string): void {
   process.stdout.write(`\n# Answer\n\n${answer}\n`);
 }
 
-function printMetrics(metrics: {
-  totalEvents: number;
-  commitCount: number;
-  pullRequestOpenedCount: number;
-  pullRequestMergedCount: number;
-  reviewCount: number;
-  contributors: Array<{ login: string; eventCount: number }>;
-  repos: Array<{ repo: string; totalEvents: number }>;
-}): void {
+function printMetrics(metrics: ActivityMetrics): void {
   process.stdout.write("\n# Metrics\n\n");
   process.stdout.write(`totalEvents=${metrics.totalEvents}\n`);
   process.stdout.write(`commits=${metrics.commitCount}\n`);
@@ -225,4 +214,8 @@ function asString(value: string | boolean | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-await main();
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+});
