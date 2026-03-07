@@ -1,55 +1,48 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Structure
 
-Next's App Router lives in `app/` (e.g., `app/dashboard`, `app/sign-in`). Presentation components belong to `components/` with shared ShadCN bits in `components/ui/`; hooks stay in `hooks/` and pure utilities in `lib/`. Convex backend logic sits in `convex/` (`schema.ts`, `queries/`, `mutations/`, `actions/`, `lib/`), and static assets live under `public/`. Keep data fetching inside Convex, UI inside `components`, and pass only the props that expose intent.
+GitPulse is Bun workspace monorepo:
 
-## Build, Test, and Development Commands
+- `apps/cli` - terminal surface (`gitpulse ask`)
+- `apps/web` - slim generative UI (Next.js)
+- `packages/schemas` - typed contracts (scope/events/metrics/blocks)
+- `packages/agent-core` - GitHub tools + deterministic metrics + agent loop
 
-Install deps with `pnpm install`. `pnpm dev` starts Next.js + Convex; add `:log` for verbose tracing and prune with `pnpm logs:rotate`. Ship-ready bundles come from `pnpm build` plus `pnpm start`. Quality gates: `pnpm lint`, `pnpm typecheck`, `pnpm exec jest`, and `pnpm storybook` / `pnpm build-storybook`. Run `scripts/doctor.sh` (once committed) before sweeping refactors to ensure a clean tree.
+Legacy pre-rebuild directories remain but are not primary execution paths.
 
-## Coding Style & Naming Conventions
+## Commands
 
-We write strict TypeScript with two-space indentation and the repo’s Prettier + ESLint rules. Components use PascalCase files, hooks/utilities prefer camelCase, and directories stay lowercase or kebab-case. Keep pure calculations in `lib/` or Convex helpers, expose only the intention through hooks/services, and lean on Tailwind utility classes for layout. Avoid leaking Convex or Clerk details across layers.
+- `bun install`
+- `bun run dev:web`
+- `bun run dev:cli -- ask "what happened" --orgs misty-step`
+- `bun run typecheck`
+- `bun run test`
+- `bun run build`
 
-## Testing Guidelines
+## Architecture Rules
 
-Author `*.test.ts`/`*.test.tsx` files next to the code they verify so interfaces stay tiny. Run `pnpm exec jest --coverage` before every push, and extend local Jest mocks (create a sibling `__mocks__/` directory when touching networked modules) instead of exercising live GitHub or Convex APIs. Snapshot UI states in Storybook when behavior is visual and capture invariants directly in test names.
+- Model decides **what**; tools decide **how**; schema decides **rendering**.
+- Do not call GitHub APIs from surface apps; only from `agent-core`.
+- Do not compute metrics in surface apps; use `computeMetrics` in `agent-core`.
+- Keep UI block types strict and versionable in `packages/schemas`.
+- Never let model-generated text become a source of truth for metrics.
 
-## Commit & Pull Request Guidelines
+## Code Style
 
-Use Conventional Commits with scoped subjects (`feat(app): add report panel`, `fix(convex): guard empty payload`). PRs must state intent, list the checks you ran (`lint`, `typecheck`, `jest`, coverage, Storybook`), link the relevant issue, and attach screenshots or recordings for UI changes. Flag temporary shortcuts or debt so it can be tracked, and request reviewers closest to the layer you touched.
+- TypeScript strict mode.
+- Keep modules deep with minimal interfaces.
+- Prefer narrow, reversible patches.
+- Add tests for non-trivial logic changes.
 
-## Security & Configuration Tips
+## Testing
 
-Copy `.env.example` to `.env.local` before `pnpm dev`; populate Convex, Clerk, GitHub, and AI provider keys but keep them out of git. Rotate shared secrets (`NEXTAUTH_SECRET`, Clerk keys, Convex tokens) and scrub traces with `pnpm logs:clean`. Prefer least-privilege GitHub App scopes, document new permissions in repo docs, and keep secrets out of Storybook stories or test fixtures.
+- Schema tests live in `packages/schemas/src/*.test.ts`
+- Agent logic tests live in `packages/agent-core/src/*.test.ts`
+- Run `bun run test` before handoff.
 
-## Architecture Patterns (Important)
+## Security / Config
 
-**Deep modules hide complexity** - see `DESIGN.md` for the five core services. Don't bypass them:
-
-- **Sync requests:** Use `SyncService.request()`, not direct job/batch manipulation
-- **Event persistence:** Use `persistCanonicalEvent()`, not raw event inserts
-- **Content hashing:** Done inside `persistCanonicalEvent()`, never call `computeContentHash()` directly
-- **Reports:** Use `generateReport()`, not raw LLM calls
-- **Timezone logic:** Use `timeWindows.ts`, not manual `Date` math
-
-**Content-addressed deduplication:** Events keyed by SHA-256 of (canonicalText + sourceUrl + metrics). Same event = same hash = one row.
-
-**One-batch-per-installation:** `syncService.request()` enforces this invariant. Never create ingestion jobs directly.
-
-## Anti-Patterns to Avoid
-
-- **Shallow wrappers:** If your function just calls another function, delete it
-- **Manual status checks:** Don't query `installations.syncStatus` directly; let SyncService decide
-- **Direct GitHub payloads:** Always go through `canonicalizeEvent()` first
-- **Timezone math with Date:** Use `timeWindows.ts` exclusively
-- **Pass-through props:** Components should receive intent, not raw Convex docs
-
-## Where to Find Things
-
-- **Schema:** `convex/schema.ts` (12 tables)
-- **Deep modules:** `convex/lib/syncService.ts`, `canonicalFactService.ts`, `generateReport.ts`, `timeWindows.ts`
-- **Cron jobs:** `convex/crons.ts`
-- **UI components:** `components/` (ShadCN in `components/ui/`)
-- **Tests:** Colocated as `*.test.ts` next to source
+- Use `GITHUB_TOKEN` for private repo access and higher limits.
+- Use `OPENROUTER_API_KEY` for LLM narrative mode.
+- Without LLM key, deterministic mode must still work.

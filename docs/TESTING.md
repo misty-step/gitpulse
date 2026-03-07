@@ -407,22 +407,10 @@ test("unauthenticated user redirected to sign-in", async ({ browser }) => {
 });
 ```
 
-### Debugging E2E Failures
+### E2E Status
 
-```bash
-# Show browser during test
-pnpm test:e2e --headed --debug
-
-# Generate trace for viewing
-pnpm test:e2e --trace on
-npx playwright show-trace trace.zip
-```
-
-### CI/CD Integration
-
-E2E tests run automatically on every PR via `.github/workflows/e2e.yml`.
-
-Screenshots and videos are saved on failure - check GitHub Actions artifacts.
+The legacy E2E pipeline was retired in the Bun/agentic rebuild.
+If E2E coverage is reintroduced, add a Bun-native workflow and update this section.
 
 ## Test Utilities
 
@@ -516,22 +504,17 @@ expectCoverageAboveThreshold(0.85, 0.8);
 
 ```bash
 # Run all tests
-pnpm test
+bun run test
 
 # Run specific test file
-pnpm test contentHash.test.ts
+bun test contentHash.test.ts
 
 # Run tests in watch mode
-pnpm test --watch
+bun test --watch
 
-# Run tests with coverage
-pnpm test:coverage
-
-# Run E2E tests
-pnpm test:e2e
-
-# Run E2E tests in UI mode (debugging)
-pnpm test:e2e --ui
+# Run LLM-focused gates
+bun run test:llm
+bun run audit:llm
 ```
 
 ### CI/CD
@@ -539,40 +522,18 @@ pnpm test:e2e --ui
 Tests run automatically on every PR via GitHub Actions:
 
 1. **Unit/Integration Tests** (`.github/workflows/ci.yml`)
-   - Runs on push to any branch
-   - Executes `pnpm test`
+   - Runs on pull requests
+   - Executes Bun `typecheck`, `test`, and `build`
    - Fails if any test fails
 
-2. **Coverage Report** (`.github/workflows/coverage.yml`)
+2. **LLM Infrastructure Gates** (`.github/workflows/evals.yml`)
    - Runs on pull requests
-   - Posts coverage comment to PR
-   - Enforces 80% patch coverage threshold
-   - Updates coverage badge on master
+   - Executes `bun run test:llm` and `bun run audit:llm`
+   - Fails on model/prompt/runtime contract regressions
 
-3. **E2E Tests** (`.github/workflows/e2e.yml`)
-   - Runs on pull requests
-   - Starts Next.js dev server
-   - Runs Playwright tests
-   - Uploads screenshots/videos on failure
-
-## Coverage
-
-### Viewing Coverage Reports
-
-```bash
-# Generate coverage report
-pnpm test:coverage
-
-# Open HTML report
-open coverage/lcov-report/index.html
-```
-
-### Coverage Thresholds
-
-- **Patch coverage**: ≥80% (new code only, enforced in CI)
-- **Overall coverage**: ≥70% (entire codebase)
-- **Statement coverage**: Primary metric
-- **Branch coverage**: Secondary metric
+3. **Package Manager Policy** (`.github/workflows/enforce-bun.yml`)
+   - Rejects `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`
+   - Requires `bun.lock`
 
 ### Interpreting Coverage
 

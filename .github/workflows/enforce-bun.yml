@@ -1,0 +1,71 @@
+name: Enforce Bun Package Manager
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [main, master, develop]
+
+jobs:
+  check-package-manager:
+    name: Verify Bun Usage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Reject npm lockfile
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "❌ Error: package-lock.json found!"
+            echo "This project uses Bun. Remove package-lock.json and run bun install."
+            echo ""
+            echo "To fix this:"
+            echo "1. Delete package-lock.json"
+            echo "2. Run 'bun install' to generate bun.lock"
+            echo "3. Commit bun.lock"
+            exit 1
+          fi
+
+      - name: Reject yarn lockfile
+        run: |
+          if [ -f "yarn.lock" ]; then
+            echo "❌ Error: yarn.lock found!"
+            echo "This project uses Bun. Remove yarn.lock and run bun install."
+            echo ""
+            echo "To fix this:"
+            echo "1. Delete yarn.lock"
+            echo "2. Run 'bun install' to generate bun.lock"
+            echo "3. Commit bun.lock"
+            exit 1
+          fi
+
+      - name: Reject pnpm lockfile
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            echo "❌ Error: pnpm-lock.yaml found!"
+            echo "Use Bun lockfile only."
+            exit 1
+          fi
+          echo "✅ pnpm-lock.yaml not present"
+
+      - name: Verify bun.lock exists
+        run: |
+          if [ ! -f "bun.lock" ]; then
+            echo "❌ Error: bun.lock missing"
+            echo "Run bun install and commit bun.lock."
+            exit 1
+          fi
+          echo "✅ bun.lock found"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.9"
+
+      - name: Validate bun install works
+        run: |
+          echo "Testing bun installation..."
+          bun install --frozen-lockfile
+          echo "✅ bun installation successful!"

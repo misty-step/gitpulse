@@ -1,8 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx convex deploy --cmd 'pnpm build:app'",
-  "devCommand": "pnpm dev",
-  "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "outputDirectory": ".next"
+  "github": {
+    "enabled": false
+  },
+  "git": {
+    "deploymentEnabled": false
+  }
 }
