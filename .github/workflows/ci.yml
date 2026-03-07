@@ -70,12 +70,15 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - run: |
-          if [[ "${{ needs.trufflehog.result }}" == "success" && \
-                "${{ needs.security-audit.result }}" == "success" && \
-                "${{ needs.quality-gates.result }}" == "success" ]]; then
+      - name: Check required CI results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+
+          if echo "$NEEDS_JSON" | jq -e 'all(.[]; .result == "success")' >/dev/null; then
             echo "merge-gate green"
           else
-            echo "merge-gate red (trufflehog=${{ needs.trufflehog.result }}, security-audit=${{ needs.security-audit.result }}, quality-gates=${{ needs.quality-gates.result }})"
+            echo "merge-gate red"
             exit 1
           fi
