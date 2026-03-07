@@ -68,6 +68,7 @@ jobs:
     name: merge-gate
     needs: [trufflehog, security-audit, quality-gates]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     steps:
       - name: Check required CI results
@@ -76,6 +77,8 @@ jobs:
         run: |
           echo "$NEEDS_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
 
+          # These dependencies are intentionally unconditional. A skipped result
+          # indicates broken CI topology, not a successful required check.
           if echo "$NEEDS_JSON" | jq -e 'all(.[]; .result == "success")' >/dev/null; then
             echo "merge-gate green"
           else
