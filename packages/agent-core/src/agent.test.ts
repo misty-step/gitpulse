@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, test } from "bun:test";
 
 import type { ActivityEvent, Scope, TimeWindow } from "@gitpulse/schemas";
 
-import { runGitPulseAgent, type ActivitySource } from "./agent";
+import {
+  backoffWithJitter,
+  runGitPulseAgent,
+  type ActivitySource,
+} from "./agent";
 
 const WINDOW: TimeWindow = {
   from: "2026-03-01T00:00:00.000Z",
@@ -63,6 +67,14 @@ beforeEach(() => {
 });
 
 describe("runGitPulseAgent", () => {
+  test("returns zero retry delay when the configured base delay is zero", () => {
+    expect(backoffWithJitter(0)).toBe(0);
+  });
+
+  test("adds bounded jitter to non-zero retry delays", () => {
+    expect(backoffWithJitter(300, () => 0.5)).toBe(350);
+  });
+
   test("returns deterministic metrics and citations without LLM key", async () => {
     const answer = await runGitPulseAgent({
       question: "What happened this week?",

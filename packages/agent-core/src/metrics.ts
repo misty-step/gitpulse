@@ -166,17 +166,13 @@ export function buildBlocks(metrics: ActivityMetrics, events: ActivityEvent[], i
   return blocks;
 }
 
+const EVENT_LABELS: Record<ActivityEvent["type"], string> = {
+  commit: "Commit",
+  pull_request_opened: "PR Opened",
+  pull_request_merged: "PR Merged",
+  pull_request_reviewed: "Review",
+};
+
 export function describeEvent(event: ActivityEvent): string {
-  switch (event.type) {
-    case "commit":
-      return `Commit: ${event.title}`;
-    case "pull_request_opened":
-      return `PR Opened: ${event.title}`;
-    case "pull_request_merged":
-      return `PR Merged: ${event.title}`;
-    case "pull_request_reviewed":
-      return `Review: ${event.title}`;
-    default:
-      return event.title;
-  }
+  return `${EVENT_LABELS[event.type]}: ${event.title}`;
 }

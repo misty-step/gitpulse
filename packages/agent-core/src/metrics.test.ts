@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { ActivityEvent } from "@gitpulse/schemas";
 
-import { computeMetrics } from "./metrics";
+import { computeMetrics, describeEvent } from "./metrics";
 
 const EVENTS: ActivityEvent[] = [
   {
@@ -62,5 +62,14 @@ describe("computeMetrics", () => {
       reviewCount: 1,
       totalEvents: 4,
     });
+  });
+});
+
+describe("describeEvent", () => {
+  test("formats each supported activity event type", () => {
+    expect(describeEvent(EVENTS[0]!)).toBe("Commit: feat: add cli");
+    expect(describeEvent(EVENTS[1]!)).toBe("PR Opened: Agentic pivot");
+    expect(describeEvent(EVENTS[2]!)).toBe("Review: Looks good");
+    expect(describeEvent(EVENTS[3]!)).toBe("PR Merged: Agentic pivot");
   });
 });

@@ -6,6 +6,7 @@ pre-commit:
   parallel: true
   commands:
     llm-sanity:
+      glob: "{packages/agent-core/src/**,packages/schemas/src/**,apps/cli/src/**,apps/web/app/api/agent/**,scripts/audit-llm-models.sh,.github/workflows/evals.yml}"
       run: bun run test:llm
     secrets:
       run: gitleaks protect --staged --verbose --config .gitleaks.toml

@@ -330,8 +330,15 @@ function toNumber(value: unknown): number | undefined {
   return value;
 }
 
-function backoffWithJitter(delayMs: number): number {
-  const jitter = Math.floor(Math.random() * Math.max(100, Math.floor(delayMs / 3)));
+export function backoffWithJitter(
+  delayMs: number,
+  randomSource: () => number = Math.random
+): number {
+  if (delayMs === 0) {
+    return 0;
+  }
+
+  const jitter = Math.floor(randomSource() * Math.max(100, Math.floor(delayMs / 3)));
   return delayMs + jitter;
 }
 
