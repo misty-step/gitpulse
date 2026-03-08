@@ -251,6 +251,97 @@ describe("fetchActivityWindow", () => {
     ]);
   });
 
+  test("collects review events across multiple review pages for the same pull request", async () => {
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      const page = new URL(url).searchParams.get("page");
+      if (url.includes("/commits?")) {
+        return jsonResponse([]);
+      }
+
+      if (url.includes("/search/issues?") && (url.includes("created%3A") || url.includes("merged%3A"))) {
+        return jsonResponse({
+          total_count: 0,
+          incomplete_results: false,
+          items: [],
+        });
+      }
+
+      if (url.includes("/search/issues?") && url.includes("updated%3A")) {
+        return jsonResponse({
+          total_count: 1,
+          incomplete_results: false,
+          items: [
+            {
+              number: 93,
+              title: "multipage reviews",
+              html_url: "https://github.com/misty-step/gitpulse/pull/93",
+              created_at: "2026-02-28T09:00:00.000Z",
+              closed_at: null,
+              user: { login: "author" },
+              pull_request: {},
+            },
+          ],
+        });
+      }
+
+      if (url.includes("/pulls/93/reviews?per_page=100") && page === null) {
+        return new Response(
+          JSON.stringify([
+            {
+              html_url: "https://github.com/misty-step/gitpulse/pull/93#pullrequestreview-100",
+              submitted_at: "2026-03-03T08:00:00.000Z",
+              user: { login: "reviewer-100" },
+            },
+          ]),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              link: '<https://api.github.com/repos/misty-step/gitpulse/pulls/93/reviews?per_page=100&page=2>; rel="next"',
+            },
+          },
+        );
+      }
+
+      if (url.includes("/pulls/93/reviews?per_page=100&page=2") && page === "2") {
+        return jsonResponse([
+          {
+            html_url: "https://github.com/misty-step/gitpulse/pull/93#pullrequestreview-101",
+            submitted_at: "2026-03-03T09:00:00.000Z",
+            user: { login: "reviewer-101" },
+          },
+        ]);
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    const result = await fetchActivityWindow({
+      window: WINDOW,
+      scope: { repos: ["misty-step/gitpulse"] },
+    });
+
+    expect(result.events.filter((event) => event.type === "pull_request_reviewed")).toEqual([
+      {
+        type: "pull_request_reviewed",
+        repo: "misty-step/gitpulse",
+        actor: "reviewer-101",
+        title: "Review on #93: multipage reviews",
+        url: "https://github.com/misty-step/gitpulse/pull/93#pullrequestreview-101",
+        timestamp: "2026-03-03T09:00:00.000Z",
+      },
+      {
+        type: "pull_request_reviewed",
+        repo: "misty-step/gitpulse",
+        actor: "reviewer-100",
+        title: "Review on #93: multipage reviews",
+        url: "https://github.com/misty-step/gitpulse/pull/93#pullrequestreview-100",
+        timestamp: "2026-03-03T08:00:00.000Z",
+      },
+    ]);
+  });
+
   test("fetches additional search pages when a window spans more than one page", async () => {
     globalThis.fetch = (async (input) => {
       const url = String(input);

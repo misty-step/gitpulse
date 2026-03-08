@@ -230,7 +230,7 @@ async function fetchRepoEvents(
     try {
       const reviews = await client.getPagedJson<GitHubReview>(
         `${repoPath}/pulls/${pull.number}/reviews?per_page=100`,
-        { maxPages: 1 },
+        { maxPages: null },
       );
 
       for (const review of reviews) {
