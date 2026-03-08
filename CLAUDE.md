@@ -87,6 +87,25 @@ Surface-only. They should not implement business logic.
 - Always compute metrics deterministically from tool data.
 - Never call GitHub from `apps/web` or `apps/cli` directly.
 - UI only renders whitelisted block types from schema union.
+- Never write deterministic code for what the LLM already handles (see below).
+
+## Agent-Forward Design
+
+GitPulse has an LLM in the loop. Before adding any capability, ask:
+**"Can the model do this with existing or expanded tools?"**
+
+**Model handles:** intent parsing, time inference ("last week"), entity extraction,
+narrative synthesis, insight generation, deciding tool call sequences.
+Do NOT add NLP libraries, regex classifiers, or deterministic parsers for these.
+
+**Code handles:** GitHub API calls, metrics computation, schema validation,
+auth/security, filesystem operations, rendering contracts.
+
+**The line:** If the value of a feature IS the intelligence, the model does it.
+If the value is mechanical data access or correctness guarantees, code does it.
+
+Expand the model's capabilities by giving it better tools and better prompts,
+not by building deterministic pipelines around it.
 
 ## Testing Guidance
 
