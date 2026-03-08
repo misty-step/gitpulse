@@ -12,7 +12,7 @@ done
 
 if [ ${#MISSING[@]} -ne 0 ]; then
   echo "❌ Lefthook hooks missing: ${MISSING[*]}" >&2
-  echo "Run 'pnpm install' or 'lefthook install' to restore git hooks." >&2
+  echo "Run 'bun install' or 'lefthook install' to restore git hooks." >&2
   exit 1
 fi
 

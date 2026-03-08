@@ -4,8 +4,6 @@ export default [
   {
     ignores: [
       '.next/**',
-      '.convex/**',
-      'convex/_generated/**',
       'node_modules/**',
       'out/**',
       'build/**',
