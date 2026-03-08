@@ -63,6 +63,55 @@ describe("GitHubClient", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
+  test("preserves explicit null maxPages as unlimited pagination", async () => {
+    globalThis.fetch = mock(async (input) => {
+      const url = String(input);
+
+      if (url.endsWith("page=1")) {
+        return new Response(JSON.stringify([{ id: 1 }]), {
+          headers: {
+            "content-type": "application/json",
+            link: '<https://api.github.com/items?page=2>; rel="next"',
+          },
+        });
+      }
+
+      if (url.endsWith("page=2")) {
+        return new Response(JSON.stringify([{ id: 2 }]), {
+          headers: {
+            "content-type": "application/json",
+            link: '<https://api.github.com/items?page=3>; rel="next"',
+          },
+        });
+      }
+
+      if (url.endsWith("page=3")) {
+        return new Response(JSON.stringify([{ id: 3 }]), {
+          headers: {
+            "content-type": "application/json",
+            link: '<https://api.github.com/items?page=4>; rel="next"',
+          },
+        });
+      }
+
+      if (url.endsWith("page=4")) {
+        return new Response(JSON.stringify([{ id: 4 }]), {
+          headers: {
+            "content-type": "application/json",
+          },
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as unknown as typeof fetch;
+
+    const client = new GitHubClient({ baseUrl: "https://api.github.com" });
+    const items = await client.getPagedJson<{ id: number }>("/items?page=1", { maxPages: null });
+
+    expect(items).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }]);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(4);
+  });
+
   test("converts aborted fetches into timeout GitHubError", async () => {
     globalThis.fetch = mock(
       (_input, init) =>

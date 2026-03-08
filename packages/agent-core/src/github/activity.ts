@@ -192,7 +192,7 @@ async function fetchRepoEvents(
   const openedPulls = await searchPullRequests(client, repo, window, "created", warnings);
   for (const pull of openedPulls) {
     const actor = pull.user?.login ?? "ghost";
-    if (!includeContributor(actor, contributorFilter)) {
+    if (!inWindow(pull.created_at, window) || !includeContributor(actor, contributorFilter)) {
       continue;
     }
 
@@ -211,7 +211,12 @@ async function fetchRepoEvents(
     const actor = pull.user?.login ?? "ghost";
     // GitHub Search exposes merged PR timestamps as closed_at for is:merged queries.
     const mergedAt = pull.closed_at;
-    if (!mergedAt || !includeContributor(actor, contributorFilter)) {
+    if (!mergedAt) {
+      warnings.push(`GitHub search returned merged PR without closed_at for ${repo}#${pull.number}; skipping.`);
+      continue;
+    }
+
+    if (!inWindow(mergedAt, window) || !includeContributor(actor, contributorFilter)) {
       continue;
     }
 
@@ -270,8 +275,8 @@ async function searchPullRequests(
     client,
     repo,
     field,
-    Date.parse(window.from),
-    Date.parse(window.to),
+    floorToSecond(window.from),
+    ceilToSecond(window.to),
     warnings,
   );
 
@@ -287,37 +292,39 @@ async function searchPullRequestsRange(
   client: GitHubClient,
   repo: string,
   field: "created" | "merged" | "updated",
-  fromMs: number,
-  toMs: number,
+  fromSecond: number,
+  toSecond: number,
   warnings: string[],
 ): Promise<GitHubSearchPullRequest[]> {
-  const query = buildPullRequestSearchQuery(repo, field, fromMs, toMs);
+  const query = buildPullRequestSearchQuery(repo, field, fromSecond, toSecond);
   const firstPage = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, field, 1));
 
   if (firstPage.total_count > SEARCH_RESULT_LIMIT) {
-    if (fromMs >= toMs) {
+    if (fromSecond >= toSecond) {
       warnings.push(
-        `GitHub search exceeded ${SEARCH_RESULT_LIMIT} PRs for ${repo} (${field}) within a 1ms slice; only the first ${SEARCH_PAGE_SIZE} results were returned.`,
+        `GitHub search exceeded ${SEARCH_RESULT_LIMIT} PRs for ${repo} (${field}) within a 1s slice; only the first ${SEARCH_PAGE_SIZE} results were returned.`,
       );
       return firstPage.items;
     }
 
-    const midpoint = Math.floor((fromMs + toMs) / 2);
+    const midpoint = Math.floor((fromSecond + toSecond) / 2);
     // firstPage.items span the full range and cannot be assigned to a child slice without duplication.
-    const left = await searchPullRequestsRange(client, repo, field, fromMs, midpoint, warnings);
-    const right = await searchPullRequestsRange(client, repo, field, midpoint + 1, toMs, warnings);
+    const left = await searchPullRequestsRange(client, repo, field, fromSecond, midpoint, warnings);
+    const right = await searchPullRequestsRange(client, repo, field, midpoint + 1, toSecond, warnings);
     return [...left, ...right];
   }
 
-  if (firstPage.incomplete_results) {
-    warnings.push(`GitHub search returned incomplete PR results for ${repo} (${field}).`);
-  }
-
+  let incompleteResults = firstPage.incomplete_results;
   const pulls = [...firstPage.items];
-  const totalPages = Math.min(SEARCH_RESULT_LIMIT / SEARCH_PAGE_SIZE, Math.ceil(firstPage.total_count / SEARCH_PAGE_SIZE));
+  const totalPages = Math.ceil(firstPage.total_count / SEARCH_PAGE_SIZE);
   for (let page = 2; page <= totalPages; page += 1) {
     const response = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, field, page));
+    incompleteResults ||= response.incomplete_results;
     pulls.push(...response.items);
+  }
+
+  if (incompleteResults) {
+    warnings.push(`GitHub search returned incomplete PR results for ${repo} (${field}).`);
   }
 
   return pulls;
@@ -326,14 +333,14 @@ async function searchPullRequestsRange(
 function buildPullRequestSearchQuery(
   repo: string,
   field: "created" | "merged" | "updated",
-  fromMs: number,
-  toMs: number,
+  fromSecond: number,
+  toSecond: number,
 ): string {
   const parts = [`repo:${repo}`, "is:pr"];
   if (field === "merged") {
     parts.push("is:merged");
   }
-  parts.push(`${field}:${new Date(fromMs).toISOString()}..${new Date(toMs).toISOString()}`);
+  parts.push(`${field}:${toSearchTimestamp(fromSecond)}..${toSearchTimestamp(toSecond)}`);
   return parts.join(" ");
 }
 
@@ -349,7 +356,20 @@ function searchIssuesPath(query: string, field: "created" | "merged" | "updated"
 }
 
 function searchSort(field: "created" | "merged" | "updated"): "created" | "updated" {
+  // GitHub Search does not expose merged-date sorting, so merged queries fall back to created ordering.
   return field === "updated" ? "updated" : "created";
+}
+
+function toSearchTimestamp(second: number): string {
+  return new Date(second * 1000).toISOString().replace(".000Z", "Z");
+}
+
+function floorToSecond(value: string): number {
+  return Math.floor(Date.parse(value) / 1000);
+}
+
+function ceilToSecond(value: string): number {
+  return Math.ceil(Date.parse(value) / 1000);
 }
 
 function includeContributor(actor: string, filter: Set<string>): boolean {
