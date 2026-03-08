@@ -17,12 +17,18 @@ type GitHubCommit = {
   };
 };
 
-type GitHubPullRequest = {
+type GitHubSearchResult<T> = {
+  total_count: number;
+  incomplete_results: boolean;
+  items: T[];
+};
+
+type GitHubSearchPullRequest = {
   number: number;
   title: string;
   html_url: string;
   created_at: string;
-  merged_at: string | null;
+  closed_at: string | null;
   user: { login: string } | null;
 };
 
@@ -179,47 +185,43 @@ async function fetchRepoEvents(
     });
   }
 
-  const pulls = await client.getPagedJson<GitHubPullRequest>(
-    `${repoPath}/pulls?state=all&sort=updated&direction=desc&per_page=100`,
-    { maxPages: 2 },
-  );
-
-  const candidatePulls = pulls.filter((pull) => {
+  const openedPulls = await searchPullRequests(client, repo, window, "created", warnings);
+  for (const pull of openedPulls) {
     const actor = pull.user?.login ?? "ghost";
     if (!includeContributor(actor, contributorFilter)) {
-      return false;
+      continue;
     }
 
-    return inWindow(pull.created_at, window) || (pull.merged_at ? inWindow(pull.merged_at, window) : false);
-  });
-
-  for (const pull of candidatePulls) {
-    const actor = pull.user?.login ?? "ghost";
-
-    if (inWindow(pull.created_at, window)) {
-      events.push({
-        type: "pull_request_opened",
-        repo,
-        actor,
-        title: pull.title,
-        url: pull.html_url,
-        timestamp: toIso(pull.created_at),
-      });
-    }
-
-    if (pull.merged_at && inWindow(pull.merged_at, window)) {
-      events.push({
-        type: "pull_request_merged",
-        repo,
-        actor,
-        title: pull.title,
-        url: pull.html_url,
-        timestamp: toIso(pull.merged_at),
-      });
-    }
+    events.push({
+      type: "pull_request_opened",
+      repo,
+      actor,
+      title: pull.title,
+      url: pull.html_url,
+      timestamp: toIso(pull.created_at),
+    });
   }
 
-  for (const pull of candidatePulls) {
+  const mergedPulls = await searchPullRequests(client, repo, window, "merged", warnings);
+  for (const pull of mergedPulls) {
+    const actor = pull.user?.login ?? "ghost";
+    const mergedAt = pull.closed_at;
+    if (!mergedAt || !includeContributor(actor, contributorFilter)) {
+      continue;
+    }
+
+    events.push({
+      type: "pull_request_merged",
+      repo,
+      actor,
+      title: pull.title,
+      url: pull.html_url,
+      timestamp: toIso(mergedAt),
+    });
+  }
+
+  const reviewPulls = await searchPullRequests(client, repo, window, "updated", warnings);
+  for (const pull of reviewPulls) {
     try {
       const reviews = await client.getPagedJson<GitHubReview>(
         `${repoPath}/pulls/${pull.number}/reviews?per_page=100`,
@@ -250,6 +252,92 @@ async function fetchRepoEvents(
   }
 
   return events;
+}
+
+async function searchPullRequests(
+  client: GitHubClient,
+  repo: string,
+  window: TimeWindow,
+  field: "created" | "merged" | "updated",
+  warnings: string[],
+): Promise<GitHubSearchPullRequest[]> {
+  const deduped = new Map<number, GitHubSearchPullRequest>();
+  const pulls = await searchPullRequestsRange(
+    client,
+    repo,
+    field,
+    Date.parse(window.from),
+    Date.parse(window.to),
+    warnings,
+  );
+
+  for (const pull of pulls) {
+    deduped.set(pull.number, pull);
+  }
+
+  return [...deduped.values()];
+}
+
+async function searchPullRequestsRange(
+  client: GitHubClient,
+  repo: string,
+  field: "created" | "merged" | "updated",
+  fromMs: number,
+  toMs: number,
+  warnings: string[],
+): Promise<GitHubSearchPullRequest[]> {
+  const query = buildPullRequestSearchQuery(repo, field, fromMs, toMs);
+  const firstPage = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, 1));
+
+  if (firstPage.incomplete_results) {
+    warnings.push(`GitHub search returned incomplete PR results for ${repo} (${field}).`);
+  }
+
+  if (firstPage.total_count > 1000) {
+    if (fromMs >= toMs) {
+      warnings.push(`GitHub search exceeded 1000 PRs for ${repo} (${field}) within a 1ms slice; results truncated.`);
+      return firstPage.items;
+    }
+
+    const midpoint = Math.floor((fromMs + toMs) / 2);
+    const [left, right] = await Promise.all([
+      searchPullRequestsRange(client, repo, field, fromMs, midpoint, warnings),
+      searchPullRequestsRange(client, repo, field, midpoint + 1, toMs, warnings),
+    ]);
+    return [...left, ...right];
+  }
+
+  const pulls = [...firstPage.items];
+  const totalPages = Math.min(10, Math.ceil(firstPage.total_count / 100));
+  for (let page = 2; page <= totalPages; page += 1) {
+    const response = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, page));
+    pulls.push(...response.items);
+  }
+
+  return pulls;
+}
+
+function buildPullRequestSearchQuery(
+  repo: string,
+  field: "created" | "merged" | "updated",
+  fromMs: number,
+  toMs: number,
+): string {
+  const parts = [`repo:${repo}`, "is:pr"];
+  if (field === "merged") {
+    parts.push("is:merged");
+  }
+  parts.push(`${field}:${new Date(fromMs).toISOString()}..${new Date(toMs).toISOString()}`);
+  return parts.join(" ");
+}
+
+function searchIssuesPath(query: string, page: number): string {
+  const params = new URLSearchParams({
+    q: query,
+    per_page: "100",
+    page: String(page),
+  });
+  return `/search/issues?${params.toString()}`;
 }
 
 function includeContributor(actor: string, filter: Set<string>): boolean {
