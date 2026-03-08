@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 **/node_modules
@@ -9,9 +7,7 @@
 
 # testing
 /coverage
-/playwright-report
 /test-results
-# Playwright auth state (contains JWT tokens)
 **/.clerk
 
 # next.js
@@ -25,7 +21,6 @@
 
 # production
 /build
-/storybook-static
 
 # misc
 .DS_Store
@@ -41,10 +36,6 @@ yarn-error.log*
 
 # vercel
 .vercel
-
-# Convex
-.convex/
-# convex/_generated/ - Committed to version control per Convex best practices
 
 # typescript
 *.tsbuildinfo
@@ -75,10 +66,6 @@ CODE_REVIEW.md
 GROOM-PROMPT.md
 thinktank_*/
 
-*storybook.log
-# AI consultation artifacts
-thinktank_*/
-
 # TypeScript build info
 tsconfig.*.tsbuildinfo
 
@@ -86,6 +73,3 @@ tsconfig.*.tsbuildinfo
 evals/.promptfoo/
 
 /docs/leyline
-
-# clerk configuration (can include secrets)
-/.clerk/
