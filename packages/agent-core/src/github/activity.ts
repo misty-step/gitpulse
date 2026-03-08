@@ -29,6 +29,7 @@ type GitHubSearchPullRequest = {
   html_url: string;
   created_at: string;
   closed_at: string | null;
+  pull_request?: Record<string, unknown>;
   user: { login: string } | null;
 };
 
@@ -52,6 +53,9 @@ export type FetchActivityInput = {
   githubToken?: string;
   maxRepos?: number;
 };
+
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_RESULT_LIMIT = 1000;
 
 export async function fetchActivityWindow(input: FetchActivityInput): Promise<ActivityWindowData> {
   const scope = normalizeScope(input.scope);
@@ -205,6 +209,7 @@ async function fetchRepoEvents(
   const mergedPulls = await searchPullRequests(client, repo, window, "merged", warnings);
   for (const pull of mergedPulls) {
     const actor = pull.user?.login ?? "ghost";
+    // GitHub Search exposes merged PR timestamps as closed_at for is:merged queries.
     const mergedAt = pull.closed_at;
     if (!mergedAt || !includeContributor(actor, contributorFilter)) {
       continue;
@@ -261,7 +266,6 @@ async function searchPullRequests(
   field: "created" | "merged" | "updated",
   warnings: string[],
 ): Promise<GitHubSearchPullRequest[]> {
-  const deduped = new Map<number, GitHubSearchPullRequest>();
   const pulls = await searchPullRequestsRange(
     client,
     repo,
@@ -271,6 +275,7 @@ async function searchPullRequests(
     warnings,
   );
 
+  const deduped = new Map<number, GitHubSearchPullRequest>();
   for (const pull of pulls) {
     deduped.set(pull.number, pull);
   }
@@ -287,30 +292,31 @@ async function searchPullRequestsRange(
   warnings: string[],
 ): Promise<GitHubSearchPullRequest[]> {
   const query = buildPullRequestSearchQuery(repo, field, fromMs, toMs);
-  const firstPage = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, 1));
+  const firstPage = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, field, 1));
+
+  if (firstPage.total_count > SEARCH_RESULT_LIMIT) {
+    if (fromMs >= toMs) {
+      warnings.push(
+        `GitHub search exceeded ${SEARCH_RESULT_LIMIT} PRs for ${repo} (${field}) within a 1ms slice; only the first ${SEARCH_PAGE_SIZE} results were returned.`,
+      );
+      return firstPage.items;
+    }
+
+    const midpoint = Math.floor((fromMs + toMs) / 2);
+    // firstPage.items span the full range and cannot be assigned to a child slice without duplication.
+    const left = await searchPullRequestsRange(client, repo, field, fromMs, midpoint, warnings);
+    const right = await searchPullRequestsRange(client, repo, field, midpoint + 1, toMs, warnings);
+    return [...left, ...right];
+  }
 
   if (firstPage.incomplete_results) {
     warnings.push(`GitHub search returned incomplete PR results for ${repo} (${field}).`);
   }
 
-  if (firstPage.total_count > 1000) {
-    if (fromMs >= toMs) {
-      warnings.push(`GitHub search exceeded 1000 PRs for ${repo} (${field}) within a 1ms slice; results truncated.`);
-      return firstPage.items;
-    }
-
-    const midpoint = Math.floor((fromMs + toMs) / 2);
-    const [left, right] = await Promise.all([
-      searchPullRequestsRange(client, repo, field, fromMs, midpoint, warnings),
-      searchPullRequestsRange(client, repo, field, midpoint + 1, toMs, warnings),
-    ]);
-    return [...left, ...right];
-  }
-
   const pulls = [...firstPage.items];
-  const totalPages = Math.min(10, Math.ceil(firstPage.total_count / 100));
+  const totalPages = Math.min(SEARCH_RESULT_LIMIT / SEARCH_PAGE_SIZE, Math.ceil(firstPage.total_count / SEARCH_PAGE_SIZE));
   for (let page = 2; page <= totalPages; page += 1) {
-    const response = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, page));
+    const response = await client.getJson<GitHubSearchResult<GitHubSearchPullRequest>>(searchIssuesPath(query, field, page));
     pulls.push(...response.items);
   }
 
@@ -331,13 +337,19 @@ function buildPullRequestSearchQuery(
   return parts.join(" ");
 }
 
-function searchIssuesPath(query: string, page: number): string {
+function searchIssuesPath(query: string, field: "created" | "merged" | "updated", page: number): string {
   const params = new URLSearchParams({
     q: query,
-    per_page: "100",
+    per_page: String(SEARCH_PAGE_SIZE),
     page: String(page),
+    sort: searchSort(field),
+    order: "asc",
   });
   return `/search/issues?${params.toString()}`;
+}
+
+function searchSort(field: "created" | "merged" | "updated"): "created" | "updated" {
+  return field === "updated" ? "updated" : "created";
 }
 
 function includeContributor(actor: string, filter: Set<string>): boolean {

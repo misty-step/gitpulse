@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const GitHubRepoSlugSchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, {
+  message: "repo must use owner/repo format",
+});
 
 export const TimeWindowSchema = z
   .object({
@@ -13,7 +16,7 @@ export const TimeWindowSchema = z
   });
 
 export const ScopeSchema = z.object({
-  repos: z.array(z.string().min(1)).default([]),
+  repos: z.array(GitHubRepoSlugSchema).default([]),
   orgs: z.array(z.string().min(1)).default([]),
   contributors: z.array(z.string().min(1)).default([]),
 });

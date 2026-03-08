@@ -27,4 +27,14 @@ describe("schemas", () => {
 
     expect(() => ScopeSchema.parse(scope)).not.toThrow();
   });
+
+  test("rejects repo values that are not owner slash repo slugs", () => {
+    expect(() => {
+      ScopeSchema.parse({
+        repos: ["misty-step/gitpulse is:issue"],
+        orgs: [],
+        contributors: [],
+      });
+    }).toThrow("repo must use owner/repo format");
+  });
 });

@@ -250,6 +250,164 @@ describe("fetchActivityWindow", () => {
       },
     ]);
   });
+
+  test("fetches additional search pages when a window spans more than one page", async () => {
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      const page = new URL(url).searchParams.get("page");
+      if (url.includes("/commits?")) {
+        return jsonResponse([]);
+      }
+
+      if (url.includes("/search/issues?") && url.includes("merged%3A")) {
+        return jsonResponse({ total_count: 0, incomplete_results: false, items: [] });
+      }
+
+      if (url.includes("/search/issues?") && url.includes("updated%3A")) {
+        return jsonResponse({ total_count: 0, incomplete_results: false, items: [] });
+      }
+
+      if (url.includes("/search/issues?") && url.includes("created%3A") && page === "1") {
+        return jsonResponse({
+          total_count: 101,
+          incomplete_results: false,
+          items: Array.from({ length: 100 }, (_, index) => ({
+            number: index + 1,
+            title: `page-one-${index + 1}`,
+            html_url: `https://github.com/misty-step/gitpulse/pull/${index + 1}`,
+            created_at: "2026-03-02T10:00:00.000Z",
+            closed_at: null,
+            user: { login: "phaedrus" },
+            pull_request: {},
+          })),
+        });
+      }
+
+      if (url.includes("/search/issues?") && url.includes("created%3A") && page === "2") {
+        return jsonResponse({
+          total_count: 101,
+          incomplete_results: false,
+          items: [
+            {
+              number: 101,
+              title: "page-two-101",
+              html_url: "https://github.com/misty-step/gitpulse/pull/101",
+              created_at: "2026-03-02T10:00:00.000Z",
+              closed_at: null,
+              user: { login: "phaedrus" },
+              pull_request: {},
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    const result = await fetchActivityWindow({
+      window: WINDOW,
+      scope: { repos: ["misty-step/gitpulse"] },
+    });
+
+    expect(result.events.filter((event) => event.type === "pull_request_opened")).toHaveLength(101);
+  });
+
+  test("splits oversized search windows, dedupes duplicates, and warns only on leaf incomplete results", async () => {
+    globalThis.fetch = (async (input) => {
+      const url = String(input);
+      const decodedUrl = decodeURIComponent(url);
+
+      if (decodedUrl.includes("/commits?")) {
+        return jsonResponse([]);
+      }
+
+      if (decodedUrl.includes("/search/issues?") && (decodedUrl.includes("merged:") || decodedUrl.includes("updated:"))) {
+        return jsonResponse({ total_count: 0, incomplete_results: false, items: [] });
+      }
+
+      if (
+        decodedUrl.includes("/search/issues?") &&
+        decodedUrl.includes("created:2026-03-01T00:00:00.000Z..2026-03-05T00:00:00.000Z")
+      ) {
+        return jsonResponse({
+          total_count: 1001,
+          incomplete_results: true,
+          items: [
+            {
+              number: 7,
+              title: "discarded-root-page",
+              html_url: "https://github.com/misty-step/gitpulse/pull/7",
+              created_at: "2026-03-02T00:00:00.000Z",
+              closed_at: null,
+              user: { login: "phaedrus" },
+              pull_request: {},
+            },
+          ],
+        });
+      }
+
+      if (
+        decodedUrl.includes("/search/issues?") &&
+        decodedUrl.includes("created:2026-03-01T00:00:00.000Z..2026-03-03T00:00:00.000Z")
+      ) {
+        return jsonResponse({
+          total_count: 2,
+          incomplete_results: true,
+          items: [
+            {
+              number: 88,
+              title: "left-split",
+              html_url: "https://github.com/misty-step/gitpulse/pull/88",
+              created_at: "2026-03-02T08:00:00.000Z",
+              closed_at: null,
+              user: { login: "phaedrus" },
+              pull_request: {},
+            },
+          ],
+        });
+      }
+
+      if (
+        decodedUrl.includes("/search/issues?") &&
+        decodedUrl.includes("created:2026-03-03T00:00:00.001Z..2026-03-05T00:00:00.000Z")
+      ) {
+        return jsonResponse({
+          total_count: 2,
+          incomplete_results: false,
+          items: [
+            {
+              number: 88,
+              title: "right-duplicate",
+              html_url: "https://github.com/misty-step/gitpulse/pull/88",
+              created_at: "2026-03-02T08:00:00.000Z",
+              closed_at: null,
+              user: { login: "phaedrus" },
+              pull_request: {},
+            },
+            {
+              number: 89,
+              title: "right-unique",
+              html_url: "https://github.com/misty-step/gitpulse/pull/89",
+              created_at: "2026-03-04T08:00:00.000Z",
+              closed_at: null,
+              user: { login: "phaedrus" },
+              pull_request: {},
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    const result = await fetchActivityWindow({
+      window: WINDOW,
+      scope: { repos: ["misty-step/gitpulse"] },
+    });
+
+    expect(result.events.filter((event) => event.type === "pull_request_opened")).toHaveLength(2);
+    expect(result.warnings).toEqual(["GitHub search returned incomplete PR results for misty-step/gitpulse (created)."]);
+  });
 });
 
 function jsonResponse(body: unknown): Response {
