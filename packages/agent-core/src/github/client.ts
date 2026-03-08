@@ -47,13 +47,13 @@ export class GitHubClient {
     return (await response.json()) as T;
   }
 
-  async getPagedJson<T>(path: string, options: { maxPages?: number } = {}): Promise<T[]> {
-    const maxPages = options.maxPages ?? 3;
+  async getPagedJson<T>(path: string, options: { maxPages?: number | null } = {}): Promise<T[]> {
+    const maxPages = options.maxPages === undefined ? 3 : options.maxPages;
     const items: T[] = [];
     let pageCount = 0;
     let nextPath: string | null = path;
 
-    while (nextPath && pageCount < maxPages) {
+    while (nextPath && (maxPages === null || pageCount < maxPages)) {
       const response = await this.request(nextPath);
 
       if (!response.ok) {
