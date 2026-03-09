@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@gitpulse/schemas": "workspace:*",
-    "@openrouter/ai-sdk-provider": "^1.5.2",
+    "@openrouter/ai-sdk-provider": "^2.2.5",
     "ai": "5.0.144",
     "zod": "^3.25.76"
   }
